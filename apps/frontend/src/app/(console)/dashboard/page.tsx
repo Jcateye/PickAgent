@@ -1,5 +1,5 @@
 import { DashboardPage } from '@/modules/dashboard/dashboard-page'
 
-export default function DashboardRoute() {
+export default async function DashboardRoute() {
   return <DashboardPage />
 }

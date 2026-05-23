@@ -6,8 +6,8 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
-export function DashboardPage() {
-  const summary = getDashboardSummary()
+export async function DashboardPage() {
+  const summary = await getDashboardSummary()
 
   return (
     <div className="pageStack">
