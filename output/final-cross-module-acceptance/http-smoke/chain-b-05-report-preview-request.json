@@ -1,0 +1,13 @@
+{
+  "type": "ACTIVITY",
+  "skuProfileIds": [
+    "sku_0001",
+    "sku_0002",
+    "sku_0009"
+  ],
+  "simulationResultIds": [
+    "simulation_0015",
+    "simulation_0016",
+    "simulation_0017"
+  ]
+}

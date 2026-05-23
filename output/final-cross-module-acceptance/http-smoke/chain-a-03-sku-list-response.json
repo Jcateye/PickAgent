@@ -1,0 +1,106 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "skuProfileId": "sku_0001",
+        "canonicalSkuKey": "tmall:store_demo:sku_ready_001",
+        "productName": "轻量保温杯 500ml",
+        "platform": "tmall",
+        "storeId": "store_demo",
+        "healthStatus": "READY",
+        "healthScore": 100,
+        "dataQualityScore": 100,
+        "topIssues": [],
+        "nextActions": []
+      },
+      {
+        "skuProfileId": "sku_0002",
+        "canonicalSkuKey": "tmall:store_demo:sku_repair_002",
+        "productName": "旅行收纳包",
+        "platform": "tmall",
+        "storeId": "store_demo",
+        "healthStatus": "READY",
+        "healthScore": 80,
+        "dataQualityScore": 100,
+        "topIssues": [
+          "好评率偏低"
+        ],
+        "nextActions": [
+          "检查差评原因并准备客服处理"
+        ]
+      },
+      {
+        "skuProfileId": "sku_0009",
+        "canonicalSkuKey": "doudian:fxg.jinritemai.com:3668752191222018",
+        "productName": "韩版夏季短袖上衣 / 浅蓝色/均码",
+        "platform": "doudian",
+        "storeId": "fxg.jinritemai.com",
+        "healthStatus": "WARNING",
+        "healthScore": 70,
+        "dataQualityScore": 70,
+        "topIssues": [
+          "资质证书未通过"
+        ],
+        "nextActions": [
+          "补全或更新证书资料"
+        ]
+      },
+      {
+        "skuProfileId": "sku_0010",
+        "canonicalSkuKey": "doudian:fxg.jinritemai.com:3668752191222019",
+        "productName": "夏季防晒外套 / 白色/S",
+        "platform": "doudian",
+        "storeId": "fxg.jinritemai.com",
+        "healthStatus": "WARNING",
+        "healthScore": 70,
+        "dataQualityScore": 70,
+        "topIssues": [
+          "资质证书未通过"
+        ],
+        "nextActions": [
+          "补全或更新证书资料"
+        ]
+      },
+      {
+        "skuProfileId": "sku_0011",
+        "canonicalSkuKey": "doudian:fxg.jinritemai.com:3668752191222020",
+        "productName": "夏季防晒外套 / 白色/M",
+        "platform": "doudian",
+        "storeId": "fxg.jinritemai.com",
+        "healthStatus": "WARNING",
+        "healthScore": 70,
+        "dataQualityScore": 70,
+        "topIssues": [
+          "资质证书未通过"
+        ],
+        "nextActions": [
+          "补全或更新证书资料"
+        ]
+      },
+      {
+        "skuProfileId": "sku_0012",
+        "canonicalSkuKey": "doudian:fxg.jinritemai.com:3657304907025666",
+        "productName": "韩版夏季短袖上衣 / 浅蓝色/均码",
+        "platform": "doudian",
+        "storeId": "fxg.jinritemai.com",
+        "healthStatus": "BLOCKED",
+        "healthScore": 35,
+        "dataQualityScore": 70,
+        "topIssues": [
+          "库存不足",
+          "资质证书未通过"
+        ],
+        "nextActions": [
+          "补充可售库存",
+          "补全或更新证书资料"
+        ]
+      }
+    ],
+    "page": 1,
+    "pageSize": 100,
+    "total": 6
+  },
+  "requestId": "req_mpin605f_wenqtb"
+}

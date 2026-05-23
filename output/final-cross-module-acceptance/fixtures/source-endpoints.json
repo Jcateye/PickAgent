@@ -1,0 +1,10 @@
+[
+  {
+    "endpoint": "POST /stock/manage/list",
+    "note": "来自真实抖店库存列表 fixture（第一页+第二页）"
+  },
+  {
+    "endpoint": "POST /stock/manage/sku_stock_diagnose",
+    "note": "SKU 诊断 fixture 注入 is_alarming evidence"
+  }
+]

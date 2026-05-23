@@ -1,0 +1,4 @@
+{
+  "sessionKey": "final-cross-module-acceptance-session",
+  "objective": "验证 WorkbenchContext 到 Agent sidecar/SSE/Review Gate 主链路"
+}

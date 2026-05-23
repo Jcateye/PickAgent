@@ -1,0 +1,150 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "simulationRunId": "simulation_run_0018",
+    "activityRuleSetId": "rules_0014",
+    "status": "SUCCEEDED",
+    "scope": {
+      "skuProfileIds": [
+        "sku_0001",
+        "sku_0002",
+        "sku_0009"
+      ],
+      "whatIf": {
+        "stock": 12
+      }
+    },
+    "results": [
+      {
+        "simulationResultId": "simulation_0015",
+        "skuProfileId": "sku_0001",
+        "ruleSetId": "rules_0014",
+        "eligibility": "MANUAL_REVIEW",
+        "failedRules": [
+          {
+            "id": "stock_min_acceptance",
+            "type": "threshold",
+            "field": "stock",
+            "operator": "gte",
+            "value": 80,
+            "message": "活动库存不得低于 80 件",
+            "severity": "blocking"
+          },
+          {
+            "id": "business_chance_manual_review",
+            "type": "manual_review",
+            "message": "business_chance_center 商机线索必须人工复核",
+            "severity": "warning"
+          }
+        ],
+        "evidence": [
+          {
+            "type": "rule",
+            "entityId": "rules_0014",
+            "label": "活动规则集",
+            "summary": "准入模拟基于持久化规则集执行"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0001",
+            "label": "SKU 快照",
+            "summary": "模拟读取当前 SKU 快照，不修改长期健康状态"
+          }
+        ],
+        "repairSuggestions": [
+          "补货到活动门槛以上后重跑模拟",
+          "修复规则失败项：business_chance_center 商机线索必须人工复核"
+        ],
+        "originalEligibility": "MANUAL_REVIEW"
+      },
+      {
+        "simulationResultId": "simulation_0016",
+        "skuProfileId": "sku_0002",
+        "ruleSetId": "rules_0014",
+        "eligibility": "MANUAL_REVIEW",
+        "failedRules": [
+          {
+            "id": "stock_min_acceptance",
+            "type": "threshold",
+            "field": "stock",
+            "operator": "gte",
+            "value": 80,
+            "message": "活动库存不得低于 80 件",
+            "severity": "blocking"
+          },
+          {
+            "id": "business_chance_manual_review",
+            "type": "manual_review",
+            "message": "business_chance_center 商机线索必须人工复核",
+            "severity": "warning"
+          }
+        ],
+        "evidence": [
+          {
+            "type": "rule",
+            "entityId": "rules_0014",
+            "label": "活动规则集",
+            "summary": "准入模拟基于持久化规则集执行"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0003",
+            "label": "SKU 快照",
+            "summary": "模拟读取当前 SKU 快照，不修改长期健康状态"
+          }
+        ],
+        "repairSuggestions": [
+          "补货到活动门槛以上后重跑模拟",
+          "修复规则失败项：business_chance_center 商机线索必须人工复核"
+        ],
+        "originalEligibility": "MANUAL_REVIEW"
+      },
+      {
+        "simulationResultId": "simulation_0017",
+        "skuProfileId": "sku_0009",
+        "ruleSetId": "rules_0014",
+        "eligibility": "MANUAL_REVIEW",
+        "failedRules": [
+          {
+            "id": "stock_min_acceptance",
+            "type": "threshold",
+            "field": "stock",
+            "operator": "gte",
+            "value": 80,
+            "message": "活动库存不得低于 80 件",
+            "severity": "blocking"
+          },
+          {
+            "id": "business_chance_manual_review",
+            "type": "manual_review",
+            "message": "business_chance_center 商机线索必须人工复核",
+            "severity": "warning"
+          }
+        ],
+        "evidence": [
+          {
+            "type": "rule",
+            "entityId": "rules_0014",
+            "label": "活动规则集",
+            "summary": "准入模拟基于持久化规则集执行"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0005",
+            "label": "SKU 快照",
+            "summary": "模拟读取当前 SKU 快照，不修改长期健康状态"
+          }
+        ],
+        "repairSuggestions": [
+          "补货到活动门槛以上后重跑模拟",
+          "修复规则失败项：business_chance_center 商机线索必须人工复核"
+        ],
+        "originalEligibility": "MANUAL_REVIEW"
+      }
+    ],
+    "startedAt": "2026-05-23T17:47:51.542Z",
+    "completedAt": "2026-05-23T17:47:51.542Z"
+  },
+  "requestId": "req_mpin60l2_9ya5x2"
+}

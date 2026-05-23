@@ -1,0 +1,7 @@
+{
+  "modelProvider": "pi",
+  "modelName": "pi-tool-policy-poc",
+  "inputJson": {
+    "objective": "acceptance chain C replay/sse smoke"
+  }
+}

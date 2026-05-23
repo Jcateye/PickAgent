@@ -1,0 +1,47 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "session": {
+      "id": "agent_session_0001",
+      "sessionKey": "final-cross-module-acceptance-session",
+      "userId": null,
+      "surface": "agent-copilot",
+      "piSessionKey": null,
+      "piSessionRef": null,
+      "title": "验证 WorkbenchContext 到 Agent sidecar/SSE/Review Gate 主链路",
+      "status": "ACTIVE",
+      "configJson": {},
+      "lastActiveAt": "2026-05-23T17:47:51.998Z",
+      "createdAt": "2026-05-23T17:47:51.998Z",
+      "updatedAt": "2026-05-23T17:47:51.998Z"
+    },
+    "mission": {
+      "id": "agent_mission_0002",
+      "sessionId": "agent_session_0001",
+      "missionType": "goal_driven",
+      "objective": "验证 WorkbenchContext 到 Agent sidecar/SSE/Review Gate 主链路",
+      "autonomyLevel": "review_required",
+      "status": "ACTIVE",
+      "sourceSurface": "agent-copilot",
+      "subjectType": null,
+      "subjectId": null,
+      "constraintsJson": {},
+      "workbenchContextJson": {},
+      "planJson": {
+        "steps": []
+      },
+      "nextActionsJson": {
+        "items": [
+          "start_run"
+        ]
+      },
+      "createdBy": null,
+      "completedAt": null,
+      "canceledAt": null,
+      "createdAt": "2026-05-23T17:47:51.998Z",
+      "updatedAt": "2026-05-23T17:47:51.998Z"
+    }
+  },
+  "requestId": "req_mpin60xq_ffdpvt"
+}

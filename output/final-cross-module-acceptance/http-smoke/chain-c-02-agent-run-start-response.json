@@ -1,0 +1,28 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "id": "agent_run_0003",
+    "missionId": "agent_mission_0002",
+    "sessionId": "agent_session_0001",
+    "piRunId": null,
+    "workflowRunId": null,
+    "status": "RUNNING",
+    "modelProvider": "pi",
+    "modelName": "pi-tool-policy-poc",
+    "inputJson": {
+      "objective": "acceptance chain C replay/sse smoke"
+    },
+    "outputJson": {},
+    "errorMessage": null,
+    "timeoutMs": null,
+    "cancelRequested": false,
+    "usageJson": {},
+    "metadataJson": {},
+    "startedAt": "2026-05-23T17:47:52.263Z",
+    "completedAt": null,
+    "createdAt": "2026-05-23T17:47:52.263Z",
+    "updatedAt": "2026-05-23T17:47:52.263Z"
+  },
+  "requestId": "req_mpin6153_s8nd2u"
+}

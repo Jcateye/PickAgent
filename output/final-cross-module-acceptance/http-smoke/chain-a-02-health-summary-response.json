@@ -1,0 +1,11 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "total": 6,
+    "ready": 2,
+    "warning": 3,
+    "blocked": 1
+  },
+  "requestId": "req_mpin6042_7bss7j"
+}

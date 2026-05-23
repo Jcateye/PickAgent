@@ -1,0 +1,5 @@
+{
+  "decision": "REQUEST_CHANGES",
+  "decisionBy": "final-acceptance@pickagent.local",
+  "decisionComment": "验收 smoke：需要补齐活动线索归属后重跑。"
+}
