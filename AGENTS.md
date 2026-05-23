@@ -11,6 +11,7 @@ Use the ProjectWorkFlowDemo workflow layer for non-trivial work.
 - Read `docs/agents/workspace-template.md` before loading ecosystem-specific tools.
 - Read `CONTEXT.md` for project vocabulary.
 - Read `docs/PRD.md`, `docs/architecture.md`, and `docs/engineering-rules.md` before changing product scope, module boundaries, or runtime architecture.
+- Read `design.md` before changing frontend UI, interaction patterns, visual style, or plugin side panel surfaces.
 - Read `docs/agents/domain.md` for domain-doc layout.
 - Read `docs/agents/issue-tracker.md` before publishing PRDs, issues, slices, or task briefs.
 - Read `docs/agents/verification.md` before claiming implementation success.
@@ -19,5 +20,6 @@ Use the ProjectWorkFlowDemo workflow layer for non-trivial work.
 - Prefer small scoped changes and verifiable goals.
 - Follow the confirmed stack: TypeScript, Next.js, assistant-ui, Vercel AI SDK, Plasmo, PostgreSQL, Prisma, Zod, and typed workflow.
 - Do not introduce NestJS, Redis, InsForge, or new backend/runtime foundations without an ADR and explicit approval.
+- After completing each requirement, commit the code and write the corresponding requirement content clearly in Chinese.
 - Stop before `L3` risk unless explicitly authorized.
 <!-- PROJECT-WORKFLOW:END -->
