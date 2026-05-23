@@ -605,6 +605,23 @@ button {
   margin-bottom: 8px;
 }
 
+.button-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inline-warning,
+.dependency-note {
+  border: 1px solid color-mix(in oklab, var(--review) 32%, white);
+  background: var(--review-soft);
+  color: color-mix(in oklab, var(--review) 62%, black);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .scan-card__progress-label {
   font-size: 12px;
   font-weight: 700;
@@ -871,6 +888,67 @@ button {
   font-size: 11px;
   color: var(--muted);
   margin-top: 4px;
+}
+
+.preview-table {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preview-table__row {
+  display: grid;
+  grid-template-columns: 0.85fr 1.3fr 0.55fr 0.55fr 1.5fr;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.preview-table__row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.preview-table__row--head {
+  background: #f7f9fc;
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.payload-preview {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #101828;
+  color: #e6edf8;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.submit-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.submit-receipt {
+  display: grid;
+  gap: 5px;
+  border: 1px solid color-mix(in oklab, var(--ready) 24%, white);
+  background: var(--ready-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: color-mix(in oklab, var(--ready) 70%, black);
 }
 
 .risk-card {
