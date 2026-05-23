@@ -1635,6 +1635,78 @@ h4 {
   font-size: 15px;
 }
 
+.apiStatePanel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 14px;
+}
+
+.apiStatePanel--real {
+  border-left-color: var(--ready);
+}
+
+.apiStatePanel--empty {
+  border-left-color: var(--review);
+}
+
+.apiStatePanel--fallback {
+  border-left-color: var(--blocked);
+}
+
+.apiStatePanel strong,
+.traceabilityList strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.apiStatePanel p,
+.traceabilityList p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.apiStatePanel small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.skuTableEmpty {
+  min-width: 980px;
+  padding: 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.traceabilityList {
+  display: grid;
+  gap: 10px;
+}
+
+.traceabilityList > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.traceabilityList span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
@@ -1696,6 +1768,10 @@ h4 {
 }
 
 @media (max-width: 880px) {
+  .mainShell {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
   .topbar,
   .pageHeader {
     flex-direction: column;
@@ -1751,6 +1827,10 @@ h4 {
   }
 
   .scoreGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .apiStatePanel {
     grid-template-columns: 1fr;
   }
 
