@@ -1,22 +1,259 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+
 import { PageHeader } from '@/shared/ui/page-header'
-import { SummaryPanel, TwoColumnScaffold } from '@/shared/ui/page-scaffolds'
+import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
+import { StatusBadge } from '@/shared/ui/status-badge'
+
+import type {
+  ReviewDecision,
+  ReviewItemDto,
+  ReviewListFiltersDto,
+  ReviewRiskLevel,
+  ReviewSourceType,
+  ReviewStatus
+} from './review-contracts'
+import { mockReviewItems } from './review-fixtures'
+
+const statusOptions: Array<{ value: ReviewListFiltersDto['status']; label: string }> = [
+  { value: 'all', label: '全部状态' },
+  { value: 'pending', label: '待处理' },
+  { value: 'approved', label: '已批准' },
+  { value: 'rejected', label: '已驳回' },
+  { value: 'changes_requested', label: '需修改' }
+]
+
+const sourceOptions: Array<{ value: ReviewListFiltersDto['sourceType']; label: string }> = [
+  { value: 'all', label: '全部来源' },
+  { value: 'health_diagnosis', label: '健康诊断' },
+  { value: 'activity_simulation', label: '活动模拟' },
+  { value: 'agent_gate', label: 'Agent Gate' }
+]
+
+const statusLabel: Record<ReviewStatus, string> = {
+  pending: '待处理',
+  approved: '已批准',
+  rejected: '已驳回',
+  changes_requested: '需修改'
+}
+
+const sourceLabel: Record<ReviewSourceType, string> = {
+  health_diagnosis: '健康诊断',
+  activity_simulation: '活动模拟',
+  agent_gate: 'Agent Gate'
+}
+
+const riskLabel: Record<ReviewRiskLevel, string> = {
+  low: '低风险',
+  medium: '中风险',
+  high: '高风险'
+}
+
+function statusTone(status: ReviewStatus) {
+  if (status === 'approved') return 'ready'
+  if (status === 'pending') return 'review'
+  if (status === 'changes_requested') return 'warning'
+  return 'blocked'
+}
+
+function riskTone(riskLevel: ReviewRiskLevel) {
+  if (riskLevel === 'low') return 'ready'
+  if (riskLevel === 'medium') return 'review'
+  return 'blocked'
+}
+
+function decisionToStatus(decision: ReviewDecision): ReviewStatus {
+  if (decision === 'approve') return 'approved'
+  if (decision === 'reject') return 'rejected'
+  return 'changes_requested'
+}
+
+function decisionLabel(decision: ReviewDecision) {
+  if (decision === 'approve') return '批准'
+  if (decision === 'reject') return '驳回'
+  return '要求修改'
+}
 
 export function ReviewsPage() {
+  const [reviews, setReviews] = useState<ReviewItemDto[]>(mockReviewItems)
+  const [filters, setFilters] = useState<ReviewListFiltersDto>({ status: 'all', sourceType: 'all' })
+  const [selectedId, setSelectedId] = useState(mockReviewItems[0]?.id)
+  const [comment, setComment] = useState('同意按证据摘要推进，保留来源对象追溯。')
+  const [lastAction, setLastAction] = useState<string | null>(null)
+
+  const filteredReviews = useMemo(
+    () =>
+      reviews.filter((item) => {
+        const statusMatched = filters.status === 'all' || item.status === filters.status
+        const sourceMatched = filters.sourceType === 'all' || item.source.type === filters.sourceType
+        return statusMatched && sourceMatched
+      }),
+    [filters, reviews]
+  )
+
+  const selectedReview = reviews.find((item) => item.id === selectedId) ?? filteredReviews[0] ?? reviews[0]
+
+  function applyDecision(decision: ReviewDecision) {
+    if (!selectedReview) return
+
+    const status = decisionToStatus(decision)
+    const decidedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+    setReviews((current) =>
+      current.map((item) =>
+        item.id === selectedReview.id
+          ? {
+              ...item,
+              status,
+              decisionComment: comment,
+              decidedAt,
+              updatedAt: decidedAt
+            }
+          : item
+      )
+    )
+    setLastAction(`${selectedReview.id} 已${decisionLabel(decision)}，状态更新为「${statusLabel[status]}」。`)
+  }
+
   return (
     <div className="pageStack">
       <PageHeader
         title="Review 工作台"
-        description="左侧 Review Queue，右侧 Review Detail。当前只落地审批门结构，不接真实 review items。"
+        description="消费 Review DTO 和来源对象 DTO，完成列表筛选、详情检查、证据摘要与人工决策 mock 闭环。"
       />
-      <TwoColumnScaffold
-        main={<SummaryPanel title="Review Queue" description="审批队列筛选与列表结构已准备完成。" />}
-        side={
+
+      <div className="reviewWorkbenchLayout">
+        <Panel>
+          <PanelHeader
+            title="Review Queue"
+            description="字段 contract：待处理对象、状态、来源类型、风险等级、更新时间和详情入口。"
+          />
+          <PanelBody>
+            <div className="filterBar" aria-label="Review filters">
+              <select
+                value={filters.status}
+                onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value as ReviewListFiltersDto['status'] }))}
+              >
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={filters.sourceType}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, sourceType: event.target.value as ReviewListFiltersDto['sourceType'] }))
+                }
+              >
+                {sourceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="reviewList" role="list">
+              {filteredReviews.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`reviewListItem ${item.id === selectedReview?.id ? 'reviewListItem--selected' : ''}`}
+                  onClick={() => setSelectedId(item.id)}
+                >
+                  <span className="reviewItemTopline">
+                    <strong>{item.targetLabel}</strong>
+                    <StatusBadge tone={statusTone(item.status)}>{statusLabel[item.status]}</StatusBadge>
+                  </span>
+                  <span className="reviewItemMeta">
+                    {sourceLabel[item.source.type]} · {riskLabel[item.riskLevel]} · {item.updatedAt}
+                  </span>
+                  <span className="reviewItemQuestion">{item.question}</span>
+                </button>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+
+        {selectedReview ? (
           <div className="pageStack">
-            <SummaryPanel title="Review Detail" description="详情容器保留为结构化问题、建议、风险与证据区块。" />
-            <SummaryPanel title="Decision Bar" description="按钮与动作区仅保留布局，等待后端能力接入。" state="unavailable" />
+            <Panel>
+              <PanelHeader
+                title="Review Detail"
+                description={`${selectedReview.id} · ${selectedReview.source.title}`}
+                actions={<StatusBadge tone={statusTone(selectedReview.status)}>{statusLabel[selectedReview.status]}</StatusBadge>}
+              />
+              <PanelBody className="reviewDetailBody">
+                <div className="detailBlock">
+                  <span>待回答问题</span>
+                  <strong>{selectedReview.question}</strong>
+                </div>
+                <div className="detailBlock">
+                  <span>Agent 建议</span>
+                  <p>{selectedReview.recommendation}</p>
+                </div>
+                <div className="detailBlock">
+                  <span>风险说明</span>
+                  <div className="detailInline">
+                    <StatusBadge tone={riskTone(selectedReview.riskLevel)}>{riskLabel[selectedReview.riskLevel]}</StatusBadge>
+                    <p>{selectedReview.riskSummary}</p>
+                  </div>
+                </div>
+                <div className="sourceObjectBar">
+                  <div>
+                    <span>来源对象</span>
+                    <strong>{selectedReview.source.id}</strong>
+                    <p>{sourceLabel[selectedReview.source.type]} · {selectedReview.source.routeLabel}</p>
+                  </div>
+                  <button className="secondaryButton" type="button">
+                    对象入口
+                  </button>
+                </div>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="证据摘要" description="只展示上游 DTO evidence summary，不在页面层重新计算结论。" />
+              <PanelBody>
+                <div className="evidenceList">
+                  {selectedReview.evidenceSummary.map((evidence) => (
+                    <div className="evidenceRow" key={evidence.id}>
+                      <span>{evidence.label}</span>
+                      <strong>{evidence.value}</strong>
+                      <code>{evidence.source}</code>
+                    </div>
+                  ))}
+                </div>
+              </PanelBody>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="Decision Bar" description="批准、驳回和修改动作只更新 Review 决策状态。" />
+              <PanelBody className="decisionPanelBody">
+                <textarea value={comment} onChange={(event) => setComment(event.target.value)} aria-label="Decision comment" />
+                <div className="decisionActions">
+                  <button className="primaryButton" type="button" onClick={() => applyDecision('approve')}>
+                    批准
+                  </button>
+                  <button className="secondaryButton" type="button" onClick={() => applyDecision('request_changes')}>
+                    要求修改
+                  </button>
+                  <button className="secondaryButton" type="button" onClick={() => applyDecision('reject')}>
+                    驳回
+                  </button>
+                </div>
+                {selectedReview.decisionComment ? (
+                  <p className="decisionFeedback">
+                    最近决策：{selectedReview.decisionComment} · {selectedReview.decidedAt}
+                  </p>
+                ) : null}
+                {lastAction ? <p className="decisionFeedback">{lastAction}</p> : null}
+              </PanelBody>
+            </Panel>
           </div>
-        }
-      />
+        ) : null}
+      </div>
     </div>
   )
 }
