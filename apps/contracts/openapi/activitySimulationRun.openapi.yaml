@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: "Activity Simulation Run API"
+  version: "1.0.0"
+  description: "活动准入模拟运行表"
+tags:
+  - name: "Activity Simulation Run"
+    description: "活动准入模拟运行表"
+paths:
+  /api/v1/activity-simulation-runs:
+    get:
+      tags: ["Activity Simulation Run"]
+      summary: "查询Activity Simulation Run列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: activityRuleSetId
+          schema:
+            type: string
+          description: "活动规则集 ID"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "运行状态"
+        - in: query
+          name: runBy
+          schema:
+            type: string
+          description: "运行人"
+        - in: query
+          name: startedAt
+          schema:
+            type: string
+            format: date-time
+          description: "开始时间"
+        - in: query
+          name: completedAt
+          schema:
+            type: string
+            format: date-time
+          description: "完成时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - activityRuleSetId
+              - status
+              - runBy
+              - startedAt
+              - completedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Activity Simulation Run"]
+      summary: "创建Activity Simulation Run"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivitySimulationRunRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationRunResponse'
+  /api/v1/activity-simulation-runs/{id}:
+    get:
+      tags: ["Activity Simulation Run"]
+      summary: "查询Activity Simulation Run详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationRunResponse'
+    patch:
+      tags: ["Activity Simulation Run"]
+      summary: "更新Activity Simulation Run"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivitySimulationRunRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationRunResponse'
+    delete:
+      tags: ["Activity Simulation Run"]
+      summary: "删除Activity Simulation Run"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateActivitySimulationRunRequest:
+      type: object
+      properties:
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        scopeJson:
+          type: object
+          description: "模拟范围 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "运行状态"
+          example: "pending"
+        summaryJson:
+          type: object
+          description: "模拟摘要 JSON"
+          example: "{'key': 'value'}"
+        runBy:
+          type: string
+          description: "运行人"
+          nullable: true
+          example: "sample_run_by"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - activityRuleSetId
+    UpdateActivitySimulationRunRequest:
+      type: object
+      properties:
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        scopeJson:
+          type: object
+          description: "模拟范围 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "运行状态"
+          example: "pending"
+        summaryJson:
+          type: object
+          description: "模拟摘要 JSON"
+          example: "{'key': 'value'}"
+        runBy:
+          type: string
+          description: "运行人"
+          nullable: true
+          example: "sample_run_by"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    ActivitySimulationRunResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        scopeJson:
+          type: object
+          description: "模拟范围 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "运行状态"
+          example: "pending"
+        summaryJson:
+          type: object
+          description: "模拟摘要 JSON"
+          example: "{'key': 'value'}"
+        runBy:
+          type: string
+          description: "运行人"
+          nullable: true
+          example: "sample_run_by"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - activityRuleSetId
+        - createdAt
+        - id
+        - scopeJson
+        - status
+        - summaryJson
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivitySimulationRunResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

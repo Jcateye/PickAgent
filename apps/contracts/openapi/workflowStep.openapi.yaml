@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: "Workflow Step API"
+  version: "1.0.0"
+  description: "工作流步骤审计表"
+tags:
+  - name: "Workflow Step"
+    description: "工作流步骤审计表"
+paths:
+  /api/v1/workflow-steps:
+    get:
+      tags: ["Workflow Step"]
+      summary: "查询Workflow Step列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "工作流运行 ID"
+        - in: query
+          name: stepKey
+          schema:
+            type: string
+          description: "步骤编码"
+        - in: query
+          name: stepName
+          schema:
+            type: string
+          description: "步骤名称"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "步骤状态"
+        - in: query
+          name: startedAt
+          schema:
+            type: string
+            format: date-time
+          description: "开始时间"
+        - in: query
+          name: completedAt
+          schema:
+            type: string
+            format: date-time
+          description: "完成时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - runId
+              - stepKey
+              - stepName
+              - status
+              - startedAt
+              - completedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Workflow Step"]
+      summary: "创建Workflow Step"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowStepRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStepResponse'
+  /api/v1/workflow-steps/{id}:
+    get:
+      tags: ["Workflow Step"]
+      summary: "查询Workflow Step详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStepResponse'
+    patch:
+      tags: ["Workflow Step"]
+      summary: "更新Workflow Step"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowStepRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStepResponse'
+    delete:
+      tags: ["Workflow Step"]
+      summary: "删除Workflow Step"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateWorkflowStepRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "工作流运行 ID"
+          example: "sample_run_id"
+        stepKey:
+          type: string
+          description: "步骤编码"
+          example: "sample_step_key"
+        stepName:
+          type: string
+          description: "步骤名称"
+          example: "demo"
+        status:
+          type: string
+          description: "步骤状态"
+          example: "PENDING"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - runId
+        - stepKey
+        - stepName
+    UpdateWorkflowStepRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "工作流运行 ID"
+          example: "sample_run_id"
+        stepKey:
+          type: string
+          description: "步骤编码"
+          example: "sample_step_key"
+        stepName:
+          type: string
+          description: "步骤名称"
+          example: "demo"
+        status:
+          type: string
+          description: "步骤状态"
+          example: "PENDING"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    WorkflowStepResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        runId:
+          type: string
+          description: "工作流运行 ID"
+          example: "sample_run_id"
+        stepKey:
+          type: string
+          description: "步骤编码"
+          example: "sample_step_key"
+        stepName:
+          type: string
+          description: "步骤名称"
+          example: "demo"
+        status:
+          type: string
+          description: "步骤状态"
+          example: "PENDING"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - id
+        - inputJson
+        - outputJson
+        - runId
+        - status
+        - stepKey
+        - stepName
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowStepResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

@@ -1,0 +1,113 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ActivitySimulationRun",
+  "resource": {
+    "name": "activitySimulationRun",
+    "plural": "activitySimulationRuns",
+    "tag": "Activity Simulation Run"
+  },
+  "table": {
+    "name": "activity_simulation_runs",
+    "comment": "活动准入模拟运行表"
+  },
+  "api": {
+    "basePath": "/api/v1/activity-simulation-runs"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "activity_rule_set_id",
+      "dbType": "uuid",
+      "comment": "活动规则集 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "scope_json",
+      "dbType": "jsonb",
+      "comment": "模拟范围 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "运行状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "pending"
+    },
+    {
+      "name": "summary_json",
+      "dbType": "jsonb",
+      "comment": "模拟摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "run_by",
+      "dbType": "varchar(128)",
+      "comment": "运行人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "started_at",
+      "dbType": "timestamptz",
+      "comment": "开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

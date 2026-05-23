@@ -1,0 +1,363 @@
+openapi: 3.0.3
+info:
+  title: "Activity Simulation Result API"
+  version: "1.0.0"
+  description: "单个 SKU 在某次活动模拟中的准入结论表"
+tags:
+  - name: "Activity Simulation Result"
+    description: "单个 SKU 在某次活动模拟中的准入结论表"
+paths:
+  /api/v1/activity-simulation-results:
+    get:
+      tags: ["Activity Simulation Result"]
+      summary: "查询Activity Simulation Result列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: simulationRunId
+          schema:
+            type: string
+          description: "模拟运行 ID"
+        - in: query
+          name: activityRuleSetId
+          schema:
+            type: string
+          description: "活动规则集 ID"
+        - in: query
+          name: skuProfileId
+          schema:
+            type: string
+          description: "SKU 档案 ID"
+        - in: query
+          name: snapshotId
+          schema:
+            type: string
+          description: "关联采集快照 ID"
+        - in: query
+          name: diagnosisId
+          schema:
+            type: string
+          description: "关联健康诊断 ID"
+        - in: query
+          name: eligibilityStatus
+          schema:
+            type: string
+          description: "活动上下文准入状态"
+        - in: query
+          name: eligibilityScore
+          schema:
+            type: integer
+            format: int32
+          description: "准入评分，0 到 100"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - simulationRunId
+              - activityRuleSetId
+              - skuProfileId
+              - snapshotId
+              - diagnosisId
+              - eligibilityStatus
+              - eligibilityScore
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Activity Simulation Result"]
+      summary: "创建Activity Simulation Result"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivitySimulationResultRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationResultResponse'
+  /api/v1/activity-simulation-results/{id}:
+    get:
+      tags: ["Activity Simulation Result"]
+      summary: "查询Activity Simulation Result详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationResultResponse'
+    patch:
+      tags: ["Activity Simulation Result"]
+      summary: "更新Activity Simulation Result"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivitySimulationResultRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivitySimulationResultResponse'
+    delete:
+      tags: ["Activity Simulation Result"]
+      summary: "删除Activity Simulation Result"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateActivitySimulationResultRequest:
+      type: object
+      properties:
+        simulationRunId:
+          type: string
+          description: "模拟运行 ID"
+          example: "sample_simulation_run_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "关联健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        eligibilityStatus:
+          type: string
+          description: "活动上下文准入状态"
+          example: "DIRECT_READY"
+        eligibilityScore:
+          type: integer
+          format: int32
+          description: "准入评分，0 到 100"
+          nullable: true
+          example: 1
+        failedRulesJson:
+          type: object
+          description: "未通过规则 JSON"
+          example: "{'key': 'value'}"
+        repairPlanJson:
+          type: object
+          description: "修复计划 JSON"
+          example: "{'key': 'value'}"
+        manualReviewJson:
+          type: object
+          description: "人工 Review 信息 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+      required:
+        - activityRuleSetId
+        - eligibilityStatus
+        - simulationRunId
+        - skuProfileId
+    UpdateActivitySimulationResultRequest:
+      type: object
+      properties:
+        simulationRunId:
+          type: string
+          description: "模拟运行 ID"
+          example: "sample_simulation_run_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "关联健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        eligibilityStatus:
+          type: string
+          description: "活动上下文准入状态"
+          example: "DIRECT_READY"
+        eligibilityScore:
+          type: integer
+          format: int32
+          description: "准入评分，0 到 100"
+          nullable: true
+          example: 1
+        failedRulesJson:
+          type: object
+          description: "未通过规则 JSON"
+          example: "{'key': 'value'}"
+        repairPlanJson:
+          type: object
+          description: "修复计划 JSON"
+          example: "{'key': 'value'}"
+        manualReviewJson:
+          type: object
+          description: "人工 Review 信息 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+    ActivitySimulationResultResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        simulationRunId:
+          type: string
+          description: "模拟运行 ID"
+          example: "sample_simulation_run_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          example: "sample_activity_rule_set_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "关联健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        eligibilityStatus:
+          type: string
+          description: "活动上下文准入状态"
+          example: "DIRECT_READY"
+        eligibilityScore:
+          type: integer
+          format: int32
+          description: "准入评分，0 到 100"
+          nullable: true
+          example: 1
+        failedRulesJson:
+          type: object
+          description: "未通过规则 JSON"
+          example: "{'key': 'value'}"
+        repairPlanJson:
+          type: object
+          description: "修复计划 JSON"
+          example: "{'key': 'value'}"
+        manualReviewJson:
+          type: object
+          description: "人工 Review 信息 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - activityRuleSetId
+        - createdAt
+        - eligibilityStatus
+        - evidenceJson
+        - failedRulesJson
+        - id
+        - manualReviewJson
+        - repairPlanJson
+        - simulationRunId
+        - skuProfileId
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivitySimulationResultResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

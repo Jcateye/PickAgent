@@ -1,0 +1,127 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "SkuProfile",
+  "resource": {
+    "name": "skuProfile",
+    "plural": "skuProfiles",
+    "tag": "SKU Profile"
+  },
+  "table": {
+    "name": "sku_profiles",
+    "comment": "长期 SKU 档案表，承接采集事实、健康结论、活动模拟和 Review"
+  },
+  "api": {
+    "basePath": "/api/v1/sku-profiles"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "canonical_key",
+      "dbType": "varchar(256)",
+      "comment": "稳定 SKU 业务键，MVP 采用 platform:store_id:external_sku_id",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "platform",
+      "dbType": "varchar(64)",
+      "comment": "电商平台标识",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "store_id",
+      "dbType": "varchar(128)",
+      "comment": "店铺或业务主体 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "external_sku_id",
+      "dbType": "varchar(128)",
+      "comment": "外部平台 SKU ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "product_name",
+      "dbType": "varchar(256)",
+      "comment": "商品名称",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "category",
+      "dbType": "varchar(128)",
+      "comment": "商品类目",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "brand",
+      "dbType": "varchar(128)",
+      "comment": "品牌",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "SKU 档案状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "active"
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

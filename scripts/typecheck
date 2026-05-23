@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TODO: 为当前项目实现 scripts/typecheck。
-# 请保持脚本名称稳定，并在这里代理到实际工具链。
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PRISMA_SCHEMA="$ROOT_DIR/apps/backend/prisma/schema.prisma"
 
-echo "scripts/typecheck 尚未实现。"
-exit 1
+if [[ -f "$PRISMA_SCHEMA" ]]; then
+  npx --yes prisma validate --schema "$PRISMA_SCHEMA"
+fi
+
+backend_ts_files=()
+while IFS= read -r file; do
+  backend_ts_files+=("$file")
+done < <(find "$ROOT_DIR/apps/backend/src" -type f -name '*.ts' | sort)
+
+if ((${#backend_ts_files[@]})); then
+  npx --yes -p typescript tsc \
+    --noEmit \
+    --strict \
+    --module Node16 \
+    --moduleResolution node16 \
+    --target es2022 \
+    "${backend_ts_files[@]}"
+fi
+
+printf '%s\n' "scripts/typecheck completed."

@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info:
+  title: "SKU Health Diagnosis API"
+  version: "1.0.0"
+  description: "SKU 日常健康诊断结论表"
+tags:
+  - name: "SKU Health Diagnosis"
+    description: "SKU 日常健康诊断结论表"
+paths:
+  /api/v1/sku-health-diagnoses:
+    get:
+      tags: ["SKU Health Diagnosis"]
+      summary: "查询SKU Health Diagnosis列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: skuProfileId
+          schema:
+            type: string
+          description: "SKU 档案 ID"
+        - in: query
+          name: snapshotId
+          schema:
+            type: string
+          description: "关联采集快照 ID"
+        - in: query
+          name: healthStatus
+          schema:
+            type: string
+          description: "长期健康状态"
+        - in: query
+          name: healthScore
+          schema:
+            type: integer
+            format: int32
+          description: "健康分，0 到 100"
+        - in: query
+          name: dataQualityScore
+          schema:
+            type: integer
+            format: int32
+          description: "数据质量分，0 到 100"
+        - in: query
+          name: diagnosedAt
+          schema:
+            type: string
+            format: date-time
+          description: "诊断时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - skuProfileId
+              - snapshotId
+              - healthStatus
+              - healthScore
+              - dataQualityScore
+              - diagnosedAt
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["SKU Health Diagnosis"]
+      summary: "创建SKU Health Diagnosis"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkuHealthDiagnosisRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuHealthDiagnosisResponse'
+  /api/v1/sku-health-diagnoses/{id}:
+    get:
+      tags: ["SKU Health Diagnosis"]
+      summary: "查询SKU Health Diagnosis详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuHealthDiagnosisResponse'
+    patch:
+      tags: ["SKU Health Diagnosis"]
+      summary: "更新SKU Health Diagnosis"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkuHealthDiagnosisRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuHealthDiagnosisResponse'
+    delete:
+      tags: ["SKU Health Diagnosis"]
+      summary: "删除SKU Health Diagnosis"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateSkuHealthDiagnosisRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        healthStatus:
+          type: string
+          description: "长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "数据质量分，0 到 100"
+          example: 1
+        issuesJson:
+          type: object
+          description: "问题列表 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步动作 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+        diagnosedAt:
+          type: string
+          format: date-time
+          description: "诊断时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - dataQualityScore
+        - healthScore
+        - healthStatus
+        - skuProfileId
+    UpdateSkuHealthDiagnosisRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        healthStatus:
+          type: string
+          description: "长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "数据质量分，0 到 100"
+          example: 1
+        issuesJson:
+          type: object
+          description: "问题列表 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步动作 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+        diagnosedAt:
+          type: string
+          format: date-time
+          description: "诊断时间"
+          example: "2026-03-16T10:00:00Z"
+    SkuHealthDiagnosisResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "关联采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        healthStatus:
+          type: string
+          description: "长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "数据质量分，0 到 100"
+          example: 1
+        issuesJson:
+          type: object
+          description: "问题列表 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步动作 JSON"
+          example: "{'key': 'value'}"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+        diagnosedAt:
+          type: string
+          format: date-time
+          description: "诊断时间"
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - dataQualityScore
+        - diagnosedAt
+        - evidenceJson
+        - healthScore
+        - healthStatus
+        - id
+        - issuesJson
+        - nextActionsJson
+        - skuProfileId
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkuHealthDiagnosisResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

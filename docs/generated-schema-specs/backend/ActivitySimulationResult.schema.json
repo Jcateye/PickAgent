@@ -1,0 +1,140 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ActivitySimulationResult",
+  "resource": {
+    "name": "activitySimulationResult",
+    "plural": "activitySimulationResults",
+    "tag": "Activity Simulation Result"
+  },
+  "table": {
+    "name": "activity_simulation_results",
+    "comment": "单个 SKU 在某次活动模拟中的准入结论表"
+  },
+  "api": {
+    "basePath": "/api/v1/activity-simulation-results"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "simulation_run_id",
+      "dbType": "uuid",
+      "comment": "模拟运行 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "activity_rule_set_id",
+      "dbType": "uuid",
+      "comment": "活动规则集 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "sku_profile_id",
+      "dbType": "uuid",
+      "comment": "SKU 档案 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "snapshot_id",
+      "dbType": "uuid",
+      "comment": "关联采集快照 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "diagnosis_id",
+      "dbType": "uuid",
+      "comment": "关联健康诊断 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "eligibility_status",
+      "dbType": "varchar(32)",
+      "comment": "活动上下文准入状态",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "DIRECT_READY"
+    },
+    {
+      "name": "eligibility_score",
+      "dbType": "integer",
+      "comment": "准入评分，0 到 100",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "failed_rules_json",
+      "dbType": "jsonb",
+      "comment": "未通过规则 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "repair_plan_json",
+      "dbType": "jsonb",
+      "comment": "修复计划 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "manual_review_json",
+      "dbType": "jsonb",
+      "comment": "人工 Review 信息 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_json",
+      "dbType": "jsonb",
+      "comment": "证据链 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

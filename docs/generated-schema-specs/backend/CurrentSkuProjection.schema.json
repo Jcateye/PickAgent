@@ -1,0 +1,105 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "CurrentSkuProjection",
+  "resource": {
+    "name": "currentSkuProjection",
+    "plural": "currentSkuProjections",
+    "tag": "Current SKU Projection"
+  },
+  "table": {
+    "name": "current_sku_projections",
+    "comment": "SKU 当前状态读模型表，供 Dashboard、SKU List、Chat summary 和 Report summary 查询"
+  },
+  "api": {
+    "basePath": "/api/v1/current-sku-projections"
+  },
+  "columns": [
+    {
+      "name": "sku_profile_id",
+      "dbType": "uuid",
+      "comment": "SKU 档案 ID，同时作为主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "latest_snapshot_id",
+      "dbType": "uuid",
+      "comment": "最新采集快照 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "latest_diagnosis_id",
+      "dbType": "uuid",
+      "comment": "最新健康诊断 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "health_status",
+      "dbType": "varchar(32)",
+      "comment": "当前长期健康状态",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "READY"
+    },
+    {
+      "name": "health_score",
+      "dbType": "integer",
+      "comment": "当前健康分，0 到 100",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "data_quality_score",
+      "dbType": "integer",
+      "comment": "当前数据质量分，0 到 100",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "top_issues_json",
+      "dbType": "jsonb",
+      "comment": "顶部问题摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

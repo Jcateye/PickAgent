@@ -1,0 +1,191 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ReviewItem",
+  "resource": {
+    "name": "reviewItem",
+    "plural": "reviewItems",
+    "tag": "Review Item"
+  },
+  "table": {
+    "name": "review_items",
+    "comment": "人工 Review 审批任务表"
+  },
+  "api": {
+    "basePath": "/api/v1/review-items"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "sku_profile_id",
+      "dbType": "uuid",
+      "comment": "SKU 档案 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "snapshot_id",
+      "dbType": "uuid",
+      "comment": "采集快照 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "diagnosis_id",
+      "dbType": "uuid",
+      "comment": "健康诊断 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "activity_rule_set_id",
+      "dbType": "uuid",
+      "comment": "活动规则集 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "simulation_result_id",
+      "dbType": "uuid",
+      "comment": "活动模拟结果 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "review_type",
+      "dbType": "varchar(64)",
+      "comment": "Review 类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "reason_code",
+      "dbType": "varchar(96)",
+      "comment": "Review 原因编码",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "Review 状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "PENDING"
+    },
+    {
+      "name": "question",
+      "dbType": "text",
+      "comment": "需要人工回答的问题",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "agent_recommendation",
+      "dbType": "text",
+      "comment": "Agent 建议",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "risk_level",
+      "dbType": "varchar(32)",
+      "comment": "风险等级",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "decision",
+      "dbType": "varchar(64)",
+      "comment": "人工决策",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "decision_comment",
+      "dbType": "text",
+      "comment": "人工决策说明",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "decision_by",
+      "dbType": "varchar(128)",
+      "comment": "决策人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "decided_at",
+      "dbType": "timestamptz",
+      "comment": "决策时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "evidence_json",
+      "dbType": "jsonb",
+      "comment": "证据链 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

@@ -1,0 +1,491 @@
+openapi: 3.0.3
+info:
+  title: "SKU Snapshot API"
+  version: "1.0.0"
+  description: "SKU 采集事实快照表"
+tags:
+  - name: "SKU Snapshot"
+    description: "SKU 采集事实快照表"
+paths:
+  /api/v1/sku-snapshots:
+    get:
+      tags: ["SKU Snapshot"]
+      summary: "查询SKU Snapshot列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: skuProfileId
+          schema:
+            type: string
+          description: "SKU 档案 ID"
+        - in: query
+          name: connectorId
+          schema:
+            type: string
+          description: "连接器 ID"
+        - in: query
+          name: collectedAt
+          schema:
+            type: string
+            format: date-time
+          description: "采集时间"
+        - in: query
+          name: productName
+          schema:
+            type: string
+          description: "商品名称快照"
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: "商品类目快照"
+        - in: query
+          name: sales30d
+          schema:
+            type: integer
+            format: int32
+          description: "近 30 天销量"
+        - in: query
+          name: positiveRate
+          schema:
+            type: string
+          description: "好评率，取值范围 0 到 1"
+        - in: query
+          name: stock
+          schema:
+            type: integer
+            format: int32
+          description: "可售库存"
+        - in: query
+          name: joinedBrandDay
+          schema:
+            type: boolean
+          description: "是否已参加品牌日等互斥活动"
+        - in: query
+          name: certificateStatus
+          schema:
+            type: string
+          description: "证书状态"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - skuProfileId
+              - connectorId
+              - rowIndex
+              - collectedAt
+              - productName
+              - category
+              - sales30d
+              - positiveRate
+              - stock
+              - originalPrice
+              - lowestPrice30d
+              - campaignPrice
+              - joinedBrandDay
+              - certificateStatus
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["SKU Snapshot"]
+      summary: "创建SKU Snapshot"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkuSnapshotRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuSnapshotResponse'
+  /api/v1/sku-snapshots/{id}:
+    get:
+      tags: ["SKU Snapshot"]
+      summary: "查询SKU Snapshot详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuSnapshotResponse'
+    patch:
+      tags: ["SKU Snapshot"]
+      summary: "更新SKU Snapshot"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkuSnapshotRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuSnapshotResponse'
+    delete:
+      tags: ["SKU Snapshot"]
+      summary: "删除SKU Snapshot"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateSkuSnapshotRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        connectorId:
+          type: string
+          description: "连接器 ID"
+          nullable: true
+          example: "sample_connector_id"
+        sourceUrl:
+          type: string
+          description: "来源页面 URL"
+          nullable: true
+          example: "sample_source_url"
+        rowIndex:
+          type: integer
+          format: int32
+          description: "来源行号"
+          nullable: true
+          example: 1
+        collectedAt:
+          type: string
+          format: date-time
+          description: "采集时间"
+          example: "2026-03-16T10:00:00Z"
+        productName:
+          type: string
+          description: "商品名称快照"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目快照"
+          nullable: true
+          example: "sample_category"
+        sales30d:
+          type: integer
+          format: int32
+          description: "近 30 天销量"
+          nullable: true
+          example: 1
+        positiveRate:
+          type: string
+          description: "好评率，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        stock:
+          type: integer
+          format: int32
+          description: "可售库存"
+          nullable: true
+          example: 1
+        originalPrice:
+          type: string
+          description: "原价"
+          nullable: true
+          example: "0.00"
+        lowestPrice30d:
+          type: string
+          description: "近 30 天最低价"
+          nullable: true
+          example: "0.00"
+        campaignPrice:
+          type: string
+          description: "活动价"
+          nullable: true
+          example: "0.00"
+        joinedBrandDay:
+          type: boolean
+          description: "是否已参加品牌日等互斥活动"
+          nullable: true
+          example: true
+        certificateStatus:
+          type: string
+          description: "证书状态"
+          nullable: true
+          example: "active"
+        rawJson:
+          type: object
+          description: "原始采集数据"
+          example: "{'key': 'value'}"
+        normalizedJson:
+          type: object
+          description: "标准化后的字段数据"
+          example: "{'key': 'value'}"
+      required:
+        - skuProfileId
+    UpdateSkuSnapshotRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        connectorId:
+          type: string
+          description: "连接器 ID"
+          nullable: true
+          example: "sample_connector_id"
+        sourceUrl:
+          type: string
+          description: "来源页面 URL"
+          nullable: true
+          example: "sample_source_url"
+        rowIndex:
+          type: integer
+          format: int32
+          description: "来源行号"
+          nullable: true
+          example: 1
+        collectedAt:
+          type: string
+          format: date-time
+          description: "采集时间"
+          example: "2026-03-16T10:00:00Z"
+        productName:
+          type: string
+          description: "商品名称快照"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目快照"
+          nullable: true
+          example: "sample_category"
+        sales30d:
+          type: integer
+          format: int32
+          description: "近 30 天销量"
+          nullable: true
+          example: 1
+        positiveRate:
+          type: string
+          description: "好评率，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        stock:
+          type: integer
+          format: int32
+          description: "可售库存"
+          nullable: true
+          example: 1
+        originalPrice:
+          type: string
+          description: "原价"
+          nullable: true
+          example: "0.00"
+        lowestPrice30d:
+          type: string
+          description: "近 30 天最低价"
+          nullable: true
+          example: "0.00"
+        campaignPrice:
+          type: string
+          description: "活动价"
+          nullable: true
+          example: "0.00"
+        joinedBrandDay:
+          type: boolean
+          description: "是否已参加品牌日等互斥活动"
+          nullable: true
+          example: true
+        certificateStatus:
+          type: string
+          description: "证书状态"
+          nullable: true
+          example: "active"
+        rawJson:
+          type: object
+          description: "原始采集数据"
+          example: "{'key': 'value'}"
+        normalizedJson:
+          type: object
+          description: "标准化后的字段数据"
+          example: "{'key': 'value'}"
+    SkuSnapshotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          example: "sample_sku_profile_id"
+        connectorId:
+          type: string
+          description: "连接器 ID"
+          nullable: true
+          example: "sample_connector_id"
+        sourceUrl:
+          type: string
+          description: "来源页面 URL"
+          nullable: true
+          example: "sample_source_url"
+        rowIndex:
+          type: integer
+          format: int32
+          description: "来源行号"
+          nullable: true
+          example: 1
+        collectedAt:
+          type: string
+          format: date-time
+          description: "采集时间"
+          example: "2026-03-16T10:00:00Z"
+        productName:
+          type: string
+          description: "商品名称快照"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目快照"
+          nullable: true
+          example: "sample_category"
+        sales30d:
+          type: integer
+          format: int32
+          description: "近 30 天销量"
+          nullable: true
+          example: 1
+        positiveRate:
+          type: string
+          description: "好评率，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        stock:
+          type: integer
+          format: int32
+          description: "可售库存"
+          nullable: true
+          example: 1
+        originalPrice:
+          type: string
+          description: "原价"
+          nullable: true
+          example: "0.00"
+        lowestPrice30d:
+          type: string
+          description: "近 30 天最低价"
+          nullable: true
+          example: "0.00"
+        campaignPrice:
+          type: string
+          description: "活动价"
+          nullable: true
+          example: "0.00"
+        joinedBrandDay:
+          type: boolean
+          description: "是否已参加品牌日等互斥活动"
+          nullable: true
+          example: true
+        certificateStatus:
+          type: string
+          description: "证书状态"
+          nullable: true
+          example: "active"
+        rawJson:
+          type: object
+          description: "原始采集数据"
+          example: "{'key': 'value'}"
+        normalizedJson:
+          type: object
+          description: "标准化后的字段数据"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - collectedAt
+        - createdAt
+        - id
+        - normalizedJson
+        - rawJson
+        - skuProfileId
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkuSnapshotResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

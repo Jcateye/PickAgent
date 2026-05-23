@@ -64,5 +64,39 @@ apps/backend/
 ## 当前状态
 
 - 目录已预留
-- 业务代码与 Prisma schema 尚未正式初始化
+- Prisma schema 与首个 PostgreSQL 初始化 migration 已建立
+- 基于 P0 数据表生成了 TypeScript 分层 CRUD 初始骨架
 - 当前以单应用服务端实现优先，后续如确有收益再拆具体模块
+
+## 已生成后端骨架
+
+`schema-codegen` 已按现有 P0 数据结构生成：
+
+- `src/infrastructure/persistence/`：数据库存储 Record 类型
+- `src/domain/entities/`：领域实体类型
+- `src/api/dto/`：create / update / query / response DTO
+- `src/infrastructure/mappers/`：Record / Entity / Response DTO 映射器
+- `src/infrastructure/repository/`：仓储接口
+- `src/application/services/`：基础 CRUD service
+- `src/api/controllers/`：控制器骨架
+- `src/api/routes/`：路由定义骨架
+- `tests/unit/`：单测占位
+
+这些文件是可继续接 Prisma repository、Zod 校验和实际 HTTP 框架绑定的初始代码，不包含 NestJS 或 Redis 运行时依赖。
+
+## 数据库初始化
+
+远程数据库通过 Cloudflare Access TCP 访问时，先在单独终端启动转发：
+
+```bash
+cloudflared access tcp \
+  --hostname postgres.justpyq.com \
+  --url 127.0.0.1:15432
+```
+
+然后执行：
+
+```bash
+POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
+  scripts/migrate --tcp
+```

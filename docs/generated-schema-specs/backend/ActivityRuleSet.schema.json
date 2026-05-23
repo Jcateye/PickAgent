@@ -1,0 +1,129 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ActivityRuleSet",
+  "resource": {
+    "name": "activityRuleSet",
+    "plural": "activityRuleSets",
+    "tag": "Activity Rule Set"
+  },
+  "table": {
+    "name": "activity_rule_sets",
+    "comment": "活动规则集表，保存规则原文、Rule DSL 和解析元数据"
+  },
+  "api": {
+    "basePath": "/api/v1/activity-rule-sets"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "name",
+      "dbType": "varchar(160)",
+      "comment": "活动规则集名称",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "platform",
+      "dbType": "varchar(64)",
+      "comment": "适用平台",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "source_text",
+      "dbType": "text",
+      "comment": "规则原文",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "rules_json",
+      "dbType": "jsonb",
+      "comment": "Canonical Rule DSL JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "parse_model",
+      "dbType": "varchar(128)",
+      "comment": "规则解析模型",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "parse_confidence",
+      "dbType": "numeric(5,4)",
+      "comment": "规则解析置信度，取值范围 0 到 1",
+      "nullable": true,
+      "writable": true,
+      "sortable": true
+    },
+    {
+      "name": "parse_status",
+      "dbType": "varchar(32)",
+      "comment": "规则解析状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "parsed"
+    },
+    {
+      "name": "parse_metadata_json",
+      "dbType": "jsonb",
+      "comment": "规则解析元数据 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

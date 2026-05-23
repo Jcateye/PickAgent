@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: "Workflow Run API"
+  version: "1.0.0"
+  description: "工作流运行审计表"
+tags:
+  - name: "Workflow Run"
+    description: "工作流运行审计表"
+paths:
+  /api/v1/workflow-runs:
+    get:
+      tags: ["Workflow Run"]
+      summary: "查询Workflow Run列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: workflowType
+          schema:
+            type: string
+          description: "工作流类型"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "运行状态"
+        - in: query
+          name: subjectType
+          schema:
+            type: string
+          description: "业务对象类型"
+        - in: query
+          name: subjectId
+          schema:
+            type: string
+          description: "业务对象 ID"
+        - in: query
+          name: startedAt
+          schema:
+            type: string
+            format: date-time
+          description: "开始时间"
+        - in: query
+          name: completedAt
+          schema:
+            type: string
+            format: date-time
+          description: "完成时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - workflowType
+              - status
+              - subjectType
+              - subjectId
+              - startedAt
+              - completedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Workflow Run"]
+      summary: "创建Workflow Run"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRunRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunResponse'
+  /api/v1/workflow-runs/{id}:
+    get:
+      tags: ["Workflow Run"]
+      summary: "查询Workflow Run详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunResponse'
+    patch:
+      tags: ["Workflow Run"]
+      summary: "更新Workflow Run"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowRunRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRunResponse'
+    delete:
+      tags: ["Workflow Run"]
+      summary: "删除Workflow Run"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateWorkflowRunRequest:
+      type: object
+      properties:
+        workflowType:
+          type: string
+          description: "工作流类型"
+          example: "sample_workflow_type"
+        status:
+          type: string
+          description: "运行状态"
+          example: "QUEUED"
+        subjectType:
+          type: string
+          description: "业务对象类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务对象 ID"
+          nullable: true
+          example: "sample_subject_id"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - workflowType
+    UpdateWorkflowRunRequest:
+      type: object
+      properties:
+        workflowType:
+          type: string
+          description: "工作流类型"
+          example: "sample_workflow_type"
+        status:
+          type: string
+          description: "运行状态"
+          example: "QUEUED"
+        subjectType:
+          type: string
+          description: "业务对象类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务对象 ID"
+          nullable: true
+          example: "sample_subject_id"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    WorkflowRunResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        workflowType:
+          type: string
+          description: "工作流类型"
+          example: "sample_workflow_type"
+        status:
+          type: string
+          description: "运行状态"
+          example: "QUEUED"
+        subjectType:
+          type: string
+          description: "业务对象类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务对象 ID"
+          nullable: true
+          example: "sample_subject_id"
+        inputJson:
+          type: object
+          description: "输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "输出 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - id
+        - inputJson
+        - outputJson
+        - status
+        - updatedAt
+        - workflowType
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowRunResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

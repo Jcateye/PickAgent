@@ -1,0 +1,131 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "WorkflowStep",
+  "resource": {
+    "name": "workflowStep",
+    "plural": "workflowSteps",
+    "tag": "Workflow Step"
+  },
+  "table": {
+    "name": "workflow_steps",
+    "comment": "工作流步骤审计表"
+  },
+  "api": {
+    "basePath": "/api/v1/workflow-steps"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "工作流运行 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "step_key",
+      "dbType": "varchar(96)",
+      "comment": "步骤编码",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "step_name",
+      "dbType": "varchar(160)",
+      "comment": "步骤名称",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "步骤状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "PENDING"
+    },
+    {
+      "name": "input_json",
+      "dbType": "jsonb",
+      "comment": "输入 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "output_json",
+      "dbType": "jsonb",
+      "comment": "输出 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "error_message",
+      "dbType": "text",
+      "comment": "错误信息",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "started_at",
+      "dbType": "timestamptz",
+      "comment": "开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

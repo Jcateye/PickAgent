@@ -1,0 +1,294 @@
+openapi: 3.0.3
+info:
+  title: "Current SKU Projection API"
+  version: "1.0.0"
+  description: "SKU 当前状态读模型表，供 Dashboard、SKU List、Chat summary 和 Report summary 查询"
+tags:
+  - name: "Current SKU Projection"
+    description: "SKU 当前状态读模型表，供 Dashboard、SKU List、Chat summary 和 Report summary 查询"
+paths:
+  /api/v1/current-sku-projections:
+    get:
+      tags: ["Current SKU Projection"]
+      summary: "查询Current SKU Projection列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: skuProfileId
+          schema:
+            type: string
+          description: "SKU 档案 ID，同时作为主键"
+        - in: query
+          name: latestSnapshotId
+          schema:
+            type: string
+          description: "最新采集快照 ID"
+        - in: query
+          name: latestDiagnosisId
+          schema:
+            type: string
+          description: "最新健康诊断 ID"
+        - in: query
+          name: healthStatus
+          schema:
+            type: string
+          description: "当前长期健康状态"
+        - in: query
+          name: healthScore
+          schema:
+            type: integer
+            format: int32
+          description: "当前健康分，0 到 100"
+        - in: query
+          name: dataQualityScore
+          schema:
+            type: integer
+            format: int32
+          description: "当前数据质量分，0 到 100"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - skuProfileId
+              - latestSnapshotId
+              - latestDiagnosisId
+              - healthStatus
+              - healthScore
+              - dataQualityScore
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Current SKU Projection"]
+      summary: "创建Current SKU Projection"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCurrentSkuProjectionRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSkuProjectionResponse'
+  /api/v1/current-sku-projections/{skuProfileId}:
+    get:
+      tags: ["Current SKU Projection"]
+      summary: "查询Current SKU Projection详情"
+      parameters:
+        - in: path
+          name: skuProfileId
+          required: true
+          schema:
+            type: string
+          description: "SKU 档案 ID，同时作为主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSkuProjectionResponse'
+    patch:
+      tags: ["Current SKU Projection"]
+      summary: "更新Current SKU Projection"
+      parameters:
+        - in: path
+          name: skuProfileId
+          required: true
+          schema:
+            type: string
+          description: "SKU 档案 ID，同时作为主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCurrentSkuProjectionRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSkuProjectionResponse'
+    delete:
+      tags: ["Current SKU Projection"]
+      summary: "删除Current SKU Projection"
+      parameters:
+        - in: path
+          name: skuProfileId
+          required: true
+          schema:
+            type: string
+          description: "SKU 档案 ID，同时作为主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateCurrentSkuProjectionRequest:
+      type: object
+      properties:
+        latestSnapshotId:
+          type: string
+          description: "最新采集快照 ID"
+          nullable: true
+          example: "sample_latest_snapshot_id"
+        latestDiagnosisId:
+          type: string
+          description: "最新健康诊断 ID"
+          nullable: true
+          example: "sample_latest_diagnosis_id"
+        healthStatus:
+          type: string
+          description: "当前长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "当前健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "当前数据质量分，0 到 100"
+          example: 1
+        topIssuesJson:
+          type: object
+          description: "顶部问题摘要 JSON"
+          example: "{'key': 'value'}"
+      required:
+        - dataQualityScore
+        - healthScore
+        - healthStatus
+    UpdateCurrentSkuProjectionRequest:
+      type: object
+      properties:
+        latestSnapshotId:
+          type: string
+          description: "最新采集快照 ID"
+          nullable: true
+          example: "sample_latest_snapshot_id"
+        latestDiagnosisId:
+          type: string
+          description: "最新健康诊断 ID"
+          nullable: true
+          example: "sample_latest_diagnosis_id"
+        healthStatus:
+          type: string
+          description: "当前长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "当前健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "当前数据质量分，0 到 100"
+          example: 1
+        topIssuesJson:
+          type: object
+          description: "顶部问题摘要 JSON"
+          example: "{'key': 'value'}"
+    CurrentSkuProjectionResponse:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID，同时作为主键"
+          example: "sample_sku_profile_id"
+        latestSnapshotId:
+          type: string
+          description: "最新采集快照 ID"
+          nullable: true
+          example: "sample_latest_snapshot_id"
+        latestDiagnosisId:
+          type: string
+          description: "最新健康诊断 ID"
+          nullable: true
+          example: "sample_latest_diagnosis_id"
+        healthStatus:
+          type: string
+          description: "当前长期健康状态"
+          example: "READY"
+        healthScore:
+          type: integer
+          format: int32
+          description: "当前健康分，0 到 100"
+          example: 1
+        dataQualityScore:
+          type: integer
+          format: int32
+          description: "当前数据质量分，0 到 100"
+          example: 1
+        topIssuesJson:
+          type: object
+          description: "顶部问题摘要 JSON"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - dataQualityScore
+        - healthScore
+        - healthStatus
+        - skuProfileId
+        - topIssuesJson
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrentSkuProjectionResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

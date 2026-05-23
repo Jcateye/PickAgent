@@ -1,8 +1,183 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TODO: 为当前项目实现 scripts/migrate。
-# 请保持脚本名称稳定，并在这里代理到实际工具链。
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CREATE_DB="${CREATE_DB:-1}"
+MIGRATE_TARGET="${MIGRATE_TARGET:-docker}"
+POSTGRES_ENV_FILE="${POSTGRES_ENV_FILE:-}"
 
-echo "scripts/migrate 尚未实现。"
-exit 1
+usage() {
+  printf '%s\n' "Usage: scripts/migrate [--docker|--tcp] [--no-create-db]"
+  printf '%s\n' ""
+  printf '%s\n' "Environment:"
+  printf '%s\n' "  MIGRATE_TARGET           docker or tcp, default: docker"
+  printf '%s\n' "  MIGRATION_FILE           SQL migration file path"
+  printf '%s\n' "  POSTGRES_DB              Target database, default: pickagent"
+  printf '%s\n' "  POSTGRES_ENV_FILE        Optional env file for TCP mode"
+  printf '%s\n' ""
+  printf '%s\n' "Docker mode:"
+  printf '%s\n' "  POSTGRES_CONTAINER       Docker container name, default: shared-postgres"
+  printf '%s\n' "  POSTGRES_ADMIN_USER      User used to create database, default: admin"
+  printf '%s\n' "  POSTGRES_USER            Database owner, default: myuser"
+  printf '%s\n' "  POSTGRES_MIGRATION_USER  User used to apply migration, default: POSTGRES_USER"
+  printf '%s\n' "  DOCKER_CONTEXT           Optional Docker context"
+  printf '%s\n' ""
+  printf '%s\n' "TCP mode:"
+  printf '%s\n' "  POSTGRES_LOCAL_HOST      Local forwarded host, default: 127.0.0.1"
+  printf '%s\n' "  POSTGRES_LOCAL_PORT      Local forwarded port, default: 15432"
+  printf '%s\n' "  POSTGRES_USER            Database user"
+  printf '%s\n' "  POSTGRES_PASSWORD        Database password"
+  printf '%s\n' "  POSTGRES_MAINTENANCE_DB  Database used for CREATE DATABASE, default: postgres"
+}
+
+while (($#)); do
+  case "$1" in
+    --docker)
+      MIGRATE_TARGET=docker
+      shift
+      ;;
+    --tcp)
+      MIGRATE_TARGET=tcp
+      shift
+      ;;
+    --no-create-db)
+      CREATE_DB=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -n "$POSTGRES_ENV_FILE" ]]; then
+  if [[ ! -f "$POSTGRES_ENV_FILE" ]]; then
+    printf 'POSTGRES_ENV_FILE not found: %s\n' "$POSTGRES_ENV_FILE" >&2
+    exit 1
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  source "$POSTGRES_ENV_FILE"
+  set +a
+fi
+
+MIGRATION_FILE="${MIGRATION_FILE:-$ROOT_DIR/apps/backend/prisma/migrations/20260523162500_init/migration.sql}"
+POSTGRES_DB="${POSTGRES_DB:-pickagent}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-shared-postgres}"
+POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-admin}"
+POSTGRES_USER="${POSTGRES_USER:-myuser}"
+POSTGRES_MIGRATION_USER="${POSTGRES_MIGRATION_USER:-$POSTGRES_USER}"
+POSTGRES_LOCAL_HOST="${POSTGRES_LOCAL_HOST:-127.0.0.1}"
+POSTGRES_LOCAL_PORT="${POSTGRES_LOCAL_PORT:-15432}"
+POSTGRES_MAINTENANCE_DB="${POSTGRES_MAINTENANCE_DB:-postgres}"
+DOCKER_CONTEXT="${DOCKER_CONTEXT:-}"
+
+require_identifier() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    printf 'Invalid %s: %s\n' "$name" "$value" >&2
+    exit 2
+  fi
+}
+
+require_port() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[0-9]+$ ]] || ((value < 1 || value > 65535)); then
+    printf 'Invalid %s: %s\n' "$name" "$value" >&2
+    exit 2
+  fi
+}
+
+require_container_name() {
+  if [[ ! "$POSTGRES_CONTAINER" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    printf 'Invalid POSTGRES_CONTAINER: %s\n' "$POSTGRES_CONTAINER" >&2
+    exit 2
+  fi
+}
+
+if [[ ! -f "$MIGRATION_FILE" ]]; then
+  printf 'Migration file not found: %s\n' "$MIGRATION_FILE" >&2
+  exit 1
+fi
+
+require_identifier "POSTGRES_DB" "$POSTGRES_DB"
+
+run_docker_migration() {
+  require_identifier "POSTGRES_ADMIN_USER" "$POSTGRES_ADMIN_USER"
+  require_identifier "POSTGRES_USER" "$POSTGRES_USER"
+  require_identifier "POSTGRES_MIGRATION_USER" "$POSTGRES_MIGRATION_USER"
+  require_container_name
+
+  docker_cmd=(docker)
+  if [[ -n "$DOCKER_CONTEXT" ]]; then
+    docker_cmd=(docker --context "$DOCKER_CONTEXT")
+  fi
+
+  if ! "${docker_cmd[@]}" info >/dev/null 2>&1; then
+    if [[ -z "$DOCKER_CONTEXT" ]] && docker --context desktop-linux info >/dev/null 2>&1; then
+      docker_cmd=(docker --context desktop-linux)
+    else
+      printf 'Docker daemon is not reachable. Start Docker, then rerun scripts/migrate.\n' >&2
+      exit 1
+    fi
+  fi
+
+  if ! "${docker_cmd[@]}" container inspect "$POSTGRES_CONTAINER" >/dev/null 2>&1; then
+    printf 'Postgres container not found: %s\n' "$POSTGRES_CONTAINER" >&2
+    printf 'Set POSTGRES_CONTAINER or start the expected shared PostgreSQL container, then rerun scripts/migrate.\n' >&2
+    exit 1
+  fi
+
+  if [[ "$CREATE_DB" == "1" ]]; then
+    db_exists="$("${docker_cmd[@]}" exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_ADMIN_USER" -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'" | tr -d '[:space:]')"
+    if [[ "$db_exists" != "1" ]]; then
+      "${docker_cmd[@]}" exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_ADMIN_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\""
+    fi
+  fi
+
+  cat "$MIGRATION_FILE" | "${docker_cmd[@]}" exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_MIGRATION_USER" -d "$POSTGRES_DB"
+
+  printf 'Migration applied: %s -> %s/%s\n' "$MIGRATION_FILE" "$POSTGRES_CONTAINER" "$POSTGRES_DB"
+}
+
+run_tcp_migration() {
+  require_identifier "POSTGRES_USER" "$POSTGRES_USER"
+  require_identifier "POSTGRES_MAINTENANCE_DB" "$POSTGRES_MAINTENANCE_DB"
+  require_port "POSTGRES_LOCAL_PORT" "$POSTGRES_LOCAL_PORT"
+
+  if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+    printf 'POSTGRES_PASSWORD is required for TCP mode. Set it directly or via POSTGRES_ENV_FILE.\n' >&2
+    exit 1
+  fi
+
+  if [[ "$CREATE_DB" == "1" ]]; then
+    db_exists="$(PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_LOCAL_HOST" -p "$POSTGRES_LOCAL_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_MAINTENANCE_DB" -Atc "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'" | tr -d '[:space:]')"
+    if [[ "$db_exists" != "1" ]]; then
+      PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_LOCAL_HOST" -p "$POSTGRES_LOCAL_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_MAINTENANCE_DB" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\""
+    fi
+  fi
+
+  PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_LOCAL_HOST" -p "$POSTGRES_LOCAL_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$MIGRATION_FILE"
+
+  printf 'Migration applied: %s -> %s:%s/%s\n' "$MIGRATION_FILE" "$POSTGRES_LOCAL_HOST" "$POSTGRES_LOCAL_PORT" "$POSTGRES_DB"
+}
+
+case "$MIGRATE_TARGET" in
+  docker)
+    run_docker_migration
+    ;;
+  tcp)
+    run_tcp_migration
+    ;;
+  *)
+    printf 'Invalid MIGRATE_TARGET: %s\n' "$MIGRATE_TARGET" >&2
+    exit 1
+    ;;
+esac

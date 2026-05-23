@@ -1,1 +1,79 @@
-[]
+[
+  {
+    "model": "ActivityRuleSet",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "activity_rule_sets",
+    "spec": "docs/generated-schema-specs/backend/ActivityRuleSet.schema.json"
+  },
+  {
+    "model": "ActivitySimulationResult",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "activity_simulation_results",
+    "spec": "docs/generated-schema-specs/backend/ActivitySimulationResult.schema.json"
+  },
+  {
+    "model": "ActivitySimulationRun",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "activity_simulation_runs",
+    "spec": "docs/generated-schema-specs/backend/ActivitySimulationRun.schema.json"
+  },
+  {
+    "model": "Connector",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "connectors",
+    "spec": "docs/generated-schema-specs/backend/Connector.schema.json"
+  },
+  {
+    "model": "CurrentSkuProjection",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "current_sku_projections",
+    "spec": "docs/generated-schema-specs/backend/CurrentSkuProjection.schema.json"
+  },
+  {
+    "model": "ReviewItem",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "review_items",
+    "spec": "docs/generated-schema-specs/backend/ReviewItem.schema.json"
+  },
+  {
+    "model": "SkuHealthDiagnosis",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "sku_health_diagnoses",
+    "spec": "docs/generated-schema-specs/backend/SkuHealthDiagnosis.schema.json"
+  },
+  {
+    "model": "SkuProfile",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "sku_profiles",
+    "spec": "docs/generated-schema-specs/backend/SkuProfile.schema.json"
+  },
+  {
+    "model": "SkuSnapshot",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "sku_snapshots",
+    "spec": "docs/generated-schema-specs/backend/SkuSnapshot.schema.json"
+  },
+  {
+    "model": "WorkflowRun",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "workflow_runs",
+    "spec": "docs/generated-schema-specs/backend/WorkflowRun.schema.json"
+  },
+  {
+    "model": "WorkflowStep",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "workflow_steps",
+    "spec": "docs/generated-schema-specs/backend/WorkflowStep.schema.json"
+  }
+]

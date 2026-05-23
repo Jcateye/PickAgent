@@ -1,0 +1,333 @@
+openapi: 3.0.3
+info:
+  title: "SKU Profile API"
+  version: "1.0.0"
+  description: "长期 SKU 档案表，承接采集事实、健康结论、活动模拟和 Review"
+tags:
+  - name: "SKU Profile"
+    description: "长期 SKU 档案表，承接采集事实、健康结论、活动模拟和 Review"
+paths:
+  /api/v1/sku-profiles:
+    get:
+      tags: ["SKU Profile"]
+      summary: "查询SKU Profile列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: canonicalKey
+          schema:
+            type: string
+          description: "稳定 SKU 业务键，MVP 采用 platform:store_id:external_sku_id"
+        - in: query
+          name: platform
+          schema:
+            type: string
+          description: "电商平台标识"
+        - in: query
+          name: storeId
+          schema:
+            type: string
+          description: "店铺或业务主体 ID"
+        - in: query
+          name: externalSkuId
+          schema:
+            type: string
+          description: "外部平台 SKU ID"
+        - in: query
+          name: productName
+          schema:
+            type: string
+          description: "商品名称"
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: "商品类目"
+        - in: query
+          name: brand
+          schema:
+            type: string
+          description: "品牌"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "SKU 档案状态"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - canonicalKey
+              - platform
+              - storeId
+              - externalSkuId
+              - productName
+              - category
+              - brand
+              - status
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["SKU Profile"]
+      summary: "创建SKU Profile"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkuProfileRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuProfileResponse'
+  /api/v1/sku-profiles/{id}:
+    get:
+      tags: ["SKU Profile"]
+      summary: "查询SKU Profile详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuProfileResponse'
+    patch:
+      tags: ["SKU Profile"]
+      summary: "更新SKU Profile"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkuProfileRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkuProfileResponse'
+    delete:
+      tags: ["SKU Profile"]
+      summary: "删除SKU Profile"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateSkuProfileRequest:
+      type: object
+      properties:
+        canonicalKey:
+          type: string
+          description: "稳定 SKU 业务键，MVP 采用 platform:store_id:external_sku_id"
+          example: "sample_canonical_key"
+        platform:
+          type: string
+          description: "电商平台标识"
+          example: "sample_platform"
+        storeId:
+          type: string
+          description: "店铺或业务主体 ID"
+          example: "sample_store_id"
+        externalSkuId:
+          type: string
+          description: "外部平台 SKU ID"
+          example: "sample_external_sku_id"
+        productName:
+          type: string
+          description: "商品名称"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目"
+          nullable: true
+          example: "sample_category"
+        brand:
+          type: string
+          description: "品牌"
+          nullable: true
+          example: "sample_brand"
+        status:
+          type: string
+          description: "SKU 档案状态"
+          example: "active"
+      required:
+        - canonicalKey
+        - externalSkuId
+        - platform
+        - storeId
+    UpdateSkuProfileRequest:
+      type: object
+      properties:
+        canonicalKey:
+          type: string
+          description: "稳定 SKU 业务键，MVP 采用 platform:store_id:external_sku_id"
+          example: "sample_canonical_key"
+        platform:
+          type: string
+          description: "电商平台标识"
+          example: "sample_platform"
+        storeId:
+          type: string
+          description: "店铺或业务主体 ID"
+          example: "sample_store_id"
+        externalSkuId:
+          type: string
+          description: "外部平台 SKU ID"
+          example: "sample_external_sku_id"
+        productName:
+          type: string
+          description: "商品名称"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目"
+          nullable: true
+          example: "sample_category"
+        brand:
+          type: string
+          description: "品牌"
+          nullable: true
+          example: "sample_brand"
+        status:
+          type: string
+          description: "SKU 档案状态"
+          example: "active"
+    SkuProfileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        canonicalKey:
+          type: string
+          description: "稳定 SKU 业务键，MVP 采用 platform:store_id:external_sku_id"
+          example: "sample_canonical_key"
+        platform:
+          type: string
+          description: "电商平台标识"
+          example: "sample_platform"
+        storeId:
+          type: string
+          description: "店铺或业务主体 ID"
+          example: "sample_store_id"
+        externalSkuId:
+          type: string
+          description: "外部平台 SKU ID"
+          example: "sample_external_sku_id"
+        productName:
+          type: string
+          description: "商品名称"
+          nullable: true
+          example: "demo"
+        category:
+          type: string
+          description: "商品类目"
+          nullable: true
+          example: "sample_category"
+        brand:
+          type: string
+          description: "品牌"
+          nullable: true
+          example: "sample_brand"
+        status:
+          type: string
+          description: "SKU 档案状态"
+          example: "active"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - canonicalKey
+        - createdAt
+        - externalSkuId
+        - id
+        - platform
+        - status
+        - storeId
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkuProfileResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

@@ -1,0 +1,124 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "SkuHealthDiagnosis",
+  "resource": {
+    "name": "skuHealthDiagnosis",
+    "plural": "skuHealthDiagnoses",
+    "tag": "SKU Health Diagnosis"
+  },
+  "table": {
+    "name": "sku_health_diagnoses",
+    "comment": "SKU 日常健康诊断结论表"
+  },
+  "api": {
+    "basePath": "/api/v1/sku-health-diagnoses"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "sku_profile_id",
+      "dbType": "uuid",
+      "comment": "SKU 档案 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "snapshot_id",
+      "dbType": "uuid",
+      "comment": "关联采集快照 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "health_status",
+      "dbType": "varchar(32)",
+      "comment": "长期健康状态",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "READY"
+    },
+    {
+      "name": "health_score",
+      "dbType": "integer",
+      "comment": "健康分，0 到 100",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "data_quality_score",
+      "dbType": "integer",
+      "comment": "数据质量分，0 到 100",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "issues_json",
+      "dbType": "jsonb",
+      "comment": "问题列表 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "next_actions_json",
+      "dbType": "jsonb",
+      "comment": "下一步动作 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_json",
+      "dbType": "jsonb",
+      "comment": "证据链 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "diagnosed_at",
+      "dbType": "timestamptz",
+      "comment": "诊断时间",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

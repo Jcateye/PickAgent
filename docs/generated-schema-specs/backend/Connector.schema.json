@@ -1,0 +1,107 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "Connector",
+  "resource": {
+    "name": "connector",
+    "plural": "connectors",
+    "tag": "Connector"
+  },
+  "table": {
+    "name": "connectors",
+    "comment": "数据连接器表，记录插件、平台 API、报表导入等采集来源"
+  },
+  "api": {
+    "basePath": "/api/v1/connectors"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "code",
+      "dbType": "varchar(64)",
+      "comment": "连接器编码",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "name",
+      "dbType": "varchar(128)",
+      "comment": "连接器名称",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "kind",
+      "dbType": "varchar(32)",
+      "comment": "连接器类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "platform",
+      "dbType": "varchar(64)",
+      "comment": "电商平台标识",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "config_json",
+      "dbType": "jsonb",
+      "comment": "连接器配置 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "连接器状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "active"
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

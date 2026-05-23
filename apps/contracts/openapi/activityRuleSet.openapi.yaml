@@ -1,0 +1,329 @@
+openapi: 3.0.3
+info:
+  title: "Activity Rule Set API"
+  version: "1.0.0"
+  description: "活动规则集表，保存规则原文、Rule DSL 和解析元数据"
+tags:
+  - name: "Activity Rule Set"
+    description: "活动规则集表，保存规则原文、Rule DSL 和解析元数据"
+paths:
+  /api/v1/activity-rule-sets:
+    get:
+      tags: ["Activity Rule Set"]
+      summary: "查询Activity Rule Set列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: "活动规则集名称"
+        - in: query
+          name: platform
+          schema:
+            type: string
+          description: "适用平台"
+        - in: query
+          name: parseModel
+          schema:
+            type: string
+          description: "规则解析模型"
+        - in: query
+          name: parseStatus
+          schema:
+            type: string
+          description: "规则解析状态"
+        - in: query
+          name: createdBy
+          schema:
+            type: string
+          description: "创建人"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - name
+              - platform
+              - parseModel
+              - parseConfidence
+              - parseStatus
+              - createdBy
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Activity Rule Set"]
+      summary: "创建Activity Rule Set"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityRuleSetRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityRuleSetResponse'
+  /api/v1/activity-rule-sets/{id}:
+    get:
+      tags: ["Activity Rule Set"]
+      summary: "查询Activity Rule Set详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityRuleSetResponse'
+    patch:
+      tags: ["Activity Rule Set"]
+      summary: "更新Activity Rule Set"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivityRuleSetRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityRuleSetResponse'
+    delete:
+      tags: ["Activity Rule Set"]
+      summary: "删除Activity Rule Set"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateActivityRuleSetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "活动规则集名称"
+          example: "demo"
+        platform:
+          type: string
+          description: "适用平台"
+          nullable: true
+          example: "sample_platform"
+        sourceText:
+          type: string
+          description: "规则原文"
+          example: "sample_source_text"
+        rulesJson:
+          type: object
+          description: "Canonical Rule DSL JSON"
+          example: "{'key': 'value'}"
+        parseModel:
+          type: string
+          description: "规则解析模型"
+          nullable: true
+          example: "sample_parse_model"
+        parseConfidence:
+          type: string
+          description: "规则解析置信度，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        parseStatus:
+          type: string
+          description: "规则解析状态"
+          example: "parsed"
+        parseMetadataJson:
+          type: object
+          description: "规则解析元数据 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+      required:
+        - name
+        - sourceText
+    UpdateActivityRuleSetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "活动规则集名称"
+          example: "demo"
+        platform:
+          type: string
+          description: "适用平台"
+          nullable: true
+          example: "sample_platform"
+        sourceText:
+          type: string
+          description: "规则原文"
+          example: "sample_source_text"
+        rulesJson:
+          type: object
+          description: "Canonical Rule DSL JSON"
+          example: "{'key': 'value'}"
+        parseModel:
+          type: string
+          description: "规则解析模型"
+          nullable: true
+          example: "sample_parse_model"
+        parseConfidence:
+          type: string
+          description: "规则解析置信度，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        parseStatus:
+          type: string
+          description: "规则解析状态"
+          example: "parsed"
+        parseMetadataJson:
+          type: object
+          description: "规则解析元数据 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+    ActivityRuleSetResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        name:
+          type: string
+          description: "活动规则集名称"
+          example: "demo"
+        platform:
+          type: string
+          description: "适用平台"
+          nullable: true
+          example: "sample_platform"
+        sourceText:
+          type: string
+          description: "规则原文"
+          example: "sample_source_text"
+        rulesJson:
+          type: object
+          description: "Canonical Rule DSL JSON"
+          example: "{'key': 'value'}"
+        parseModel:
+          type: string
+          description: "规则解析模型"
+          nullable: true
+          example: "sample_parse_model"
+        parseConfidence:
+          type: string
+          description: "规则解析置信度，取值范围 0 到 1"
+          nullable: true
+          example: "0.00"
+        parseStatus:
+          type: string
+          description: "规则解析状态"
+          example: "parsed"
+        parseMetadataJson:
+          type: object
+          description: "规则解析元数据 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - id
+        - name
+        - parseMetadataJson
+        - parseStatus
+        - rulesJson
+        - sourceText
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityRuleSetResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

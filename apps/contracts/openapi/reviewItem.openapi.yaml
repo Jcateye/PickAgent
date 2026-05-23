@@ -1,0 +1,480 @@
+openapi: 3.0.3
+info:
+  title: "Review Item API"
+  version: "1.0.0"
+  description: "人工 Review 审批任务表"
+tags:
+  - name: "Review Item"
+    description: "人工 Review 审批任务表"
+paths:
+  /api/v1/review-items:
+    get:
+      tags: ["Review Item"]
+      summary: "查询Review Item列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: skuProfileId
+          schema:
+            type: string
+          description: "SKU 档案 ID"
+        - in: query
+          name: snapshotId
+          schema:
+            type: string
+          description: "采集快照 ID"
+        - in: query
+          name: diagnosisId
+          schema:
+            type: string
+          description: "健康诊断 ID"
+        - in: query
+          name: activityRuleSetId
+          schema:
+            type: string
+          description: "活动规则集 ID"
+        - in: query
+          name: simulationResultId
+          schema:
+            type: string
+          description: "活动模拟结果 ID"
+        - in: query
+          name: reviewType
+          schema:
+            type: string
+          description: "Review 类型"
+        - in: query
+          name: reasonCode
+          schema:
+            type: string
+          description: "Review 原因编码"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "Review 状态"
+        - in: query
+          name: riskLevel
+          schema:
+            type: string
+          description: "风险等级"
+        - in: query
+          name: decision
+          schema:
+            type: string
+          description: "人工决策"
+        - in: query
+          name: decisionBy
+          schema:
+            type: string
+          description: "决策人"
+        - in: query
+          name: decidedAt
+          schema:
+            type: string
+            format: date-time
+          description: "决策时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - skuProfileId
+              - snapshotId
+              - diagnosisId
+              - activityRuleSetId
+              - simulationResultId
+              - reviewType
+              - reasonCode
+              - status
+              - riskLevel
+              - decision
+              - decisionBy
+              - decidedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Review Item"]
+      summary: "创建Review Item"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewItemRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewItemResponse'
+  /api/v1/review-items/{id}:
+    get:
+      tags: ["Review Item"]
+      summary: "查询Review Item详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewItemResponse'
+    patch:
+      tags: ["Review Item"]
+      summary: "更新Review Item"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReviewItemRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewItemResponse'
+    delete:
+      tags: ["Review Item"]
+      summary: "删除Review Item"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateReviewItemRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          nullable: true
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          nullable: true
+          example: "sample_activity_rule_set_id"
+        simulationResultId:
+          type: string
+          description: "活动模拟结果 ID"
+          nullable: true
+          example: "sample_simulation_result_id"
+        reviewType:
+          type: string
+          description: "Review 类型"
+          example: "sample_review_type"
+        reasonCode:
+          type: string
+          description: "Review 原因编码"
+          example: "sample_reason_code"
+        status:
+          type: string
+          description: "Review 状态"
+          example: "PENDING"
+        question:
+          type: string
+          description: "需要人工回答的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          nullable: true
+          example: "sample_risk_level"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decisionBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decision_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+      required:
+        - question
+        - reasonCode
+        - reviewType
+    UpdateReviewItemRequest:
+      type: object
+      properties:
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          nullable: true
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          nullable: true
+          example: "sample_activity_rule_set_id"
+        simulationResultId:
+          type: string
+          description: "活动模拟结果 ID"
+          nullable: true
+          example: "sample_simulation_result_id"
+        reviewType:
+          type: string
+          description: "Review 类型"
+          example: "sample_review_type"
+        reasonCode:
+          type: string
+          description: "Review 原因编码"
+          example: "sample_reason_code"
+        status:
+          type: string
+          description: "Review 状态"
+          example: "PENDING"
+        question:
+          type: string
+          description: "需要人工回答的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          nullable: true
+          example: "sample_risk_level"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decisionBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decision_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+    ReviewItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        skuProfileId:
+          type: string
+          description: "SKU 档案 ID"
+          nullable: true
+          example: "sample_sku_profile_id"
+        snapshotId:
+          type: string
+          description: "采集快照 ID"
+          nullable: true
+          example: "sample_snapshot_id"
+        diagnosisId:
+          type: string
+          description: "健康诊断 ID"
+          nullable: true
+          example: "sample_diagnosis_id"
+        activityRuleSetId:
+          type: string
+          description: "活动规则集 ID"
+          nullable: true
+          example: "sample_activity_rule_set_id"
+        simulationResultId:
+          type: string
+          description: "活动模拟结果 ID"
+          nullable: true
+          example: "sample_simulation_result_id"
+        reviewType:
+          type: string
+          description: "Review 类型"
+          example: "sample_review_type"
+        reasonCode:
+          type: string
+          description: "Review 原因编码"
+          example: "sample_reason_code"
+        status:
+          type: string
+          description: "Review 状态"
+          example: "PENDING"
+        question:
+          type: string
+          description: "需要人工回答的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          nullable: true
+          example: "sample_risk_level"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decisionBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decision_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        evidenceJson:
+          type: object
+          description: "证据链 JSON"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - evidenceJson
+        - id
+        - question
+        - reasonCode
+        - reviewType
+        - status
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewItemResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

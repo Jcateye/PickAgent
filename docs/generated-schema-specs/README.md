@@ -13,6 +13,7 @@
 ## 当前目录约定
 
 - `manifest.json`：记录 spec 文件与来源映射
+- `backend/`：P0 数据表对应的后端 CRUD 生成规格归档
 - 后续可按主题分目录，例如：
   - `prisma/`
   - `openapi/`

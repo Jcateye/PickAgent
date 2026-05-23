@@ -1,0 +1,187 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "SkuSnapshot",
+  "resource": {
+    "name": "skuSnapshot",
+    "plural": "skuSnapshots",
+    "tag": "SKU Snapshot"
+  },
+  "table": {
+    "name": "sku_snapshots",
+    "comment": "SKU 采集事实快照表"
+  },
+  "api": {
+    "basePath": "/api/v1/sku-snapshots"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "sku_profile_id",
+      "dbType": "uuid",
+      "comment": "SKU 档案 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "connector_id",
+      "dbType": "uuid",
+      "comment": "连接器 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "source_url",
+      "dbType": "text",
+      "comment": "来源页面 URL",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "row_index",
+      "dbType": "integer",
+      "comment": "来源行号",
+      "nullable": true,
+      "writable": true,
+      "sortable": true
+    },
+    {
+      "name": "collected_at",
+      "dbType": "timestamptz",
+      "comment": "采集时间",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "product_name",
+      "dbType": "varchar(256)",
+      "comment": "商品名称快照",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "category",
+      "dbType": "varchar(128)",
+      "comment": "商品类目快照",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "sales30d",
+      "dbType": "integer",
+      "comment": "近 30 天销量",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "positive_rate",
+      "dbType": "numeric(5,4)",
+      "comment": "好评率，取值范围 0 到 1",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "stock",
+      "dbType": "integer",
+      "comment": "可售库存",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "original_price",
+      "dbType": "numeric(12,2)",
+      "comment": "原价",
+      "nullable": true,
+      "writable": true,
+      "sortable": true
+    },
+    {
+      "name": "lowest_price_30d",
+      "dbType": "numeric(12,2)",
+      "comment": "近 30 天最低价",
+      "nullable": true,
+      "writable": true,
+      "sortable": true
+    },
+    {
+      "name": "campaign_price",
+      "dbType": "numeric(12,2)",
+      "comment": "活动价",
+      "nullable": true,
+      "writable": true,
+      "sortable": true
+    },
+    {
+      "name": "joined_brand_day",
+      "dbType": "boolean",
+      "comment": "是否已参加品牌日等互斥活动",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "certificate_status",
+      "dbType": "varchar(64)",
+      "comment": "证书状态",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "raw_json",
+      "dbType": "jsonb",
+      "comment": "原始采集数据",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "normalized_json",
+      "dbType": "jsonb",
+      "comment": "标准化后的字段数据",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}
