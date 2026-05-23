@@ -1,6 +1,8 @@
 # PickAgent Architecture
 
 > 本文件记录 PickAgent / SKU Ready Agent 的项目级技术架构、模块边界、数据主语、客户端职责与服务端分层。产品叙事见 `docs/PRD.md`，评审汇总见 `claude_prd_report.html`。
+>
+> Pi Agent Copilot 细化设计见 `docs/pi-agent-copilot-design.md`，Agent 后端数据结构与模块落位见 `docs/agent-backend-data-architecture.md`。
 
 ## 1. 项目目标
 
@@ -19,7 +21,7 @@ PickAgent 当前的目标是交付 **SKU Ready Agent**：
 ```txt
 Client Layer
 ├── apps/extension     # 浏览器插件，负责采集与预览
-└── apps/frontend      # 集中式总控制台，负责查询、模拟、Review、报告、Chat
+└── apps/frontend      # 集中式总控制台，包含人工工作台与 Agent Copilot 工作台
 
 API / Application Layer
 ├── ingest API
@@ -27,7 +29,13 @@ API / Application Layer
 ├── activity parse / simulation APIs
 ├── review APIs
 ├── report APIs
-└── chat API
+├── chat API
+└── agent mission API
+
+Agent Workbench Runtime Layer
+├── PiAgentLoopAdapter       # Agent harness / loop runtime
+├── VercelAiModelAdapter     # LLM provider / tool schema / streaming adapter
+└── assistant-ui             # frontend conversation UI layer
 
 Domain / Service Layer
 ├── IngestService
@@ -38,7 +46,9 @@ Domain / Service Layer
 ├── ReviewService
 ├── ReportService
 ├── SkuQueryService
-└── ChatToolService
+├── ChatToolService
+├── AgentMissionService
+└── ExecutionPathPlanner
 
 Persistence Layer
 ├── PostgreSQL
@@ -79,19 +89,20 @@ Persistence Layer
 - Simulation Result
 - Review Workbench
 - Reports
-- Chat
+- Agent Copilot
 - Workflows
 
 职责：
 
 - 展示服务端已生成的 current state
 - 承载录入规则、查看模拟结果、审批 Review 等交互
-- 提供自然语言控制台入口
+- 提供 Agent Copilot 目标任务入口，展示 Agent Plan、Tool Trace、长任务状态、Context 对照和 Review Gate
 
 边界：
 
 - 不在前端重算健康状态、准入状态或规则结果
 - 页面只读 DTO / projection，不直接拼底层事实模型
+- Agent Copilot 不拥有私有业务逻辑，只编排与展示服务端 tools 的执行结果
 
 ## 4. 服务端分层
 
@@ -130,6 +141,34 @@ Persistence Layer
 - `ReportService`：生成健康与活动报告 DTO
 - `SkuQueryService`：提供 Dashboard、详情页、列表页读模型
 - `ChatToolService`：把服务能力暴露为 Vercel AI SDK tools
+- `AgentMissionService`：把用户目标、外部事件或 Dashboard trigger 建模为 Mission，管理计划、状态、长任务和 Review Gate
+- `ExecutionPathPlanner`：把规则 DSL 转为字段需求、数据源、执行检查清单和决策路径
+
+### 4.2.1 Agent Mission Layer
+
+Mission Layer 位于 Chat / 外部 Agent Event / Dashboard Trigger 与系统原生 service 之间：
+
+```txt
+Chat / External Agent Event / Dashboard Trigger
+        ↓
+AgentMissionService
+        ↓
+ExecutionPathPlanner + ChatToolService
+        ↓
+Ingest / Health / Activity / Simulation / Review / Report Services
+        ↓
+WorkflowRun / WorkflowStep / Evidence / ReviewItem
+```
+
+MVP 中 Mission 不直接写业务结论。它负责：
+
+- 识别目标、约束和自治等级
+- 生成可见的 Agent Plan
+- 选择已有系统工具并记录 Tool Trace
+- 在数据过期、规则歧义、多源冲突或高风险动作时暂停并创建 Review
+- 将长任务落到 `WorkflowRun` / `WorkflowStep`，便于回看、降级和恢复
+
+当前 Agent 工作台确认采用 Pi 作为 Agent harness / loop runtime，Vercel AI SDK 负责 LLM provider、tool schema 与 streaming 适配，assistant-ui 负责前端会话 UI。Pi 只位于 `PiAgentLoopAdapter` 后面，不直接访问业务 service 或数据库；业务能力必须通过 `AgentToolRegistry` 暴露。
 
 ### 4.3 Domain Engines
 
@@ -318,7 +357,8 @@ apps/backend/
   - `scopeJson` 进入 simulation run
   - `llmModel / confidence / parseStatus` 进入 `ActivityRuleSet`
   - 金额字段使用 `Decimal`
-- Chat 是自然语言控制台，不是核心业务判断层
+- 产品主形态是双工作台：人工工作台负责确定性业务操作，Agent Copilot 工作台负责目标驱动规划、原子工具调用、Trace、Context 对照和 Review Gate
+- Agent 工作台运行时分工：Pi 负责 agent harness / loop，Vercel AI SDK 负责 LLM 与 tool schema，assistant-ui 负责会话 UI
 - 浏览器插件是数据入口；总控制台是决策与协同入口
 
 ## 11. 待补 ADR

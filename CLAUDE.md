@@ -17,6 +17,8 @@ Use the ProjectWorkFlowDemo workflow layer for non-trivial work.
 - Default issue tracker layer: `local-markdown`.
 - Obsidian workflow knowledge base: `/Users/haoqi/Library/Mobile Documents/iCloud~md~obsidian/Documents/private_knowlegde/流程`.
 - Prefer small scoped changes and verifiable goals.
+- Product shape is dual workbench: human workbench for deterministic operations, Agent Copilot workbench for goal-driven planning, tool calls, traces, and Review Gate.
+- Agent runtime split: Pi owns the agent harness / loop, Vercel AI SDK owns LLM and tool-schema integration, assistant-ui owns the conversation UI.
 - After completing each requirement, commit the code and write the corresponding requirement content clearly in Chinese.
 - Stop before `L3` risk unless explicitly authorized.
 <!-- PROJECT-WORKFLOW:END -->

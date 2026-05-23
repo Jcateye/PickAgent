@@ -102,16 +102,16 @@
 
 ---
 
-### ADR-006 Chat 是自然语言控制台，不是核心业务层
+### ADR-006 Agent Copilot 是双工作台入口，不是私有业务层
 
 - 状态：accepted
 - 日期：2026-05-23
 - owner：haoqi
-- 背景：PRD 包含 Chat 控制台，但系统核心业务应该是 ingest、diagnosis、simulation 与 review，而不是把一切逻辑塞进 chat route。
+- 背景：产品主形态升级为双工作台：人工工作台承接确定性业务操作，Agent Copilot 工作台承接目标驱动规划、原子工具调用、Trace、Context 对照和 Review Gate。系统核心业务仍然是 ingest、diagnosis、simulation 与 review，不能把业务逻辑塞进 chat route。
 - 备选方案：
-  - Chat 持有专有业务逻辑
-  - Chat 只包装已有 application services
-- 最终决定：Chat tools 只复用 `SkuQueryService`、`ActivitySimulationService`、`ReportService` 等服务。
-- 决定原因：保证页面按钮和 Chat 工具复用同一套业务逻辑，避免双轨实现。
-- 影响范围：`/api/chat`、tool design、assistant-ui 页面、后端服务拆分
-- 后续动作：在 `apps/backend/tools/` 统一工具定义
+  - Agent Copilot 持有专有业务逻辑
+  - Agent Copilot 只通过 Tool Registry 调用已有 application services
+- 最终决定：Agent Copilot 不拥有私有业务判断；Pi 负责 agent harness / loop，Vercel AI SDK 负责 LLM 与 tool schema，assistant-ui 负责会话 UI，业务能力只通过 `AgentToolRegistry` 暴露。
+- 决定原因：保证页面按钮和 Agent 工具复用同一套业务逻辑，避免双轨实现，并保留 Review Gate 和 Evidence 边界。
+- 影响范围：`/api/agent/*`、`/api/chat`、tool design、assistant-ui Copilot、后端服务拆分
+- 后续动作：在 `apps/backend/src/agent/tools/` 统一工具定义
