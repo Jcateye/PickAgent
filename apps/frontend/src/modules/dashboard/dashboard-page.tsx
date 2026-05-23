@@ -1,36 +1,102 @@
+import Link from 'next/link'
+
+import { getDashboardSummary } from '@/modules/staff-health-console/data'
+import { workflowRunTone } from '@/modules/staff-health-console/contracts'
 import { PageHeader } from '@/shared/ui/page-header'
-import { SummaryPanel, TwoColumnScaffold } from '@/shared/ui/page-scaffolds'
+import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
+import { StatusBadge } from '@/shared/ui/status-badge'
 
 export function DashboardPage() {
+  const summary = getDashboardSummary()
+
   return (
     <div className="pageStack">
       <PageHeader
         title="Dashboard 总览"
-        description="总览页只承接风险摘要、人工介入入口和主控台的导航焦点；真实业务数据待接口接入后展示。"
+        description="总览页展示监控范围、健康状态分布、数据质量摘要和最近运行入口；页面只消费 summary DTO，不展开活动模拟或审批细节。"
       />
+
       <section className="kpiGrid">
-        <SummaryPanel title="监控 SKU" description="用于承接监控范围摘要。" state="skeleton" />
-        <SummaryPanel title="Ready" description="用于承接可推进数量摘要。" state="skeleton" />
-        <SummaryPanel title="Repairable" description="用于承接可修复数量摘要。" state="skeleton" />
-        <SummaryPanel title="Risky" description="用于承接风险数量摘要。" state="skeleton" />
-        <SummaryPanel title="Blocked" description="用于承接阻断数量摘要。" state="skeleton" />
-        <SummaryPanel title="数据质量" description="用于承接数据质量摘要。" state="skeleton" />
+        {summary.metrics.map((metric) => (
+          <Panel key={metric.id}>
+            <PanelBody>
+              <div className="metricCard">
+                <div>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </div>
+                <StatusBadge tone={metric.tone}>{metric.label}</StatusBadge>
+                <p>{metric.description}</p>
+              </div>
+            </PanelBody>
+          </Panel>
+        ))}
       </section>
-      <TwoColumnScaffold
-        main={
-          <div className="pageStack">
-            <SummaryPanel title="风险分布" description="按活动口径聚合的风险摘要将显示在这里。" />
-            <SummaryPanel title="最近采集 / 最近模拟" description="运行记录与关键状态变化将在这里承接。" state="unavailable" />
-          </div>
-        }
-        side={
-          <div className="pageStack">
-            <SummaryPanel title="Pending Reviews" description="人工审批门在后端就绪后接入。" state="unavailable" />
-            <SummaryPanel title="快捷入口" description="当前先保留导航结构与动作容器。" />
-            <SummaryPanel title="Workflow Runs" description="工作流摘要区域已预留。" state="unavailable" />
-          </div>
-        }
-      />
+
+      <div className="twoColumnScaffold">
+        <div className="twoColumnMain">
+          <Panel>
+            <PanelHeader title="风险摘要" description="风险聚合来自服务端 summary DTO，点击进入对象列表继续处理。" />
+            <PanelBody>
+              <div className="riskSummaryList">
+                {summary.riskSummaries.map((risk) => (
+                  <Link className="summaryLinkItem" href={risk.targetHref} key={risk.id}>
+                    <div>
+                      <StatusBadge tone={risk.tone}>{risk.count}</StatusBadge>
+                      <strong>{risk.label}</strong>
+                      <p>{risk.description}</p>
+                    </div>
+                    <span>查看 SKU</span>
+                  </Link>
+                ))}
+              </div>
+            </PanelBody>
+          </Panel>
+        </div>
+
+        <div className="twoColumnSide">
+          <Panel>
+            <PanelHeader title="最近运行摘要" description="最近采集与刷新运行入口保持和 Workflow 页面一致的对象语义。" />
+            <PanelBody>
+              <div className="runList">
+                {summary.recentRuns.map((run) => (
+                  <Link className="runItem" href={run.targetHref} key={run.id}>
+                    <div className="runTitleRow">
+                      <strong>{run.title}</strong>
+                      <StatusBadge tone={workflowRunTone(run.status)}>{run.status}</StatusBadge>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>来源</dt>
+                        <dd>{run.source}</dd>
+                      </div>
+                      <div>
+                        <dt>时间</dt>
+                        <dd>{run.finishedAtLabel}</dd>
+                      </div>
+                    </dl>
+                    <p>{run.summary}</p>
+                  </Link>
+                ))}
+              </div>
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader title="快捷入口" description="只提供导航入口，不把活动模拟或 Review 操作平铺到 Dashboard。" />
+            <PanelBody>
+              <div className="quickLinkList">
+                {summary.primaryLinks.map((link) => (
+                  <Link className="quickLinkItem" href={link.href} key={link.href}>
+                    <strong>{link.label}</strong>
+                    <span>{link.description}</span>
+                  </Link>
+                ))}
+              </div>
+            </PanelBody>
+          </Panel>
+        </div>
+      </div>
     </div>
   )
 }

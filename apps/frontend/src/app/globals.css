@@ -909,6 +909,265 @@ h4 {
   background: var(--surface-soft);
 }
 
+.metricCard {
+  min-height: 132px;
+  display: grid;
+  gap: 12px;
+}
+
+.metricCard > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metricCard span,
+.detailSummaryBlock span,
+.scoreGrid span,
+.evidenceItem span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metricCard strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 28px;
+}
+
+.metricCard p,
+.summaryLinkItem p,
+.runItem p,
+.connectorItem p,
+.boundaryList p,
+.detailSummaryBlock p,
+.issueItem p,
+.quickLinkItem span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.riskSummaryList,
+.runList,
+.quickLinkList,
+.connectorList,
+.issueList,
+.evidenceList {
+  display: grid;
+  gap: 12px;
+}
+
+.summaryLinkItem,
+.runItem,
+.quickLinkItem,
+.connectorItem,
+.issueItem,
+.evidenceItem {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.summaryLinkItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.summaryLinkItem > div {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.summaryLinkItem > span,
+.quickLinkItem strong {
+  color: var(--primary-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.runTitleRow,
+.connectorTitleRow,
+.skuDetailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runItem dl,
+.connectorItem dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.runItem dl div,
+.connectorItem dl div {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.runItem dt,
+.connectorItem dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.runItem dd,
+.connectorItem dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quickLinkItem {
+  display: grid;
+  gap: 6px;
+}
+
+.connectorTitleRow strong,
+.skuDetailHeader strong {
+  display: block;
+  font-size: 16px;
+}
+
+.connectorTitleRow span,
+.skuDetailHeader p {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.boundaryList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boundaryList li {
+  border-left: 4px solid var(--primary);
+  background: var(--surface-soft);
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.skuHealthLayout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+}
+
+.skuTable {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.skuTableRow {
+  min-width: 980px;
+  display: grid;
+  grid-template-columns: 1.35fr 0.7fr 0.72fr 0.5fr 1.35fr;
+  border-top: 1px solid var(--line);
+}
+
+.skuTableRow:first-child {
+  border-top: none;
+}
+
+.skuTableRow--head {
+  background: var(--surface-muted);
+  font-weight: 800;
+}
+
+.skuTableRow--link[aria-current='page'] {
+  background: #eef6ff;
+}
+
+.skuTableRow span {
+  min-width: 0;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.skuTableRow span:last-child {
+  border-right: none;
+}
+
+.skuTableRow strong,
+.nextActionList strong {
+  display: block;
+}
+
+.skuTableRow small,
+.evidenceItem small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scoreGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.scoreGrid > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.scoreGrid strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.detailSummaryBlock {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.compactState {
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  padding: 14px;
+  font-size: 13px;
+}
+
+.issueItem {
+  display: grid;
+  gap: 10px;
+}
+
+.evidenceItem {
+  display: grid;
+  gap: 6px;
+}
+
+.evidenceItem strong {
+  font-size: 15px;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
@@ -1004,5 +1263,9 @@ h4 {
   .missionStepTitleRow,
   .toolTraceHeader {
     flex-direction: column;
+  }
+
+  .scoreGrid {
+    grid-template-columns: 1fr;
   }
 }
