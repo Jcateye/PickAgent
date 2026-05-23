@@ -9,6 +9,7 @@ import {
   realIngestAdapterDependency,
   recognizeDoudianProductList,
   scanCurrentPage,
+  submitToRealIngestApi,
   syntheticDoudianPages,
   unsupportedSyntheticPage
 } from "../../lib/ingest"
@@ -52,7 +53,7 @@ function runStatusLabel(status: RunStatus) {
     scanned: "已扫描",
     collecting: "采集中",
     paused: "已中断",
-    submitted: "已提交 mock",
+    submitted: "已提交",
     failed: "不可采集"
   }
 
@@ -82,6 +83,18 @@ export function SidePanelApp() {
   const payload = buildIngestPayload(runState)
   const summary = buildSummary(runState)
   const progressValue = Math.round((runState.currentPage / runState.totalPages) * 100)
+  const submitRealPayload = async () => {
+    try {
+      const receipt = await submitToRealIngestApi(buildIngestPayload(runState))
+      setRunState((state) => ({ ...state, status: "submitted", submitReceipt: receipt }))
+    } catch (error) {
+      setRunState((state) => ({
+        ...state,
+        status: "failed",
+        interruptionReason: error instanceof Error ? error.message : "真实 ingest API 提交失败。"
+      }))
+    }
+  }
 
   return (
     <div className="plugin-root sidepanel-root">
@@ -130,7 +143,7 @@ export function SidePanelApp() {
             <div className="recognition-layout">
               <div>
                 <h2 className="recognition-layout__title">识别依据摘要</h2>
-                <p className="muted-text">插件只读取当前页面可见 DOM 与 synthetic fixture。Layer 3 前必须用真实抖店 fixture 替换。</p>
+                <p className="muted-text">插件可读取当前页面可见 DOM；真实抖店 HTTP fixture 已用于校验接口字段映射。</p>
                 <div className="recognition-layout__grid">
                   <div className="recognition-layout__fact">
                     <div className="recognition-layout__fact-label">URL</div>
@@ -206,7 +219,7 @@ export function SidePanelApp() {
                 <article className="timeline-step timeline-step--done">
                   <div className="timeline-step__top">
                     <div className="timeline-step__title">页面识别</div>
-                    <div className="timeline-step__time">fixture</div>
+                  <div className="timeline-step__time">fixture / http</div>
                   </div>
                   <p className="muted-text">{recognition.reasons.join("；")}</p>
                 </article>
@@ -279,14 +292,14 @@ export function SidePanelApp() {
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection title="mock submit payload" meta={`${payload.rows.length} 条待提交`}>
+            <CollapsibleSection title="ingest submit payload" meta={`${payload.rows.length} 条待提交`}>
               <pre className="payload-preview">{JSON.stringify(payload, null, 2)}</pre>
             </CollapsibleSection>
           </section>
 
           <ModuleCard title="提交通路" right={<span className="muted-text">contract-first</span>}>
             <div className="submit-panel">
-              <p className="muted-text">Layer 1 使用 mock submit adapter 验证 payload 形状。真实接口接入等待依赖完成，不在本 change 内实现后端 ingest service。</p>
+              <p className="muted-text">默认提交到真实 ingest API；mock submit adapter 仅保留为本地开发与测试 fallback。</p>
               <div className="dependency-note">{realIngestAdapterDependency.note}</div>
               {runState.submitReceipt ? (
                 <div className="submit-receipt">
@@ -308,7 +321,10 @@ export function SidePanelApp() {
               重置 run
             </button>
             <button className="secondary-button sticky-action-bar__full" type="button" onClick={() => setRunState(attachMockSubmitReceipt(runState))}>
-              mock submit 采集 payload
+              mock fallback submit
+            </button>
+            <button className="primary-button sticky-action-bar__full" type="button" onClick={() => void submitRealPayload()}>
+              提交真实 ingest API
             </button>
           </div>
         </footer>
