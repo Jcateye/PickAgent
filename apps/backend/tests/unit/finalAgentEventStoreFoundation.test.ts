@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createFinalAgentEventStoreRuntime } from "../../src/application/foundation/FinalAgentEventStoreFoundation";
+import { AgentToolPolicy, createFinalAgentEventStoreRuntime } from "../../src/application/foundation/FinalAgentEventStoreFoundation";
+import { createP0RuntimeConfig } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 function seededRun() {
   const runtime = createFinalAgentEventStoreRuntime();
@@ -93,6 +94,62 @@ test("pi adapter only exposes three low-risk tools and executes through real bus
     assert.equal(result.toolCall.status, "BLOCKED", toolName);
     assert.match(result.toolCall.blockedReason ?? "", /outside AgentToolExecutor policy|not registered|toolName is required/);
   }
+});
+
+test("production ToolPolicy allowlist and denylist fail closed", () => {
+  const config = createP0RuntimeConfig({ NODE_ENV: "production" });
+  const policy = new AgentToolPolicy(config);
+
+  for (const toolName of config.productionToolAllowlist) {
+    const decision = policy.decide(toolName);
+    assert.equal(decision.permission, "ALLOW", toolName);
+    assert.equal(decision.reviewPolicy, "AUTO_ALLOW", toolName);
+  }
+
+  for (const toolName of ["coding", "file.read", "bash.exec", "sql.query", "credential_access", "cookie_reader", "token_vault", "JWT.sign", "SSO.login", "secret.get", "api key list"]) {
+    const decision = policy.decide(toolName);
+    assert.equal(decision.permission, "DENY", toolName);
+    assert.equal(decision.reviewPolicy, "DENY", toolName);
+  }
+
+  assert.equal(policy.decide("diagnoseSkuHealth").permission, "DENY");
+  assert.equal(policy.decide("runSimulation").permission, "ALLOW");
+});
+
+test("production Pi adapter smoke exposes only allowlisted tools and hides dangerous runtime tools", () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  delete process.env.P0_ALLOW_DEV_AUTH_FALLBACK;
+  process.env.NODE_ENV = "production";
+  try {
+    const { runtime } = seededRun();
+    const tools = [...runtime.piAdapter.availableTools];
+    assert.deepEqual(tools, ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"]);
+    for (const denied of ["coding", "file", "bash", "sql", "credential", "cookie", "token", "jwt", "sso", "secret", "api key"]) {
+      assert.ok(!tools.some((tool) => tool.toLowerCase().includes(denied)));
+      assert.ok(runtime.piAdapter.disabledRuntimeTools.includes(denied));
+    }
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
+test("tool call persistence and events redact credential-like fields", () => {
+  const { runtime, run } = seededRun();
+  const result = runtime.agentService.executeTool({
+    runId: run.id,
+    toolName: "token_vault",
+    inputJson: {
+      token: "real-token-value",
+      nested: { apiKey: "real-api-key", safe: "visible" },
+    },
+  });
+  const event = runtime.agentService.listEvents(run.id).find((item) => item.eventType === "tool.call_recorded" && item.payloadJson.toolCallId === result.toolCall.id);
+
+  assert.equal(result.toolCall.inputJson.token, "[REDACTED]");
+  assert.deepEqual(result.toolCall.inputJson.nested, { apiKey: "[REDACTED]", safe: "visible" });
+  assert.ok(event);
+  assert.doesNotMatch(JSON.stringify(event!.payloadJson), /real-token-value|real-api-key/);
 });
 
 test("createReviewItems opens review gate before write and decision creates continuation replay chain", () => {

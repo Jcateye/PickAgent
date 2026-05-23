@@ -17,6 +17,7 @@ import {
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
+import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -70,6 +71,14 @@ export interface ReportRequestDto {
   skuProfileIds: string[];
   simulationResultIds?: string[];
 }
+
+const explicitDevBoundary: P0AuthContextDto = {
+  actorId: "dev_actor",
+  tenantId: "dev_tenant",
+  sessionId: "dev_session",
+  surface: "api-dev-fallback",
+  requestId: "dev_request",
+};
 
 interface SkuProfileRecord {
   skuProfileId: string;
@@ -133,6 +142,7 @@ export class FinalApiPersistenceStore {
   readonly reviews = new Map<string, ReviewItemDto>();
   readonly reports = new Map<string, ReportPreviewDto>();
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
+  readonly tenantByEntityId = new Map<string, string>();
 }
 
 export interface TransactionContext {
@@ -187,11 +197,13 @@ export class IngestRepository {
 
   upsertIngestAggregate(
     tx: TransactionContext,
-    input: { row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
+    input: { boundary: P0AuthContextDto; row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
   ): SkuSummaryDto | Promise<SkuSummaryDto> {
     const key = canonicalSkuKey(input.row);
+    const existingProfile = tx.store!.profilesByCanonicalKey.get(key);
+    if (existingProfile) assertTenantBoundary(input.boundary, tx.store!.tenantByEntityId.get(existingProfile.skuProfileId), existingProfile.skuProfileId);
     const profile =
-      tx.store!.profilesByCanonicalKey.get(key) ??
+      existingProfile ??
       ({
         skuProfileId: input.snapshot.skuProfileId,
         canonicalSkuKey: key,
@@ -210,12 +222,16 @@ export class IngestRepository {
     tx.store!.snapshots.set(input.snapshot.snapshotId, input.snapshot);
     tx.store!.diagnoses.set(input.diagnosis.diagnosisId, input.diagnosis);
     tx.store!.projections.set(updatedProfile.skuProfileId, summary);
+    for (const entityId of [updatedProfile.skuProfileId, input.snapshot.snapshotId, input.diagnosis.diagnosisId]) {
+      tx.store!.tenantByEntityId.set(entityId, input.boundary.tenantId);
+    }
     return summary;
   }
 
-  recordWorkflowAudit(tx: TransactionContext, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): WorkflowAuditRecord | Promise<WorkflowAuditRecord> {
+  recordWorkflowAudit(tx: TransactionContext, boundary: P0AuthContextDto, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): WorkflowAuditRecord | Promise<WorkflowAuditRecord> {
     const audit: WorkflowAuditRecord = { ...record, workflowRunId: nextId("workflow"), status: "SUCCEEDED", createdAt: new Date().toISOString() };
     tx.store!.workflowAudits.set(audit.workflowRunId, audit);
+    tx.store!.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return audit;
   }
 }
@@ -223,8 +239,8 @@ export class IngestRepository {
 export class SkuQueryRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  healthSummary(): HealthSummaryDto | Promise<HealthSummaryDto> {
-    const summaries = Array.from(this.store.projections.values());
+  healthSummary(boundary: P0AuthContextDto): HealthSummaryDto | Promise<HealthSummaryDto> {
+    const summaries = Array.from(this.store.projections.values()).filter((item) => this.belongsToTenant(boundary, item.skuProfileId));
     return {
       total: summaries.length,
       ready: summaries.filter((item) => item.healthStatus === "READY").length,
@@ -233,13 +249,14 @@ export class SkuQueryRepository {
     };
   }
 
-  list(page = 1, pageSize = 20): PageDto<SkuSummaryDto> | Promise<PageDto<SkuSummaryDto>> {
-    const items = Array.from(this.store.projections.values());
+  list(boundary: P0AuthContextDto, page = 1, pageSize = 20): PageDto<SkuSummaryDto> | Promise<PageDto<SkuSummaryDto>> {
+    const items = Array.from(this.store.projections.values()).filter((item) => this.belongsToTenant(boundary, item.skuProfileId));
     const start = (page - 1) * pageSize;
     return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
   }
 
-  detail(skuProfileId: string): SkuDetailDto | null | Promise<SkuDetailDto | null> {
+  detail(boundary: P0AuthContextDto, skuProfileId: string): SkuDetailDto | null | Promise<SkuDetailDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(skuProfileId), skuProfileId);
     const summary = this.store.projections.get(skuProfileId);
     if (!summary) return null;
     const latestSnapshot = Array.from(this.store.snapshots.values()).filter((item) => item.skuProfileId === skuProfileId).at(-1) ?? null;
@@ -254,24 +271,32 @@ export class SkuQueryRepository {
       ],
     };
   }
+
+  private belongsToTenant(boundary: P0AuthContextDto, entityId: string): boolean {
+    return this.store.tenantByEntityId.get(entityId) === boundary.tenantId;
+  }
 }
 
 export class ActivityRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  saveRuleSet(ruleSet: ActivityRuleSetDto): ActivityRuleSetDto | Promise<ActivityRuleSetDto> {
+  saveRuleSet(boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): ActivityRuleSetDto | Promise<ActivityRuleSetDto> {
     this.store.ruleSets.set(ruleSet.ruleSetId, ruleSet);
+    this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
     return ruleSet;
   }
 
-  getRuleSet(activityRuleSetId: string): ActivityRuleSetDto | null | Promise<ActivityRuleSetDto | null> {
+  getRuleSet(boundary: P0AuthContextDto, activityRuleSetId: string): ActivityRuleSetDto | null | Promise<ActivityRuleSetDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(activityRuleSetId), activityRuleSetId);
     return this.store.ruleSets.get(activityRuleSetId) ?? null;
   }
 
-  saveSimulationRun(run: ActivitySimulationRunDto): ActivitySimulationRunDto | Promise<ActivitySimulationRunDto> {
+  saveSimulationRun(boundary: P0AuthContextDto, run: ActivitySimulationRunDto): ActivitySimulationRunDto | Promise<ActivitySimulationRunDto> {
     this.store.simulationRuns.set(run.simulationRunId, run);
+    this.store.tenantByEntityId.set(run.simulationRunId, boundary.tenantId);
     for (const result of run.results) {
       this.store.simulationResults.set(result.simulationResultId, result);
+      this.store.tenantByEntityId.set(result.simulationResultId, boundary.tenantId);
     }
     return run;
   }
@@ -280,19 +305,22 @@ export class ActivityRepository {
 export class ReviewRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  list(): ReviewItemDto[] | Promise<ReviewItemDto[]> {
-    return Array.from(this.store.reviews.values());
+  list(boundary: P0AuthContextDto): ReviewItemDto[] | Promise<ReviewItemDto[]> {
+    return Array.from(this.store.reviews.values()).filter((item) => this.store.tenantByEntityId.get(item.reviewItemId) === boundary.tenantId);
   }
 
-  async create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
+  create(boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): ReviewItemDto[] | Promise<ReviewItemDto[]> {
     return items.map((item) => {
+      if (item.skuProfileId) assertTenantBoundary(boundary, this.store.tenantByEntityId.get(item.skuProfileId), item.skuProfileId);
       const review: ReviewItemDto = { ...item, reviewItemId: nextId("review"), status: "OPEN" };
       this.store.reviews.set(review.reviewItemId, review);
+      this.store.tenantByEntityId.set(review.reviewItemId, boundary.tenantId);
       return review;
     });
   }
 
-  async decide(reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
+  decide(boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): ReviewItemDto | Promise<ReviewItemDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
     const current = this.store.reviews.get(reviewItemId);
     if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "CHANGES_REQUESTED" } as const;
@@ -305,12 +333,14 @@ export class ReviewRepository {
 export class ReportRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  save(report: ReportPreviewDto): ReportPreviewDto | Promise<ReportPreviewDto> {
+  save(boundary: P0AuthContextDto, report: ReportPreviewDto): ReportPreviewDto | Promise<ReportPreviewDto> {
     this.store.reports.set(report.reportId, report);
+    this.store.tenantByEntityId.set(report.reportId, boundary.tenantId);
     return report;
   }
 
-  getSimulationResult(id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
+  getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(id), id);
     return this.store.simulationResults.get(id) ?? null;
   }
 }
@@ -324,7 +354,7 @@ export class PrismaIngestRepository extends IngestRepository {
 
   async upsertIngestAggregate(
     tx: TransactionContext,
-    input: { row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
+    input: { boundary: P0AuthContextDto; row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
   ): Promise<SkuSummaryDto> {
     if (!tx.prisma) throw new Error("Prisma transaction context is required");
     const key = canonicalSkuKey(input.row);
@@ -414,7 +444,7 @@ export class PrismaIngestRepository extends IngestRepository {
     );
   }
 
-  async recordWorkflowAudit(tx: TransactionContext, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): Promise<WorkflowAuditRecord> {
+  async recordWorkflowAudit(tx: TransactionContext, _boundary: P0AuthContextDto, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): Promise<WorkflowAuditRecord> {
     if (!tx.prisma) throw new Error("Prisma transaction context is required");
     const workflowRunId = nextUuid();
     const createdAt = new Date();
@@ -440,7 +470,7 @@ export class PrismaSkuQueryRepository extends SkuQueryRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async healthSummary(): Promise<HealthSummaryDto> {
+  async healthSummary(_boundary: P0AuthContextDto): Promise<HealthSummaryDto> {
     const rows = await this.prisma.currentSkuProjection.findMany();
     return {
       total: rows.length,
@@ -450,7 +480,7 @@ export class PrismaSkuQueryRepository extends SkuQueryRepository {
     };
   }
 
-  async list(page = 1, pageSize = 20): Promise<PageDto<SkuSummaryDto>> {
+  async list(_boundary: P0AuthContextDto, page = 1, pageSize = 20): Promise<PageDto<SkuSummaryDto>> {
     const rows = await this.prisma.currentSkuProjection.findMany({
       include: { skuProfile: true },
       orderBy: { updatedAt: "desc" },
@@ -461,7 +491,7 @@ export class PrismaSkuQueryRepository extends SkuQueryRepository {
     return { items: rows.map(toSkuSummaryFromProjection), page, pageSize, total };
   }
 
-  async detail(skuProfileId: string): Promise<SkuDetailDto | null> {
+  async detail(_boundary: P0AuthContextDto, skuProfileId: string): Promise<SkuDetailDto | null> {
     const projection = await this.prisma.currentSkuProjection.findUnique({
       where: { skuProfileId },
       include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
@@ -487,7 +517,7 @@ export class PrismaActivityRepository extends ActivityRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async saveRuleSet(ruleSet: ActivityRuleSetDto): Promise<ActivityRuleSetDto> {
+  async saveRuleSet(_boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): Promise<ActivityRuleSetDto> {
     await this.prisma.activityRuleSet.create({
       data: {
         id: ruleSet.ruleSetId,
@@ -503,7 +533,7 @@ export class PrismaActivityRepository extends ActivityRepository {
     return ruleSet;
   }
 
-  async getRuleSet(activityRuleSetId: string): Promise<ActivityRuleSetDto | null> {
+  async getRuleSet(_boundary: P0AuthContextDto, activityRuleSetId: string): Promise<ActivityRuleSetDto | null> {
     const row = await this.prisma.activityRuleSet.findUnique({ where: { id: activityRuleSetId } });
     if (!row) return null;
     return {
@@ -518,7 +548,7 @@ export class PrismaActivityRepository extends ActivityRepository {
     };
   }
 
-  async saveSimulationRun(run: ActivitySimulationRunDto): Promise<ActivitySimulationRunDto> {
+  async saveSimulationRun(_boundary: P0AuthContextDto, run: ActivitySimulationRunDto): Promise<ActivitySimulationRunDto> {
     await this.prisma.activitySimulationRun.create({
       data: {
         id: run.simulationRunId,
@@ -553,12 +583,12 @@ export class PrismaReviewRepository extends ReviewRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async list(): Promise<ReviewItemDto[]> {
+  async list(_boundary: P0AuthContextDto): Promise<ReviewItemDto[]> {
     const rows = await this.prisma.reviewItem.findMany({ orderBy: { createdAt: "desc" } });
     return rows.map(toReviewItemDto);
   }
 
-  async create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
+  async create(_boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
     const created: ReviewItemDto[] = [];
     for (const item of items) {
       const id = nextUuid();
@@ -581,7 +611,7 @@ export class PrismaReviewRepository extends ReviewRepository {
     return created;
   }
 
-  async decide(reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
+  async decide(_boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "MODIFIED" } as const;
     const updated = await this.prisma.reviewItem.update({
       where: { id: reviewItemId },
@@ -602,7 +632,7 @@ export class PrismaReportRepository extends ReportRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async save(report: ReportPreviewDto): Promise<ReportPreviewDto> {
+  async save(_boundary: P0AuthContextDto, report: ReportPreviewDto): Promise<ReportPreviewDto> {
     await this.prisma.workflowRun.create({
       data: {
         id: report.reportId,
@@ -618,7 +648,7 @@ export class PrismaReportRepository extends ReportRepository {
     return report;
   }
 
-  async getSimulationResult(id: string): Promise<SimulationResultDto | null> {
+  async getSimulationResult(_boundary: P0AuthContextDto, id: string): Promise<SimulationResultDto | null> {
     const row = await this.prisma.activitySimulationResult.findUnique({ where: { id } });
     if (!row) return null;
     return {
@@ -649,7 +679,7 @@ export class FinalIngestService {
     private readonly healthAssessmentService = new HealthAssessmentService(),
   ) {}
 
-  async ingest(payload: IngestPayloadDto): Promise<IngestResponseDto> {
+  async ingest(payload: IngestPayloadDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<IngestResponseDto> {
     assertValidIngestPayload(payload);
     return this.tx.transaction(async (tx) => {
       const summaries: SkuSummaryDto[] = [];
@@ -661,37 +691,37 @@ export class FinalIngestService {
         const skuProfileId = existingSkuProfileId ?? (tx.prisma ? nextUuid() : nextId("sku"));
         const snapshot = this.normalizationService.normalize(row, skuProfileId, payload.collectedAt);
         const diagnosis = this.healthAssessmentService.assess(snapshot);
-        summaries.push(await this.repository.upsertIngestAggregate(tx, { row, collectedAt: payload.collectedAt, snapshot, diagnosis }));
+        summaries.push(await this.repository.upsertIngestAggregate(tx, { boundary, row, collectedAt: payload.collectedAt, snapshot, diagnosis }));
         snapshots.push(snapshot);
         diagnoses.push(diagnosis);
       }
-      const audit = await this.repository.recordWorkflowAudit(tx, {
+      const audit = await this.repository.recordWorkflowAudit(tx, boundary, {
         workflowType: "ingest",
         subjectType: "sku_batch",
-        input: { connectorId: payload.connectorId, rowCount: payload.rows.length, collectedAt: payload.collectedAt },
-        output: { skuProfileIds: summaries.map((item) => item.skuProfileId) },
+        input: { connectorId: payload.connectorId, rowCount: payload.rows.length, collectedAt: payload.collectedAt, actorId: boundary.actorId, tenantId: boundary.tenantId, sessionId: boundary.sessionId, surface: boundary.surface },
+        output: { skuProfileIds: summaries.map((item) => item.skuProfileId), tenantId: boundary.tenantId, sessionId: boundary.sessionId },
       });
       return { summaries, snapshots, diagnoses, workflowRunId: audit.workflowRunId };
     });
   }
 
-  async getHealthSummary(): Promise<HealthSummaryDto> {
-    return this.skuQueryRepository.healthSummary();
+  async getHealthSummary(boundary: P0AuthContextDto = explicitDevBoundary): Promise<HealthSummaryDto> {
+    return this.skuQueryRepository.healthSummary(boundary);
   }
 
-  async listSkus(page?: number, pageSize?: number): Promise<PageDto<SkuSummaryDto>> {
-    return this.skuQueryRepository.list(page, pageSize);
+  async listSkus(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<SkuSummaryDto>> {
+    return this.skuQueryRepository.list(boundary, page, pageSize);
   }
 
-  async getSkuDetail(skuProfileId: string): Promise<SkuDetailDto | null> {
-    return this.skuQueryRepository.detail(skuProfileId);
+  async getSkuDetail(skuProfileId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<SkuDetailDto | null> {
+    return this.skuQueryRepository.detail(boundary, skuProfileId);
   }
 }
 
 export class FinalActivityService {
   constructor(private readonly repository: ActivityRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
-  async parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }): Promise<ActivityRuleSetDto> {
+  async parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityRuleSetDto> {
     const rules = input.rules ?? deterministicRules(input.sourceText);
     const ruleSet: ActivityRuleSetDto = {
       ruleSetId: nextId("rules"),
@@ -710,15 +740,15 @@ export class FinalActivityService {
       ruleSet.confidence = 0;
       ruleSet.errors.push(error instanceof Error ? error.message : "Rule DSL validation failed");
     }
-    return this.repository.saveRuleSet(ruleSet);
+    return this.repository.saveRuleSet(boundary, ruleSet);
   }
 
-  async simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">): Promise<ActivitySimulationRunDto> {
-    const ruleSet = await this.repository.getRuleSet(activityRuleSetId);
+  async simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDto> {
+    const ruleSet = await this.repository.getRuleSet(boundary, activityRuleSetId);
     if (!ruleSet || ruleSet.parseStatus === "FAILED") throw new Error("Valid rule set is required before simulation");
     const startedAt = new Date().toISOString();
     const results = await Promise.all(request.skuProfileIds.map(async (skuProfileId) => {
-      const detail = await this.skuQueryRepository.detail(skuProfileId);
+      const detail = await this.skuQueryRepository.detail(boundary, skuProfileId);
       if (!detail?.latestSnapshot) throw new Error(`SKU detail not found: ${skuProfileId}`);
       const original = evaluate(detail.latestSnapshot, ruleSet.rules);
       const changedSnapshot = request.whatIf ? { ...detail.latestSnapshot, ...request.whatIf } : detail.latestSnapshot;
@@ -734,7 +764,7 @@ export class FinalActivityService {
         originalEligibility: request.whatIf ? original.eligibility : undefined,
       } satisfies SimulationResultDto;
     }));
-    return this.repository.saveSimulationRun({
+    return this.repository.saveSimulationRun(boundary, {
       simulationRunId: nextId("simulation_run"),
       activityRuleSetId,
       status: "SUCCEEDED",
@@ -749,26 +779,26 @@ export class FinalActivityService {
 export class FinalReviewService {
   constructor(private readonly repository: ReviewRepository) {}
 
-  async list(): Promise<PageDto<ReviewItemDto>> {
-    const items = await this.repository.list();
+  async list(boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReviewItemDto>> {
+    const items = await this.repository.list(boundary);
     return { items, page: 1, pageSize: items.length || 20, total: items.length };
   }
 
-  async create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
-    return this.repository.create(items);
+  async create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewItemDto[]> {
+    return this.repository.create(boundary, items);
   }
 
-  async decide(reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
-    return this.repository.decide(reviewItemId, request);
+  async decide(reviewItemId: string, request: ReviewDecisionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewItemDto> {
+    return this.repository.decide(boundary, reviewItemId, request);
   }
 }
 
 export class FinalReportService {
   constructor(private readonly repository: ReportRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
-  async generate(input: ReportRequestDto): Promise<ReportPreviewDto> {
-    const details = (await Promise.all(input.skuProfileIds.map((id) => this.skuQueryRepository.detail(id)))).filter((item): item is SkuDetailDto => item !== null);
-    const simulations = (await Promise.all((input.simulationResultIds ?? []).map((id) => this.repository.getSimulationResult(id)))).filter((item): item is SimulationResultDto => item !== null);
+  async generate(input: ReportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportPreviewDto> {
+    const details = (await Promise.all(input.skuProfileIds.map((id) => this.skuQueryRepository.detail(boundary, id)))).filter((item): item is SkuDetailDto => item !== null);
+    const simulations = (await Promise.all((input.simulationResultIds ?? []).map((id) => this.repository.getSimulationResult(boundary, id)))).filter((item): item is SimulationResultDto => item !== null);
     const simulationEvidence = simulations.map((result) => evidence("simulation", result.simulationResultId, "活动模拟", `准入状态：${result.eligibility}`));
     const unresolvedHealthRisks = details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map((issue) => `${item.productName}：${issue}`));
     const unresolvedSimulationRisks = simulations.filter((item) => item.eligibility === "MANUAL_REVIEW" || item.eligibility === "BLOCKED").map((item) => `${item.simulationResultId}：${item.eligibility}，失败规则 ${item.failedRules.length} 条`);
@@ -784,7 +814,7 @@ export class FinalReportService {
       ],
       evidenceSummary: [...details.flatMap((item) => item.evidence), ...simulationEvidence],
     };
-    return this.repository.save(report);
+    return this.repository.save(boundary, report);
   }
 }
 
