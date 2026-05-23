@@ -11,6 +11,7 @@ export interface ReviewSourceObjectDto {
   type: ReviewSourceType
   title: string
   routeLabel: string
+  href: string
 }
 
 export interface ReviewEvidenceSummaryDto {
@@ -18,6 +19,7 @@ export interface ReviewEvidenceSummaryDto {
   label: string
   value: string
   source: string
+  href: string
 }
 
 export interface ReviewItemDto {

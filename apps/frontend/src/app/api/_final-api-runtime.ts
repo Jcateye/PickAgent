@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
-import { createFinalApiPersistenceRuntime } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import { createFinalApiPersistenceRuntime, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from '../../../../contracts/types/businessFoundation.fixture'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
 type FinalAgentRuntime = ReturnType<typeof createFinalAgentEventStoreRuntime>
@@ -19,6 +20,7 @@ export const finalApiRuntime = globalThis.pickAgentFinalApiRuntime ?? createFina
 globalThis.pickAgentFinalApiRuntime = finalApiRuntime
 export const finalAgentRuntime = globalThis.pickAgentFinalAgentRuntime ?? createFinalAgentEventStoreRuntime()
 globalThis.pickAgentFinalAgentRuntime = finalAgentRuntime
+export const finalReportSnapshotRequest = ensureFinalApiSeed(finalApiRuntime)
 
 export function ok<T>(data: T, requestId = nextRequestId()): NextResponse<ApiEnvelope<T>> {
   return NextResponse.json({ code: 'OK', message: 'success', data, requestId })
@@ -35,4 +37,38 @@ export function parsePositiveInt(value: string | null, fallback: number): number
 
 function nextRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function ensureFinalApiSeed(runtime: FinalApiRuntime): ReportRequestDto {
+  if (runtime.store.projections.size === 0) {
+    const ingest = runtime.ingestService.ingest(businessFoundationSeedFixture)
+    const ruleSet = runtime.activityService.parse({
+      name: '618 活动准入规则',
+      platform: 'tmall',
+      sourceText: businessFoundationActivityRuleText
+    })
+    const run = runtime.activityService.simulate(ruleSet.ruleSetId, {
+      skuProfileIds: ingest.summaries.map((item) => item.skuProfileId)
+    })
+    const reviewTarget = run.results.find((item) => item.eligibility !== 'DIRECT_READY') ?? run.results[0]
+    if (reviewTarget) {
+      runtime.reviewService.create([
+        {
+          skuProfileId: reviewTarget.skuProfileId,
+          sourceType: 'simulation',
+          sourceId: reviewTarget.simulationResultId,
+          question: '是否允许该 SKU 在修复后进入活动准备？',
+          recommendation: '先按 evidence 修复后，再由 Review 工作台保留人工决策。',
+          riskLevel: reviewTarget.eligibility === 'BLOCKED' ? 'L2' : 'L1',
+          evidence: reviewTarget.evidence
+        }
+      ])
+    }
+  }
+
+  return {
+    type: 'ACTIVITY',
+    skuProfileIds: Array.from(runtime.store.projections.keys()),
+    simulationResultIds: Array.from(runtime.store.simulationResults.keys())
+  }
 }

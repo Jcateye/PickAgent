@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
 import type { ReportOutputStatus } from './report-contracts'
-import { createReportProviderSnapshot } from './report-service-provider'
+import { mockReportPreview } from './report-fixtures'
+import { fetchReportPreview } from './report-service-provider'
 
 const outputStatusLabel: Record<ReportOutputStatus, string> = {
   preview_ready: '预览就绪',
@@ -22,15 +23,36 @@ function outputStatusTone(status: ReportOutputStatus) {
 }
 
 export function ReportsPage() {
-  const [{ preview, mode, fallbackReason }] = useState(() => createReportProviderSnapshot())
+  const [preview, setPreview] = useState(mockReportPreview)
+  const [apiState, setApiState] = useState<'loading' | 'ready' | 'fallback'>('loading')
+  const [apiError, setApiError] = useState<string | null>(null)
   const [outputStatus, setOutputStatus] = useState<ReportOutputStatus>(preview.outputStatus)
   const unresolvedRiskSection = preview.sections.find((section) => section.id === 'unresolved_risks')
+
+  useEffect(() => {
+    let cancelled = false
+    fetchReportPreview()
+      .then((nextPreview) => {
+        if (cancelled) return
+        setPreview(nextPreview)
+        setOutputStatus(nextPreview.outputStatus)
+        setApiState('ready')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setApiState('fallback')
+        setApiError(error instanceof Error ? error.message : 'Report API failed')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="pageStack">
       <PageHeader
         title="报告页"
-        description={`消费 ReportService DTO 展示报告章节、摘要、输出状态、evidence summary 和未解决风险。当前数据源：${mode === 'service' ? 'ReportService' : 'mock fallback'}`}
+        description={`默认通过 POST /api/reports 消费 Report DTO，首屏使用确定性 fixture 防止 hydration 漂移；当前状态：${apiState === 'ready' ? 'API ready' : apiState === 'loading' ? '加载 API snapshot' : 'fixture fallback'}`}
       />
 
       <div className="reportPreviewLayout">
@@ -64,7 +86,7 @@ export function ReportsPage() {
                       <div className="evidenceRow" key={evidence.id}>
                         <span>{evidence.label}</span>
                         <strong>{evidence.value}</strong>
-                        <code>{evidence.source}</code>
+                        <a href={evidence.href}>{evidence.source}</a>
                       </div>
                     ))}
                   </div>
@@ -92,7 +114,7 @@ export function ReportsPage() {
                 标记导出占位
               </button>
               <p className="mutedText">真实导出仍是占位；预览内容来自 ReportService，未复制生产凭据或外部接口数据。</p>
-              {fallbackReason ? <p className="mutedText">Fallback：{fallbackReason}</p> : null}
+              {apiError ? <p className="mutedText">Fallback：{apiError}</p> : null}
             </PanelBody>
           </Panel>
 
@@ -104,7 +126,7 @@ export function ReportsPage() {
                   <div className="evidenceRow" key={evidence.id}>
                     <span>{evidence.label}</span>
                     <strong>{evidence.value}</strong>
-                    <code>{evidence.source}</code>
+                    <a href={evidence.href}>{evidence.source}</a>
                   </div>
                 ))}
               </div>
