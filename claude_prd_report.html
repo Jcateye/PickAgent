@@ -462,6 +462,137 @@ ActivityRuleSet (某次活动规则)
                          ├─ optional -> ActivitySimulationResult
                          └─ * EvidenceRef</div>
 
+      <h3 style="margin-top: 22px;">详细 ER 图（MVP 建议）</h3>
+      <div class="ascii">+---------------------------+
+|        Connector         |
+|---------------------------|
+| PK id                     |
+| name                      |
+| connectorType             |
+| platform                  |
+| storeId                   |
+| status                    |
+| createdAt / updatedAt     |
++-------------+-------------+
+              |
+              | 1
+              |
+              | N
++-------------v-------------+        +---------------------------+
+|        SkuProfile         |        |      ActivityRuleSet      |
+|---------------------------|        |---------------------------|
+| PK id                     |        | PK id                     |
+| canonicalSkuKey           |        | activityName              |
+| platform                  |        | platform                  |
+| storeId                   |        | ruleText                  |
+| externalSkuId             |        | rulesJson                 |
+| externalProductId?        |        | manualReviewJson          |
+| productName               |        | parseStatus               |
+| category                  |        | createdAt                 |
+| createdAt / updatedAt     |        +-------------+-------------+
++-------------+-------------+                      |
+              |                                    | 1
+              | 1                                  | N
+              |                                    |
+              | N                                  v
++-------------v-------------+        +---------------------------+
+|       SkuSnapshot         |        |   ActivitySimulationRun   |
+|---------------------------|        |---------------------------|
+| PK id                     |        | PK id                     |
+| FK skuProfileId           |        | FK activityRuleSetId      |
+| FK connectorId            |        | status                    |
+| sourceUrl                 |        | summaryJson               |
+| rowIndex                  |        | startedAt / finishedAt    |
+| collectedAt               |        +-------------+-------------+
+| rawJson                   |                      |
+| sales30d                  |                      | 1
+| positiveRate              |                      | N
+| stock                     |                      |
+| originalPrice             |                      v
+| lowestPrice30d            |        +---------------------------+
+| campaignPrice             |        | ActivitySimulationResult  |
+| joinedBrandDay            |        |---------------------------|
+| certificateStatus         |        | PK id                     |
+| materialStatus            |        | FK simulationRunId        |
+| grossMargin               |        | FK skuProfileId           |
+| createdAt                 |        | FK snapshotId             |
++-------------+-------------+        | eligibilityStatus         |
+              |                      | failedRulesJson           |
+              | 1                    | repairPlanJson            |
+              | N                    | evidenceJson              |
+              v                      | rankingScore?             |
++---------------------------+        | createdAt                 |
+|    SkuHealthDiagnosis     |        +-------------+-------------+
+|---------------------------|                      |
+| PK id                     |                      |
+| FK skuProfileId           |                      |
+| FK snapshotId             |                      |
+| healthStatus              |                      |
+| healthScore               |                      |
+| issuesJson                |                      |
+| nextActionsJson           |                      |
+| evidenceJson              |                      |
+| createdAt                 |                      |
++-------------+-------------+                      |
+              |                                    |
+              | optional                           | optional
+              |                                    |
+              +-------------------+----------------+
+                                  |
+                                  v
+                    +-------------------------------+
+                    |          ReviewItem           |
+                    |-------------------------------|
+                    | PK id                         |
+                    | reviewType                    |
+                    | reasonCode                    |
+                    | status                        |
+                    | question                      |
+                    | agentRecommendation           |
+                    | riskIfIgnored                 |
+                    | assigneeRole                  |
+                    | decision / decisionComment    |
+                    | decisionBy / decidedAt        |
+                    | FK skuProfileId?              |
+                    | FK snapshotId?                |
+                    | FK activityRuleSetId?         |
+                    | FK simulationResultId?        |
+                    | evidenceJson                  |
+                    | createdAt / updatedAt         |
+                    +---------------+---------------+
+                                    |
+                                    | 1
+                                    | N
+                                    v
+                    +-------------------------------+
+                    |        WorkflowRun            |
+                    |-------------------------------|
+                    | PK id                         |
+                    | workflowName                  |
+                    | status                        |
+                    | inputJson / outputJson        |
+                    | startedAt / finishedAt        |
+                    +---------------+---------------+
+                                    |
+                                    | 1
+                                    | N
+                                    v
+                    +-------------------------------+
+                    |       WorkflowStep            |
+                    |-------------------------------|
+                    | PK id                         |
+                    | FK runId                      |
+                    | stepName                      |
+                    | status                        |
+                    | inputJson / outputJson        |
+                    | errorMessage                  |
+                    | startedAt / finishedAt        |
+                    +-------------------------------+
+
+可后置但建议预留：
+- CurrentSkuProjection：当前查询视图，可由 latest snapshot + latest diagnosis 聚合得到
+- EvidenceRef：MVP 可先放 evidenceJson，后续再拆成独立表</div>
+
       <table>
         <thead>
           <tr>
@@ -742,7 +873,536 @@ ActivityRuleSet (某次活动规则)
     </section>
 
     <section class="section">
-      <h2>九、最终建议</h2>
+      <h2>九、客户端页面 → 服务端 Service → 数据表 映射图</h2>
+      <p class="intro">
+        这一节用来回答“页面逻辑该放哪、API 应该多薄、服务怎么拆、最终数据落到哪里”。建议坚持一个原则：<strong>客户端负责交互，服务端拥有业务真相</strong>。</p>
+
+      <div class="ascii">+--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Client Page / Surface    | --> | API Route / Handler           | --> | Application Service                  | --> | Primary Tables                   |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Dashboard                |     | GET /api/health/summary       |     | QueryService                         |     | SkuHealthDiagnosis               |
+|                          |     | GET /api/skus                 |     | CurrentSkuProjectionService?         |     | SkuSnapshot                      |
+|                          |     |                               |     | HealthSummaryAssembler               |     | CurrentSkuProjection?            |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| SKU Detail Page          |     | GET /api/skus/:id             |     | QueryService                         |     | SkuProfile                       |
+|                          |     |                               |     | SkuDetailService                     |     | SkuSnapshot                      |
+|                          |     |                               |     | EvidenceAssembler                    |     | SkuHealthDiagnosis               |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Activity Rule Page       |     | POST /api/activities/parse    |     | ActivityRuleService                  |     | ActivityRuleSet                  |
+|                          |     |                               |     | RuleParseService                     |     | ReviewItem?                      |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Simulation Page          |     | POST /api/activities/simulate |     | ActivitySimulationService            |     | ActivitySimulationRun            |
+|                          |     | GET /api/activities/:id       |     | ItemRuleEvaluator                    |     | ActivitySimulationResult         |
+|                          |     |                               |     | SetRuleEvaluator                     |     | ActivityRuleSet                  |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Review Workbench         |     | GET /api/reviews              |     | ReviewService                        |     | ReviewItem                       |
+|                          |     | POST /api/reviews/:id/decision|     | ReviewDecisionService                |     | ActivitySimulationResult?        |
+|                          |     |                               |     | EvidenceAssembler                    |     | SkuHealthDiagnosis?              |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Report Page              |     | POST /api/reports             |     | ReportService                        |     | ActivitySimulationResult         |
+|                          |     |                               |     | ReportAssembler                      |     | ReviewItem                       |
+|                          |     |                               |     | HealthSummaryAssembler               |     | SkuHealthDiagnosis               |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| Plasmo Extension         |     | POST /api/ingest              |     | IngestService                        |     | Connector                        |
+|                          |     |                               |     | NormalizationService                 |     | SkuProfile                       |
+|                          |     |                               |     | HealthAssessmentService              |     | SkuSnapshot                      |
+|                          |     |                               |     | ReviewService?                       |     | SkuHealthDiagnosis               |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+
+| assistant-ui Chat        |     | POST /api/chat                |     | ChatToolService                      |     | 不直接落库；复用下列服务：       |
+|                          |     |                               |     | -> QueryService                      |     | Query / Simulation / Report      |
+|                          |     |                               |     | -> ActivitySimulationService         |     |                                  |
+|                          |     |                               |     | -> ReportService                     |     |                                  |
++--------------------------+     +-------------------------------+     +--------------------------------------+     +----------------------------------+</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>客户端面</th>
+            <th>客户端职责</th>
+            <th>服务端职责</th>
+            <th>不要放错的位置</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>模拟商品后台 / 插件</strong></td>
+            <td>识别 table、预览字段、发起 ingest</td>
+            <td>校验、标准化、建档、诊断</td>
+            <td>不要在插件里做健康诊断或准入模拟</td>
+          </tr>
+          <tr>
+            <td><strong>Dashboard</strong></td>
+            <td>展示汇总、筛选条件、查看风险分布</td>
+            <td>聚合 summary、返回可读 DTO</td>
+            <td>不要在页面里自己拼 latest snapshot / diagnosis</td>
+          </tr>
+          <tr>
+            <td><strong>SKU Detail</strong></td>
+            <td>展示详情、历史、证据</td>
+            <td>组装 profile + snapshot + diagnosis + evidence</td>
+            <td>不要让前端自己并行拉一堆原子接口再拼装</td>
+          </tr>
+          <tr>
+            <td><strong>Activity / Simulation</strong></td>
+            <td>录入规则、查看解析结果和模拟结果</td>
+            <td>解析规则、执行模拟、生成修复建议</td>
+            <td>不要把规则执行写进 route handler 或组件里</td>
+          </tr>
+          <tr>
+            <td><strong>Review Workbench</strong></td>
+            <td>审批 / 驳回 / 备注</td>
+            <td>流转 Review 状态、记录决策人和证据</td>
+            <td>不要让 Review 退化成纯文本留言板</td>
+          </tr>
+          <tr>
+            <td><strong>Agent Chat</strong></td>
+            <td>自然语言触发工具调用</td>
+            <td>调用 QueryService / SimulationService / ReportService</td>
+            <td>不要让 Chat 直接拥有数据库逻辑或专有业务分支</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>建议的服务拆分：</strong>
+        Route Handler 保持薄；真正的业务拆分在 IngestService、HealthAssessmentService、ActivityRuleService、ActivitySimulationService、ReviewService、ReportService、QueryService、ChatToolService。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>十、最小 Prisma Schema 草图</h2>
+      <p class="intro">
+        这不是最终 schema，而是一版足够支持 MVP 主链路的最小落库草图。原则是：<strong>高频筛选字段做 typed columns，复杂判定细节先放 Json</strong>。</p>
+
+      <div class="ascii">enum HealthStatus {
+  READY
+  REPAIRABLE
+  RISKY
+  BLOCKED
+}
+
+enum EligibilityStatus {
+  DIRECT_READY
+  REPAIRABLE_READY
+  MANUAL_REVIEW
+  BLOCKED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGED
+}
+
+model Connector {
+  id            String   @id @default(cuid())
+  name          String
+  connectorType String
+  platform      String
+  storeId       String
+  status        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  snapshots     SkuSnapshot[]
+}
+
+model SkuProfile {
+  id                String   @id @default(cuid())
+  canonicalSkuKey   String   @unique
+  platform          String
+  storeId           String
+  externalSkuId     String
+  externalProductId String?
+  productName       String
+  category          String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  snapshots         SkuSnapshot[]
+  diagnoses         SkuHealthDiagnosis[]
+  simulationResults ActivitySimulationResult[]
+  reviews           ReviewItem[]
+}
+
+model SkuSnapshot {
+  id                String   @id @default(cuid())
+  skuProfileId      String
+  connectorId       String
+  sourceUrl         String
+  rowIndex          Int?
+  collectedAt       DateTime
+  rawJson           Json
+  sales30d          Int?
+  positiveRate      Float?
+  stock             Int?
+  originalPrice     Float?
+  lowestPrice30d    Float?
+  campaignPrice     Float?
+  joinedBrandDay    Boolean?
+  certificateStatus String?
+  materialStatus    String?
+  grossMargin       Float?
+  createdAt         DateTime @default(now())
+
+  skuProfile        SkuProfile          @relation(fields: [skuProfileId], references: [id])
+  connector         Connector           @relation(fields: [connectorId], references: [id])
+  diagnoses         SkuHealthDiagnosis[]
+  simulationResults ActivitySimulationResult[]
+  reviews           ReviewItem[]
+
+  @@index([skuProfileId, collectedAt])
+}
+
+model SkuHealthDiagnosis {
+  id              String       @id @default(cuid())
+  skuProfileId    String
+  snapshotId      String
+  healthStatus    HealthStatus
+  healthScore     Int?
+  issuesJson      Json
+  nextActionsJson Json
+  evidenceJson    Json
+  createdAt       DateTime     @default(now())
+
+  skuProfile      SkuProfile   @relation(fields: [skuProfileId], references: [id])
+  snapshot        SkuSnapshot  @relation(fields: [snapshotId], references: [id])
+  reviews         ReviewItem[]
+
+  @@index([skuProfileId, createdAt])
+  @@index([snapshotId])
+}
+
+model ActivityRuleSet {
+  id               String   @id @default(cuid())
+  activityName     String
+  platform         String
+  ruleText         String
+  rulesJson        Json
+  manualReviewJson Json
+  parseStatus      String
+  createdAt        DateTime @default(now())
+
+  simulationRuns   ActivitySimulationRun[]
+  reviews          ReviewItem[]
+}
+
+model ActivitySimulationRun {
+  id                String   @id @default(cuid())
+  activityRuleSetId String
+  status            String
+  summaryJson       Json
+  startedAt         DateTime @default(now())
+  finishedAt        DateTime?
+
+  activityRuleSet   ActivityRuleSet            @relation(fields: [activityRuleSetId], references: [id])
+  results           ActivitySimulationResult[]
+}
+
+model ActivitySimulationResult {
+  id                String            @id @default(cuid())
+  simulationRunId   String
+  skuProfileId      String
+  snapshotId        String
+  eligibilityStatus EligibilityStatus
+  failedRulesJson   Json
+  repairPlanJson    Json
+  evidenceJson      Json
+  rankingScore      Float?
+  createdAt         DateTime          @default(now())
+
+  simulationRun     ActivitySimulationRun @relation(fields: [simulationRunId], references: [id])
+  skuProfile        SkuProfile            @relation(fields: [skuProfileId], references: [id])
+  snapshot          SkuSnapshot           @relation(fields: [snapshotId], references: [id])
+  reviews           ReviewItem[]
+
+  @@index([simulationRunId])
+  @@index([skuProfileId, createdAt])
+}
+
+model ReviewItem {
+  id                  String      @id @default(cuid())
+  reviewType          String
+  reasonCode          String
+  status              ReviewStatus
+  question            String
+  agentRecommendation String
+  riskIfIgnored       String?
+  assigneeRole        String?
+  decision            String?
+  decisionComment     String?
+  decisionBy          String?
+  decidedAt           DateTime?
+  skuProfileId        String?
+  snapshotId          String?
+  diagnosisId         String?
+  activityRuleSetId   String?
+  simulationResultId  String?
+  evidenceJson        Json
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  skuProfile          SkuProfile?               @relation(fields: [skuProfileId], references: [id])
+  snapshot            SkuSnapshot?              @relation(fields: [snapshotId], references: [id])
+  diagnosis           SkuHealthDiagnosis?       @relation(fields: [diagnosisId], references: [id])
+  activityRuleSet     ActivityRuleSet?          @relation(fields: [activityRuleSetId], references: [id])
+  simulationResult    ActivitySimulationResult? @relation(fields: [simulationResultId], references: [id])
+}
+
+model WorkflowRun {
+  id          String         @id @default(cuid())
+  workflowName String
+  status      String
+  inputJson   Json
+  outputJson  Json?
+  startedAt   DateTime       @default(now())
+  finishedAt  DateTime?
+
+  steps       WorkflowStep[]
+}
+
+model WorkflowStep {
+  id          String   @id @default(cuid())
+  runId       String
+  stepName    String
+  status      String
+  inputJson   Json
+  outputJson  Json?
+  errorMessage String?
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  run         WorkflowRun @relation(fields: [runId], references: [id])
+
+  @@index([runId])
+}</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Schema 设计选择</th>
+            <th>建议</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>typed fields vs Json</strong></td>
+            <td>库存、销量、好评率、价格、采集时间做 typed fields；规则细节、issues、repair plan、evidence 先放 Json</td>
+            <td>兼顾查询性能与 MVP 开发速度</td>
+          </tr>
+          <tr>
+            <td><strong>Review 关联方式</strong></td>
+            <td>先用 nullable FK 组合，不先做 polymorphic target</td>
+            <td>MVP 更直观、实现成本更低</td>
+          </tr>
+          <tr>
+            <td><strong>EvidenceRef</strong></td>
+            <td>先放 <code>evidenceJson</code>，后续再拆独立表</td>
+            <td>先保留结构能力，不提前过度建模</td>
+          </tr>
+          <tr>
+            <td><strong>CurrentSkuProjection</strong></td>
+            <td>可先不建表，若 Dashboard / Chat 查询变重再补 projection 表</td>
+            <td>给 MVP 留轻量起步空间</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>十一、浏览器插件页面线框图（ASCII）</h2>
+      <p class="intro">
+        插件建议采用“轻 popup + 重 side panel”的结构：popup 只负责入口与状态提示，真正的采集、预览、提交都放在侧边栏中。</p>
+
+      <h3 style="margin-top: 18px;">A. Browser Action Popup（轻入口）</h3>
+      <div class="ascii">┌────────────────────────────────────┐
+│ SKU Ready Connector               │
+├────────────────────────────────────┤
+│ 当前页面：Tmall Mock 商品列表页     │
+│ 平台识别：已识别                    │
+│ 店铺：TMALL_DEMO_001               │
+│ API 状态：Connected                │
+├────────────────────────────────────┤
+│ [ 打开采集侧边栏 ]                 │
+│ [ 打开总控制台 ]                   │
+├────────────────────────────────────┤
+│ 最近一次提交：run_20260523_001     │
+│ 状态：Success                      │
+└────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">B. Side Panel / Sidebar（主工作区）</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────┐
+│ SKU Ready Connector                               [×]       │
+├──────────────────────────────────────────────────────────────┤
+│ 状态：Ready to Scan   平台：Tmall Mock   店铺：DEMO_001      │
+│ 页面类型：商品列表页   连接：Console Connected               │
+├──────────────────────────────────────────────────────────────┤
+│ 页面识别卡                                                   │
+│ - 已识别商品表格                                             │
+│ - 预计 12 rows                                               │
+│ - 支持字段：销量 / 库存 / 好评率 / 价格 / 证书状态           │
+│                                      [ 扫描当前页面 ]        │
+├──────────────────────────────────────────────────────────────┤
+│ 扫描结果卡                                                   │
+│ 已识别 SKU：12                                               │
+│ 字段覆盖率：13 / 16                                          │
+│ 数据质量预估：86 / 100                                       │
+│ 高风险提示：3                                                │
+├──────────────────────────────────────────────────────────────┤
+│ 字段映射预览                                                 │
+│ ┌──────────────────────┬───────────────────────────────────┐ │
+│ │ 源字段               │ 标准字段                          │ │
+│ ├──────────────────────┼───────────────────────────────────┤ │
+│ │ 月销量               │ sales30d                          │ │
+│ │ 评价率               │ positiveRate                      │ │
+│ │ 可售库存             │ stock                             │ │
+│ │ 日常价               │ originalPrice                     │ │
+│ │ 活动报名状态         │ joinedBrandDay                    │ │
+│ │ 证书状态             │ certificateStatus                 │ │
+│ └──────────────────────┴───────────────────────────────────┘ │
+├──────────────────────────────────────────────────────────────┤
+│ 风险提示卡                                                   │
+│ - 缺少字段：lowestPrice30d                                   │
+│ - 3 行 certificateStatus 为空                                │
+│ - 1 个价格字段格式异常                                       │
+├──────────────────────────────────────────────────────────────┤
+│ 操作区                                                       │
+│ [ 重新扫描 ]   [ 发送到 Agent 分析 ]   [ 打开总控制台 ]      │
+│                                                              │
+│ 提交成功后：                                                 │
+│ Run ID: run_20260523_001                                     │
+│ [ 查看本次采集结果 ]                                         │
+└──────────────────────────────────────────────────────────────┘</div>
+
+      <div class="callout">
+        <strong>插件边界：</strong>
+        插件只负责 DOM 提取、字段映射预览与提交 ingest；不要把健康诊断、规则解析、准入模拟或 Review 决策放在插件端。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>十二、总控制台页面线框图（ASCII）</h2>
+      <p class="intro">
+        总控制台是决策与协同入口，建议采用统一 App Shell：左侧导航、顶部全局筛选、主内容区按页面切换。所有业务真相来自服务端，不在 UI 端重算。</p>
+
+      <h3 style="margin-top: 18px;">A. App Shell 总体布局</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Top Bar                                                                                      │
+│ 搜索 SKU / Product / Activity   Platform ▼   Store ▼   Category ▼   Latest Run: Success     │
+├──────────────────────┬───────────────────────────────────────────────────────────────────────┤
+│ Left Sidebar         │ Main Content                                                          │
+│ ──────────────────── │ ───────────────────────────────────────────────────────────────────── │
+│ Dashboard            │ 当前页面内容区                                                        │
+│ Connectors           │                                                                       │
+│ SKU 健康             │                                                                       │
+│ Activities           │                                                                       │
+│ Reviews              │                                                                       │
+│ Reports              │                                                                       │
+│ Chat                 │                                                                       │
+│ Workflows            │                                                                       │
+└──────────────────────┴───────────────────────────────────────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">B. Dashboard</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Dashboard                                                                                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ KPI Row                                                                                      │
+│ [ Total SKUs ] [ Ready ] [ Repairable ] [ Risky ] [ Blocked ] [ Data Quality ]             │
+├───────────────────────────────┬───────────────────────────────┬──────────────────────────────┤
+│ 风险分布图                    │ 最近采集 / 最近模拟           │ Pending Reviews              │
+│ - inventory_risk              │ - latest ingest run          │ - 证书缺失                   │
+│ - certificate_missing         │ - latest simulation run      │ - 价格口径歧义               │
+│ - stale_data                  │ - parse failed runs          │ - 高风险运营动作             │
+├───────────────────────────────┴───────────────────────────────┴──────────────────────────────┤
+│ 外部 Agent 信号卡 / 快捷入口                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">C. SKU 列表页</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ SKU List                                                                                     │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Filters: platform ▼  store ▼  category ▼  healthStatus ▼  dataQuality ▼  keyword [搜索]     │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ sku        productName    category   healthStatus   healthScore   dqScore   topIssue         │
+│ G001       足金手链        黄金       READY          92            96        -                │
+│ G003       古法金戒指      黄金       REPAIRABLE     72            89        inventory_risk   │
+│ D001       钻石耳钉        钻石       BLOCKED        58            94        positive_rate    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Pagination / Bulk actions (P1)                                                               │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">D. SKU 健康档案页</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ SKU Detail / G003                                                                            │
+├──────────────────────────────┬──────────────────────────────┬────────────────────────────────┤
+│ 基本信息卡                   │ 当前健康状态卡               │ 数据质量卡                     │
+│ - platform/store/sku         │ - healthStatus               │ - dqScore                      │
+│ - productName/category       │ - healthScore                │ - latestCollectedAt            │
+│                              │ - top issues                 │ - stale/conflict indicators    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Issues / Next Actions                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Evidence Timeline                                                                              │
+├──────────────────────────────┬──────────────────────────────┬────────────────────────────────┤
+│ Snapshot History             │ Diagnosis History            │ Related Simulation / Reviews   │
+└──────────────────────────────┴──────────────────────────────┴────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">E. 活动规则解析 + 模拟结果页</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Activity Rule / Simulation                                                                    │
+├──────────────────────────────┬───────────────────────────────────────────────────────────────┤
+│ Rule Input                   │ Parsed Canonical Rule DSL                                     │
+│ - activityName               │ - threshold rules                                             │
+│ - platform                   │ - field_compare rules                                         │
+│ - ruleText textarea          │ - quota rules                                                 │
+│ [ Parse Rules ]              │ - manual review items                                         │
+├──────────────────────────────┴───────────────────────────────────────────────────────────────┤
+│ Simulation Summary: [Direct Ready] [Repairable] [Manual Review] [Blocked]                    │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ sku     eligibilityStatus   failedRules   repairPlan   priority   evidence                   │
+│ G001    DIRECT_READY        -             -            91         view                        │
+│ G003    REPAIRABLE_READY    stock         replenish    78         view                        │
+│ G004    MANUAL_REVIEW       certificate   complete     70         view                        │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">F. Review 工作台</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Review Workbench                                                                             │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Filters: status ▼  reviewType ▼  assigneeRole ▼  source ▼                                    │
+├──────────────────────────────┬───────────────────────────────────────────────────────────────┤
+│ Review List                  │ Review Detail Drawer                                           │
+│ - G003 补货确认              │ Question: 是否为 G003 创建补货任务？                          │
+│ - G004 证书补全              │ Recommendation: 补货 200 件后加入候选                         │
+│ - 折扣口径确认               │ RiskIfIgnored: 无法满足活动库存门槛                           │
+│                              │ Evidence: source / field / rule / collectedAt                 │
+│                              │ [ Approve ] [ Reject ] [ Modify ]                             │
+└──────────────────────────────┴───────────────────────────────────────────────────────────────┘</div>
+
+      <h3 style="margin-top: 24px;">G. Chat 控制台</h3>
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Agent Chat                                                                                   │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Conversation Panel                                                                           │
+│ User: 为什么 G003 不能报名？如果补货 200 件会怎样？                                          │
+│ Agent: 当前库存 300，活动要求 ≥500；补货 200 后可转为 REPAIRABLE_READY -> DIRECT_READY      │
+├──────────────────────────────┬───────────────────────────────────────────────────────────────┤
+│ Tool Trace                   │ Linked Evidence / Entities                                     │
+│ - getSkuHealthDetail         │ - skuProfile: G003                                             │
+│ - simulateActivity           │ - snapshot: snap_001                                           │
+│ - generateReport             │ - rule: stock >= 500                                           │
+└──────────────────────────────┴───────────────────────────────────────────────────────────────┘</div>
+
+      <div class="callout">
+        <strong>总控制台边界：</strong>
+        页面负责展示、筛选、录入和审批动作；所有健康状态、规则解析、准入模拟、报告汇总都应来自服务端 Service 和读模型，而不是前端重新计算。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>十三、最终建议</h2>
       <p class="intro">
         如果目标是“明天黑客松稳”，建议采用“产品叙事不动、实现边界收紧、主链路先跑通”的策略。</p>
 

@@ -328,6 +328,78 @@
       tab-size: 2;
     }
 
+    .ascii.er-diagram {
+      font-size: 11px;
+      line-height: 1.34;
+      padding: 18px;
+    }
+
+    .er-board {
+      display: grid;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .er-group {
+      border: 1px solid var(--line);
+      background: #fffdf7;
+      padding: 18px;
+    }
+
+    .er-group h4 {
+      margin: 0 0 14px;
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--blue);
+    }
+
+    .er-cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .er-card {
+      background: #1f1f1f;
+      color: #f5ead8;
+      border: 1px solid #111;
+      padding: 14px;
+      min-height: 150px;
+    }
+
+    .er-card strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 15px;
+      color: #ffffff;
+    }
+
+    .er-card ul {
+      margin: 0;
+      padding-left: 18px;
+      font: 12px/1.48 "SFMono-Regular", "Cascadia Mono", "Menlo", "Consolas", monospace;
+    }
+
+    .er-card li + li {
+      margin-top: 3px;
+    }
+
+    .relation-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .relation-list div {
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 9px 10px;
+      font: 12px/1.4 "SFMono-Regular", "Cascadia Mono", "Menlo", "Consolas", monospace;
+      overflow-wrap: anywhere;
+    }
+
     .table-wrap {
       overflow-x: auto;
       border: 1px solid var(--line);
@@ -451,7 +523,9 @@
       }
 
       .hero-meta,
-      .pipeline {
+      .pipeline,
+      .er-cards,
+      .relation-list {
         grid-template-columns: 1fr;
       }
 
@@ -638,6 +712,7 @@
           </tbody>
         </table>
       </div>
+
     </section>
 
     <section id="architecture">
@@ -794,6 +869,601 @@ Simulation Results</pre>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <h3 style="margin-top: 30px;">核心数据关系与建议主语</h3>
+      <pre class="ascii">SkuProfile (长期 SKU 档案主语)
+  | 1
+  +------------------< SkuSnapshot (每次采集事实)
+  |                       | 1
+  |                       +------------------< SkuHealthDiagnosis (基于 snapshot 的日常健康诊断)
+  |
+  +------------------< CurrentSkuProjection (当前查询视图 / latest read model)
+  |
+  +------------------< ActivitySimulationResult (某活动下的准入结果)
+                          |
+ActivityRuleSet (某次活动规则)                 |
+  | 1                                      |
+  +------------------< ActivitySimulationRun |
+  |                       | 1              |
+  |                       +----------------+
+  |
+  +------------------< ReviewItem (规则歧义、数据问题、运营/合规确认)
+                          |
+                          +-- optional -> SkuSnapshot
+                          +-- optional -> SkuHealthDiagnosis
+                          +-- optional -> ActivitySimulationResult
+                          +-- evidenceJson / EvidenceRef</pre>
+
+      <h3 style="margin-top: 24px;">详细 ER 图（MVP 建议）</h3>
+      <div class="er-board">
+        <div class="er-group">
+          <h4>Identity And Ingestion</h4>
+          <div class="er-cards">
+            <div class="er-card">
+              <strong>Connector</strong>
+              <ul>
+                <li>PK id</li>
+                <li>name</li>
+                <li>connectorType</li>
+                <li>platform</li>
+                <li>storeId</li>
+                <li>status</li>
+                <li>createdAt / updatedAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>SkuProfile</strong>
+              <ul>
+                <li>PK id</li>
+                <li>canonicalKey UNIQUE</li>
+                <li>platform / storeId / skuId</li>
+                <li>externalProductId?</li>
+                <li>productName</li>
+                <li>category</li>
+                <li>createdAt / updatedAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>SkuSnapshot</strong>
+              <ul>
+                <li>PK id</li>
+                <li>FK skuProfileId</li>
+                <li>FK connectorId?</li>
+                <li>sourceUrl / rowIndex</li>
+                <li>collectedAt / rawJson JSON</li>
+                <li>sales30d / positiveRate / stock</li>
+                <li>price / status / certificate fields</li>
+              </ul>
+            </div>
+          </div>
+          <div class="relation-list">
+            <div>Connector 1:N SkuSnapshot</div>
+            <div>SkuProfile 1:N SkuSnapshot</div>
+          </div>
+        </div>
+
+        <div class="er-group">
+          <h4>Health Read Model</h4>
+          <div class="er-cards">
+            <div class="er-card">
+              <strong>SkuHealthDiagnosis</strong>
+              <ul>
+                <li>PK id</li>
+                <li>FK skuProfileId</li>
+                <li>FK snapshotId</li>
+                <li>healthStatus / healthScore</li>
+                <li>dataQualityScore</li>
+                <li>issuesJson JSON</li>
+                <li>nextActionsJson / evidenceJson JSON</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>CurrentSkuProjection</strong>
+              <ul>
+                <li>PK/FK skuProfileId</li>
+                <li>FK latestSnapshotId</li>
+                <li>FK latestDiagnosisId</li>
+                <li>healthStatus</li>
+                <li>healthScore</li>
+                <li>dataQualityScore</li>
+                <li>topIssuesJson / updatedAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>Read Path</strong>
+              <ul>
+                <li>Dashboard summary</li>
+                <li>SKU detail latest state</li>
+                <li>Chat query tools</li>
+                <li>Health trend from snapshots</li>
+                <li>No business recompute in UI</li>
+              </ul>
+            </div>
+          </div>
+          <div class="relation-list">
+            <div>SkuSnapshot 1:N SkuHealthDiagnosis</div>
+            <div>SkuProfile 1:1 CurrentSkuProjection</div>
+          </div>
+        </div>
+
+        <div class="er-group">
+          <h4>Activity Rules And Simulation</h4>
+          <div class="er-cards">
+            <div class="er-card">
+              <strong>ActivityRuleSet</strong>
+              <ul>
+                <li>PK id</li>
+                <li>activityName / platform</li>
+                <li>ruleText</li>
+                <li>parseStatus</li>
+                <li>rulesJson JSON</li>
+                <li>manualReviewJson JSON</li>
+                <li>llmModel / confidence / createdAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>ActivitySimulationRun</strong>
+              <ul>
+                <li>PK id</li>
+                <li>FK activityRuleSetId</li>
+                <li>status</li>
+                <li>scopeJson JSON</li>
+                <li>summaryJson JSON</li>
+                <li>startedAt / finishedAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>ActivitySimulationResult</strong>
+              <ul>
+                <li>PK id</li>
+                <li>FK runId / activityRuleSetId</li>
+                <li>FK skuProfileId / snapshotId</li>
+                <li>eligibilityStatus</li>
+                <li>passedRulesJson / failedRulesJson</li>
+                <li>repairPlanJson / evidenceJson</li>
+                <li>priorityScore? / explanation</li>
+              </ul>
+            </div>
+          </div>
+          <div class="relation-list">
+            <div>ActivityRuleSet 1:N ActivitySimulationRun</div>
+            <div>ActivitySimulationRun 1:N ActivitySimulationResult</div>
+            <div>SkuProfile 1:N ActivitySimulationResult</div>
+            <div>SkuSnapshot 1:N ActivitySimulationResult</div>
+          </div>
+        </div>
+
+        <div class="er-group">
+          <h4>Review And Audit</h4>
+          <div class="er-cards">
+            <div class="er-card">
+              <strong>ReviewItem</strong>
+              <ul>
+                <li>PK id</li>
+                <li>targetType / targetId</li>
+                <li>reviewType / reasonCode</li>
+                <li>assigneeRole / status</li>
+                <li>title / question</li>
+                <li>recommendation / riskIfIgnored</li>
+                <li>decision fields / evidenceJson</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>WorkflowRun / Step</strong>
+              <ul>
+                <li>WorkflowRun PK id</li>
+                <li>workflowName / status</li>
+                <li>inputJson / outputJson</li>
+                <li>WorkflowStep FK runId</li>
+                <li>stepName / errorMessage</li>
+                <li>startedAt / finishedAt</li>
+              </ul>
+            </div>
+            <div class="er-card">
+              <strong>AgentEvent</strong>
+              <ul>
+                <li>PK id</li>
+                <li>sourceAgent</li>
+                <li>eventType</li>
+                <li>title</li>
+                <li>description</li>
+                <li>payloadJson JSON</li>
+                <li>createdAt</li>
+              </ul>
+            </div>
+          </div>
+          <div class="relation-list">
+            <div>SkuProfile 1:N ReviewItem</div>
+            <div>ActivityRuleSet 1:N ReviewItem</div>
+            <div>ActivitySimulationResult 1:N ReviewItem</div>
+            <div>WorkflowRun 1:N WorkflowStep</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 24px;">
+        <table>
+          <thead>
+            <tr>
+              <th>关系</th>
+              <th>基数</th>
+              <th>实现约束</th>
+              <th>为什么需要</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Connector -> SkuSnapshot</td>
+              <td>1:N</td>
+              <td>每次采集都保留 connectorId、sourceUrl、rowIndex 和 rawJson。</td>
+              <td>支撑来源追踪、字段质量判断和插件采集失败排查。</td>
+            </tr>
+            <tr>
+              <td>SkuProfile -> SkuSnapshot</td>
+              <td>1:N</td>
+              <td>canonicalKey 建议先用 platform:storeId:skuId，MVP 不做复杂跨平台合并。</td>
+              <td>避免把一次采集快照误当长期 SKU 档案。</td>
+            </tr>
+            <tr>
+              <td>SkuSnapshot -> SkuHealthDiagnosis</td>
+              <td>1:N</td>
+              <td>诊断结果必须引用 snapshotId；规则版本变化后可以重新诊断。</td>
+              <td>保证健康结论能回放到当时的数据事实。</td>
+            </tr>
+            <tr>
+              <td>SkuProfile -> CurrentSkuProjection</td>
+              <td>1:1</td>
+              <td>ingest 完成后 upsert 最新 snapshot、diagnosis 和 top issues。</td>
+              <td>让 Dashboard、SKU 详情和 Chat 查询稳定且便宜。</td>
+            </tr>
+            <tr>
+              <td>ActivityRuleSet -> ActivitySimulationRun</td>
+              <td>1:N</td>
+              <td>同一活动规则可以重复模拟，scopeJson 记录筛选范围和假设条件。</td>
+              <td>支撑“补货 200 件会怎样”等重跑场景。</td>
+            </tr>
+            <tr>
+              <td>ActivitySimulationRun -> ActivitySimulationResult</td>
+              <td>1:N</td>
+              <td>每个 result 同时引用 skuProfileId 和 snapshotId。</td>
+              <td>同时保留长期 SKU 主语和本次模拟使用的数据事实。</td>
+            </tr>
+            <tr>
+              <td>ReviewItem -> Source Object</td>
+              <td>N:1</td>
+              <td>通过 targetType + targetId 统一指向数据问题、规则歧义、模拟结果或高风险动作。</td>
+              <td>Review 是结构化任务，不是纯文本提醒。</td>
+            </tr>
+            <tr>
+              <td>Evidence JSON / EvidenceRef</td>
+              <td>N:N 语义</td>
+              <td>MVP 先以 evidenceJson 保存 sourceType、sourceId、field、rawValue、normalizedValue、ruleId、collectedAt。</td>
+              <td>让 Safety Layer 和 Review Gate 变成系统能力，而不是展示文案。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 style="margin-top: 30px;">客户端页面 -> 服务端 Service -> 数据表映射</h3>
+      <pre class="ascii">Client / UI Surface
+        |
+        v
+Next.js Route Handler or Extension API
+        |
+        v
+Application Service
+        |
+        v
+Domain Engine / Zod Contract
+        |
+        v
+Prisma Repository / PostgreSQL Tables
+
+Rule of thumb:
+- Client owns interaction, preview, filters, navigation.
+- Service owns workflow, permission boundary, validation, and orchestration.
+- Domain engine owns deterministic judgement.
+- Database stores facts, derived results, review tasks, and audit traces.</pre>
+
+      <div class="table-wrap" style="margin-top: 24px;">
+        <table>
+          <thead>
+            <tr>
+              <th>客户端入口</th>
+              <th>API / Route</th>
+              <th>服务端 Service</th>
+              <th>核心数据表</th>
+              <th>边界说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Plasmo 插件侧边栏 / 模拟后台采集</td>
+              <td>POST /api/ingest</td>
+              <td>IngestService + Normalizer + HealthAssessmentService</td>
+              <td>Connector, SkuProfile, SkuSnapshot, SkuHealthDiagnosis, CurrentSkuProjection, ReviewItem, WorkflowRun</td>
+              <td>插件只做 DOM 提取和预览；服务端才做权威校验、标准化、入库和诊断。</td>
+            </tr>
+            <tr>
+              <td>Dashboard 总览页</td>
+              <td>GET /api/health/summary</td>
+              <td>SkuQueryService</td>
+              <td>CurrentSkuProjection, SkuHealthDiagnosis, ReviewItem, WorkflowRun</td>
+              <td>Dashboard 不重新计算健康状态，只读 current projection 和聚合统计。</td>
+            </tr>
+            <tr>
+              <td>SKU 健康档案页</td>
+              <td>GET /api/skus/:skuId</td>
+              <td>SkuQueryService</td>
+              <td>SkuProfile, SkuSnapshot, SkuHealthDiagnosis, ActivitySimulationResult, ReviewItem</td>
+              <td>页面展示 latest + history，避免把某次 snapshot 当成长期档案。</td>
+            </tr>
+            <tr>
+              <td>活动规则解析页</td>
+              <td>POST /api/activities/parse</td>
+              <td>ActivityRuleService</td>
+              <td>ActivityRuleSet, ReviewItem, WorkflowRun</td>
+              <td>LLM 只输出 Canonical Rule DSL；低置信度、解析失败、歧义规则进入 Review。</td>
+            </tr>
+            <tr>
+              <td>活动准入模拟页</td>
+              <td>POST /api/activities/:id/simulations</td>
+              <td>ActivitySimulationService + RuleEvaluator + ReviewService</td>
+              <td>ActivityRuleSet, CurrentSkuProjection, SkuSnapshot, ActivitySimulationRun, ActivitySimulationResult, ReviewItem</td>
+              <td>先跑 item-level rules，再跑 set-level rules；活动 eligibilityStatus 不写回日常 healthStatus。</td>
+            </tr>
+            <tr>
+              <td>Review 工作台</td>
+              <td>GET /api/reviews / POST /api/reviews/:id/decision</td>
+              <td>ReviewService + SkuQueryService</td>
+              <td>ReviewItem, SkuProfile, SkuSnapshot, ActivityRuleSet, ActivitySimulationResult</td>
+              <td>Review 是结构化任务；批准、驳回、修改都要记录 decision 和 evidence。</td>
+            </tr>
+            <tr>
+              <td>Agent Chat 控制台</td>
+              <td>POST /api/chat</td>
+              <td>ToolService -> SkuQueryService / ActivitySimulationService / ReportService</td>
+              <td>按工具调用访问 CurrentSkuProjection, ActivitySimulationResult, ReviewItem, ActivityRuleSet</td>
+              <td>Chat 是自然语言入口，不直接查 DB，不直接做业务判断。</td>
+            </tr>
+            <tr>
+              <td>报告页</td>
+              <td>POST /api/reports</td>
+              <td>ReportService</td>
+              <td>CurrentSkuProjection, ActivityRuleSet, ActivitySimulationResult, ReviewItem</td>
+              <td>报告只汇总已落库结论和证据，不重新创造业务事实。</td>
+            </tr>
+            <tr>
+              <td>外部 Agent 信号卡片</td>
+              <td>POST /api/agent-events</td>
+              <td>AgentEventService + ActivityRuleService / ReviewService</td>
+              <td>AgentEvent, ActivityRuleSet, ReviewItem</td>
+              <td>A/D Agent 信号作为上下文和触发源，不做复杂 multi-agent event bus。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top: 30px;">最小 Prisma Schema 草图</h3>
+      <pre class="ascii">generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Connector {
+  id            String        @id @default(cuid())
+  name          String
+  connectorType String
+  platform      String
+  storeId       String?
+  status        String        @default("ACTIVE")
+  snapshots     SkuSnapshot[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model SkuProfile {
+  id                 String                    @id @default(cuid())
+  canonicalKey       String                    @unique
+  platform           String
+  storeId            String
+  skuId              String
+  externalProductId  String?
+  productName        String
+  category           String?
+  snapshots          SkuSnapshot[]
+  diagnoses          SkuHealthDiagnosis[]
+  currentProjection  CurrentSkuProjection?
+  simulationResults  ActivitySimulationResult[]
+  reviewItems        ReviewItem[]
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  @@index([platform, storeId, skuId])
+}
+
+model SkuSnapshot {
+  id                  String                    @id @default(cuid())
+  skuProfileId        String
+  connectorId         String?
+  skuProfile          SkuProfile                @relation(fields: [skuProfileId], references: [id])
+  connector           Connector?                @relation(fields: [connectorId], references: [id])
+  sourceUrl           String?
+  rowIndex            Int?
+  collectedAt         DateTime
+  rawJson             Json
+  sales30d            Int?
+  positiveRate        Float?
+  stock               Int?
+  originalPrice       Decimal?
+  lowestPrice30d      Decimal?
+  campaignPrice       Decimal?
+  joinedBrandDay      Boolean?
+  certificateStatus   String?
+  materialStatus      String?
+  grossMargin         Float?
+  diagnoses           SkuHealthDiagnosis[]
+  simulationResults   ActivitySimulationResult[]
+  reviewItems         ReviewItem[]
+  createdAt           DateTime                  @default(now())
+
+  @@index([skuProfileId, collectedAt])
+}
+
+model SkuHealthDiagnosis {
+  id                String       @id @default(cuid())
+  skuProfileId      String
+  snapshotId        String
+  skuProfile        SkuProfile   @relation(fields: [skuProfileId], references: [id])
+  snapshot          SkuSnapshot  @relation(fields: [snapshotId], references: [id])
+  healthStatus      String
+  healthScore       Int
+  dataQualityScore  Int?
+  issuesJson        Json
+  nextActionsJson   Json
+  evidenceJson      Json
+  currentFor        CurrentSkuProjection?
+  createdAt         DateTime     @default(now())
+
+  @@index([skuProfileId, createdAt])
+}
+
+model CurrentSkuProjection {
+  skuProfileId       String             @id
+  latestSnapshotId   String
+  latestDiagnosisId  String
+  skuProfile         SkuProfile         @relation(fields: [skuProfileId], references: [id])
+  latestDiagnosis    SkuHealthDiagnosis @relation(fields: [latestDiagnosisId], references: [id])
+  healthStatus       String
+  healthScore        Int
+  dataQualityScore   Int?
+  topIssuesJson      Json
+  updatedAt          DateTime           @updatedAt
+}
+
+model ActivityRuleSet {
+  id                String                    @id @default(cuid())
+  activityName      String
+  platform          String?
+  ruleText          String
+  parseStatus       String
+  rulesJson         Json
+  manualReviewJson  Json
+  llmModel          String?
+  confidence        Float?
+  simulationRuns    ActivitySimulationRun[]
+  simulationResults ActivitySimulationResult[]
+  reviewItems       ReviewItem[]
+  createdAt         DateTime                  @default(now())
+}
+
+model ActivitySimulationRun {
+  id                String                     @id @default(cuid())
+  activityRuleSetId String
+  activityRuleSet   ActivityRuleSet            @relation(fields: [activityRuleSetId], references: [id])
+  status            String
+  scopeJson         Json
+  summaryJson       Json
+  results           ActivitySimulationResult[]
+  startedAt         DateTime                   @default(now())
+  finishedAt        DateTime?
+}
+
+model ActivitySimulationResult {
+  id                String                @id @default(cuid())
+  runId             String
+  activityRuleSetId String
+  skuProfileId      String
+  snapshotId        String
+  run               ActivitySimulationRun @relation(fields: [runId], references: [id])
+  activityRuleSet   ActivityRuleSet        @relation(fields: [activityRuleSetId], references: [id])
+  skuProfile        SkuProfile             @relation(fields: [skuProfileId], references: [id])
+  snapshot          SkuSnapshot            @relation(fields: [snapshotId], references: [id])
+  eligibilityStatus String
+  passedRulesJson   Json
+  failedRulesJson   Json
+  repairPlanJson    Json
+  evidenceJson      Json
+  priorityScore     Float?
+  explanation       String?
+  reviewItems       ReviewItem[]
+  createdAt         DateTime              @default(now())
+
+  @@index([activityRuleSetId, skuProfileId])
+}
+
+model ReviewItem {
+  id                  String                    @id @default(cuid())
+  targetType          String
+  targetId            String
+  reviewType          String
+  reasonCode          String
+  assigneeRole        String?
+  status              String                    @default("PENDING")
+  title               String
+  question            String
+  recommendation      String?
+  riskIfIgnored       String?
+  decision            String?
+  comment             String?
+  decidedBy           String?
+  decidedAt           DateTime?
+  skuProfileId        String?
+  snapshotId          String?
+  activityRuleSetId   String?
+  simulationResultId  String?
+  skuProfile          SkuProfile?               @relation(fields: [skuProfileId], references: [id])
+  snapshot            SkuSnapshot?              @relation(fields: [snapshotId], references: [id])
+  activityRuleSet     ActivityRuleSet?          @relation(fields: [activityRuleSetId], references: [id])
+  simulationResult    ActivitySimulationResult? @relation(fields: [simulationResultId], references: [id])
+  evidenceJson        Json
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  @@index([status, reviewType])
+  @@index([targetType, targetId])
+}
+
+model WorkflowRun {
+  id           String         @id @default(cuid())
+  workflowName String
+  status       String
+  inputJson    Json
+  outputJson   Json?
+  steps        WorkflowStep[]
+  startedAt    DateTime       @default(now())
+  finishedAt   DateTime?
+}
+
+model WorkflowStep {
+  id           String      @id @default(cuid())
+  runId        String
+  run          WorkflowRun @relation(fields: [runId], references: [id])
+  stepName     String
+  status       String
+  inputJson    Json?
+  outputJson   Json?
+  errorMessage String?
+  startedAt    DateTime    @default(now())
+  finishedAt   DateTime?
+}
+
+model AgentEvent {
+  id          String   @id @default(cuid())
+  sourceAgent String
+  eventType   String
+  title       String
+  description String?
+  payloadJson Json
+  createdAt   DateTime @default(now())
+}</pre>
+
+      <div class="callout">
+        Prisma 草图的重点是关系方向和 MVP 字段集合，不是最终迁移文件。真实落地时建议先把 enum、Decimal 精度、Json Zod schema、软删除策略和 Review 状态流转再收紧一轮。
       </div>
     </section>
 
