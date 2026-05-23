@@ -20,9 +20,9 @@ const tenantB: P0AuthContextDto = {
   requestId: "request_b",
 };
 
-test("final API persistence foundation writes ingest aggregate in one transaction boundary", () => {
+test("final API persistence foundation writes ingest aggregate in one transaction boundary", async () => {
   const runtime = createFinalApiPersistenceRuntime();
-  const result = runtime.ingestService.ingest(businessFoundationSeedFixture);
+  const result = await runtime.ingestService.ingest(businessFoundationSeedFixture);
 
   assert.equal(result.summaries.length, 2);
   assert.equal(result.snapshots.length, 2);
@@ -34,24 +34,24 @@ test("final API persistence foundation writes ingest aggregate in one transactio
   assert.equal(runtime.store.projections.size, 2);
   assert.equal(runtime.store.workflowAudits.size, 1);
 
-  const summary = runtime.ingestService.getHealthSummary();
+  const summary = await runtime.ingestService.getHealthSummary();
   assert.equal(summary.total, 2);
-  assert.equal(runtime.ingestService.listSkus().items.length, 2);
-  assert.equal(runtime.ingestService.getSkuDetail(result.summaries[0].skuProfileId)?.latestSnapshot?.skuProfileId, result.summaries[0].skuProfileId);
+  assert.equal((await runtime.ingestService.listSkus()).items.length, 2);
+  assert.equal((await runtime.ingestService.getSkuDetail(result.summaries[0].skuProfileId))?.latestSnapshot?.skuProfileId, result.summaries[0].skuProfileId);
 });
 
-test("final API repositories carry tenant and session boundary and deny cross-tenant access", () => {
+test("final API repositories carry tenant and session boundary and deny cross-tenant access", async () => {
   const runtime = createFinalApiPersistenceRuntime();
-  const ingestA = runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
+  const ingestA = await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
 
-  assert.equal(runtime.ingestService.getHealthSummary(tenantA).total, 2);
-  assert.equal(runtime.ingestService.getHealthSummary(tenantB).total, 0);
-  assert.throws(
+  assert.equal((await runtime.ingestService.getHealthSummary(tenantA)).total, 2);
+  assert.equal((await runtime.ingestService.getHealthSummary(tenantB)).total, 0);
+  await assert.rejects(
     () => runtime.ingestService.getSkuDetail(ingestA.summaries[0].skuProfileId, tenantB),
     (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
   );
 
-  const ruleSet = runtime.activityService.parse(
+  const ruleSet = await runtime.activityService.parse(
     {
       name: "Tenant A 规则",
       platform: "tmall",
@@ -60,22 +60,22 @@ test("final API repositories carry tenant and session boundary and deny cross-te
     tenantA,
   );
 
-  assert.throws(
+  await assert.rejects(
     () => runtime.activityService.simulate(ruleSet.ruleSetId, { skuProfileIds: [ingestA.summaries[0].skuProfileId] }, tenantB),
     (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
   );
 });
 
-test("final activity, review and report services share persistent repositories", () => {
+test("final activity, review and report services share persistent repositories", async () => {
   const runtime = createFinalApiPersistenceRuntime();
-  const ingest = runtime.ingestService.ingest(businessFoundationSeedFixture);
-  const ruleSet = runtime.activityService.parse({
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture);
+  const ruleSet = await runtime.activityService.parse({
     name: "618 活动准入规则",
     platform: "tmall",
     sourceText: businessFoundationActivityRuleText,
   });
 
-  const run = runtime.activityService.simulate(ruleSet.ruleSetId, {
+  const run = await runtime.activityService.simulate(ruleSet.ruleSetId, {
     skuProfileIds: ingest.summaries.map((item) => item.skuProfileId),
   });
 
@@ -85,7 +85,7 @@ test("final activity, review and report services share persistent repositories",
   assert.equal(runtime.store.simulationRuns.get(run.simulationRunId)?.results.length, 2);
   assert.equal(runtime.store.simulationResults.size, 2);
 
-  const review = runtime.reviewService.create([
+  const reviews = await runtime.reviewService.create([
     {
       skuProfileId: ingest.summaries[1].skuProfileId,
       sourceType: "simulation",
@@ -95,11 +95,12 @@ test("final activity, review and report services share persistent repositories",
       riskLevel: "L1",
       evidence: run.results[1].evidence,
     },
-  ])[0];
-  assert.equal(runtime.reviewService.list().total, 1);
-  assert.equal(runtime.reviewService.decide(review.reviewItemId, { decision: "REQUEST_CHANGES", decisionBy: "ops@example.test" }).status, "CHANGES_REQUESTED");
+  ]);
+  const review = reviews[0];
+  assert.equal((await runtime.reviewService.list()).total, 1);
+  assert.equal((await runtime.reviewService.decide(review.reviewItemId, { decision: "REQUEST_CHANGES", decisionBy: "ops@example.test" })).status, "CHANGES_REQUESTED");
 
-  const report = runtime.reportService.generate({
+  const report = await runtime.reportService.generate({
     type: "ACTIVITY",
     skuProfileIds: ingest.summaries.map((item) => item.skuProfileId),
     simulationResultIds: run.results.map((item) => item.simulationResultId),

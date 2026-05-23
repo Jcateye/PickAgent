@@ -4,6 +4,9 @@ import type { AgentRun } from "../../domain/entities/AgentRun";
 import type { AgentRunEvent } from "../../domain/entities/AgentRunEvent";
 import type { AgentSession } from "../../domain/entities/AgentSession";
 import type { AgentToolCall } from "../../domain/entities/AgentToolCall";
+import type { ReviewItem } from "../../domain/entities/ReviewItem";
+import type { WorkflowRun } from "../../domain/entities/WorkflowRun";
+import type { WorkflowStep } from "../../domain/entities/WorkflowStep";
 import { createBusinessFoundationRuntime, type AgentToolRegistry } from "./BusinessFoundationServices";
 import { createP0RuntimeConfig, P0_PRODUCTION_TOOL_ALLOWLIST, P0_RUNTIME_TOOL_DENYLIST, redactSensitiveText, redactSensitiveValue, type P0RuntimeConfig } from "./P0AuthBoundaryRuntimeConfig";
 
@@ -96,6 +99,9 @@ export class AgentEventStoreState {
   readonly eventsByRun = new Map<string, AgentRunEvent[]>();
   readonly toolCalls = new Map<string, AgentToolCall>();
   readonly reviewGates = new Map<string, AgentReviewGate>();
+  readonly workflowRuns = new Map<string, WorkflowRun>();
+  readonly workflowSteps = new Map<string, WorkflowStep>();
+  readonly reviewItems = new Map<string, ReviewItem>();
 }
 
 let agentSequence = 0;
@@ -110,7 +116,19 @@ function nowIso(): string {
 }
 
 function metadata(input?: Record<string, unknown>): Record<string, unknown> {
-  return input ?? {};
+  return scrubSensitive(input ?? {}) as Record<string, unknown>;
+}
+
+const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i;
+
+function scrubSensitive(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => scrubSensitive(item));
+  if (!value || typeof value !== "object") return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    result[key] = sensitiveKeyPattern.test(key) ? "[REDACTED]" : scrubSensitive(child);
+  }
+  return result;
 }
 
 export class AgentRepository {
@@ -173,12 +191,36 @@ export class AgentRepository {
     const mission = this.getMission(missionId);
     if (!mission) throw new Error(`Agent mission not found: ${missionId}`);
     const now = nowIso();
+    const workflowRunId = input.workflowRunId ?? nextAgentId("workflow_run");
+    if (!this.state.workflowRuns.has(workflowRunId)) {
+      this.state.workflowRuns.set(workflowRunId, {
+        id: workflowRunId,
+        workflowType: "agent_copilot",
+        status: "RUNNING",
+        subjectType: mission.subjectType ?? "agent_mission",
+        subjectId: mission.subjectId ?? mission.id,
+        inputJson: metadata({
+          source: "agent_copilot",
+          missionId,
+          sessionId: mission.sessionId,
+          objective: mission.objective,
+          workbenchContext: mission.workbenchContextJson,
+          runInput: input.inputJson ?? {},
+        }),
+        outputJson: {},
+        errorMessage: null,
+        startedAt: now,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     const run: AgentRun = {
       id: nextAgentId("agent_run"),
       missionId,
       sessionId: mission.sessionId,
       piRunId: null,
-      workflowRunId: input.workflowRunId ?? null,
+      workflowRunId,
       status: input.status ?? "RUNNING",
       modelProvider: input.modelProvider ?? null,
       modelName: input.modelName ?? null,
@@ -214,6 +256,82 @@ export class AgentRepository {
     return toolCall;
   }
 
+  createWorkflowStep(input: {
+    workflowRunId: string;
+    stepKey: string;
+    stepName: string;
+    status: string;
+    inputJson?: Record<string, unknown>;
+    outputJson?: Record<string, unknown>;
+    errorMessage?: string | null;
+  }): WorkflowStep {
+    const now = nowIso();
+    const step: WorkflowStep = {
+      id: nextAgentId("workflow_step"),
+      runId: input.workflowRunId,
+      stepKey: input.stepKey,
+      stepName: input.stepName,
+      status: input.status,
+      inputJson: metadata(input.inputJson),
+      outputJson: metadata(input.outputJson),
+      errorMessage: input.errorMessage ?? null,
+      startedAt: now,
+      completedAt: input.status === "SUCCEEDED" || input.status === "FAILED" || input.status === "SKIPPED" ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.state.workflowSteps.set(step.id, step);
+    return step;
+  }
+
+  createReviewItemForGate(input: {
+    gateId: string;
+    runId: string;
+    toolCallId?: string | null;
+    reasonCode: string;
+    question: string;
+    agentRecommendation?: string | null;
+    riskLevel: AgentRiskLevel;
+    evidenceRefs: EvidenceRef[];
+  }): ReviewItem {
+    const now = nowIso();
+    const reviewItem: ReviewItem = {
+      id: nextAgentId("review_item"),
+      skuProfileId: null,
+      snapshotId: null,
+      diagnosisId: null,
+      activityRuleSetId: null,
+      simulationResultId: null,
+      reviewType: "agent_review_gate",
+      reasonCode: input.reasonCode,
+      status: "PENDING",
+      question: input.question,
+      agentRecommendation: input.agentRecommendation ?? null,
+      riskLevel: input.riskLevel,
+      decision: null,
+      decisionComment: null,
+      decisionBy: null,
+      decidedAt: null,
+      evidenceJson: metadata({
+        source: "agent_review_gate",
+        gateId: input.gateId,
+        runId: input.runId,
+        toolCallId: input.toolCallId ?? null,
+        evidenceRefs: input.evidenceRefs,
+      }),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.state.reviewItems.set(reviewItem.id, reviewItem);
+    return reviewItem;
+  }
+
+  saveReviewItem(reviewItem: ReviewItem): ReviewItem {
+    const updated = { ...reviewItem, updatedAt: nowIso() };
+    this.state.reviewItems.set(updated.id, updated);
+    return updated;
+  }
+
   createReviewGate(input: {
     missionId: string;
     runId: string;
@@ -224,6 +342,7 @@ export class AgentRepository {
     riskIfApproved?: string | null;
     riskIfRejected?: string | null;
     evidenceRefs: EvidenceRef[];
+    reviewItemId?: string | null;
   }): AgentReviewGate {
     const now = nowIso();
     const gate: AgentReviewGate = {
@@ -231,7 +350,7 @@ export class AgentRepository {
       missionId: input.missionId,
       runId: input.runId,
       toolCallId: input.toolCallId ?? null,
-      reviewItemId: null,
+      reviewItemId: input.reviewItemId ?? null,
       status: "OPEN",
       reasonCode: input.reasonCode,
       question: input.question,
@@ -384,17 +503,31 @@ export class AgentToolExecutor {
       errorMessage = execution.status === "FAILED" ? execution.trace.map((item) => item.summary).join("；") : null;
       toolStatus = execution.status === "SUCCEEDED" ? "SUCCEEDED" : "FAILED";
     } else if (decision.permission === "REVIEW_REQUIRED") {
+      const question = "是否允许创建 L2 Review items？";
+      const recommendation = "建议先进入 Review Gate，由人工确认后再创建正式 Review item。";
+      const reviewItem = this.repository.createReviewItemForGate({
+        gateId: "pending",
+        runId: run.id,
+        toolCallId,
+        reasonCode: decision.reasonCode,
+        question,
+        agentRecommendation: recommendation,
+        riskLevel: decision.riskLevel,
+        evidenceRefs,
+      });
       reviewGate = this.repository.createReviewGate({
         missionId: run.missionId,
         runId: run.id,
         toolCallId,
         reasonCode: decision.reasonCode,
-        question: "是否允许创建 L2 Review items？",
-        agentRecommendation: "建议先进入 Review Gate，由人工确认后再创建正式 Review item。",
+        question,
+        agentRecommendation: recommendation,
         riskIfApproved: "会创建新的 Review item，把后续业务动作转交 Review 工作台。",
         riskIfRejected: "本次 run 停留在建议态，不会写入新的 Review item。",
         evidenceRefs,
+        reviewItemId: reviewItem.id,
       });
+      this.repository.saveReviewItem({ ...reviewItem, evidenceJson: metadata({ ...reviewItem.evidenceJson, gateId: reviewGate.id }) });
       evidenceRefs.push({
         type: "review_gate",
         entityId: reviewGate.id,
@@ -430,6 +563,18 @@ export class AgentToolExecutor {
       createdAt: startedAt,
       updatedAt: nowIso(),
     };
+    if (run.workflowRunId) {
+      const workflowStep = this.repository.createWorkflowStep({
+        workflowRunId: run.workflowRunId,
+        stepKey: `tool.${toolName}`,
+        stepName: `Agent tool ${toolName}`,
+        status: toolStatus === "SUCCEEDED" ? "SUCCEEDED" : toolStatus === "FAILED" ? "FAILED" : "PENDING",
+        inputJson: toolCall.inputJson,
+        outputJson: toolCall.outputJson,
+        errorMessage: toolCall.errorMessage ?? toolCall.blockedReason,
+      });
+      toolCall.workflowStepId = workflowStep.id;
+    }
     this.repository.saveToolCall(toolCall);
     this.eventStore.append({
       runId: input.runId,

@@ -12,7 +12,7 @@ interface ParseRequest {
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as ParseRequest | null
   if (!payload?.name || !payload.sourceText) return fail('COMMON.VALIDATION_ERROR', 'name and sourceText are required', 400)
-  const ruleSet = finalApiRuntime.activityService.parse(payload)
+  const ruleSet = await finalApiRuntime.activityService.parse(payload)
   if (ruleSet.parseStatus === 'FAILED') return fail('RULE.PARSE_FAILED', '活动规则解析失败', 422, { errors: ruleSet.errors })
   return ok(ruleSet)
 }

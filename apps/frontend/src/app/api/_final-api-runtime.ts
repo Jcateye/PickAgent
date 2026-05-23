@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
-import { createFinalApiPersistenceRuntime, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import { createFinalApiPersistenceRuntime, type PrismaPersistenceClient, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from '../../../../contracts/types/businessFoundation.fixture'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
@@ -16,7 +16,7 @@ declare global {
 }
 
 export const dynamic = 'force-dynamic'
-export const finalApiRuntime = globalThis.pickAgentFinalApiRuntime ?? createFinalApiPersistenceRuntime()
+export const finalApiRuntime = globalThis.pickAgentFinalApiRuntime ?? createFinalApiRuntime()
 globalThis.pickAgentFinalApiRuntime = finalApiRuntime
 export const finalAgentRuntime = globalThis.pickAgentFinalAgentRuntime ?? createFinalAgentEventStoreRuntime()
 globalThis.pickAgentFinalAgentRuntime = finalAgentRuntime
@@ -39,20 +39,36 @@ function nextRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-function ensureFinalApiSeed(runtime: FinalApiRuntime): ReportRequestDto {
+function createFinalApiRuntime(): FinalApiRuntime {
+  const adapter = process.env.PICKAGENT_PERSISTENCE_ADAPTER
+  const shouldUsePrisma = adapter === 'prisma' || (!adapter && (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL))
+  if (!shouldUsePrisma) return createFinalApiPersistenceRuntime({ adapter: 'memory' })
+  const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => PrismaPersistenceClient }
+  const { PrismaClient } = requireFromNode('@prisma/client')
+  return createFinalApiPersistenceRuntime({ adapter: 'prisma', prisma: new PrismaClient() })
+}
+
+async function ensureFinalApiSeed(runtime: FinalApiRuntime): Promise<ReportRequestDto> {
+  if (runtime.adapter === 'prisma' || process.env.PICKAGENT_ACCEPTANCE_CLEAN === '1') {
+    return {
+      type: 'ACTIVITY',
+      skuProfileIds: [],
+      simulationResultIds: []
+    }
+  }
   if (runtime.store.projections.size === 0) {
-    const ingest = runtime.ingestService.ingest(businessFoundationSeedFixture)
-    const ruleSet = runtime.activityService.parse({
+    const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture)
+    const ruleSet = await runtime.activityService.parse({
       name: '618 活动准入规则',
       platform: 'tmall',
       sourceText: businessFoundationActivityRuleText
     })
-    const run = runtime.activityService.simulate(ruleSet.ruleSetId, {
+    const run = await runtime.activityService.simulate(ruleSet.ruleSetId, {
       skuProfileIds: ingest.summaries.map((item) => item.skuProfileId)
     })
     const reviewTarget = run.results.find((item) => item.eligibility !== 'DIRECT_READY') ?? run.results[0]
     if (reviewTarget) {
-      runtime.reviewService.create([
+      await runtime.reviewService.create([
         {
           skuProfileId: reviewTarget.skuProfileId,
           sourceType: 'simulation',
