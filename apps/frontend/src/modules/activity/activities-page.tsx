@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import { PageHeader } from '@/shared/ui/page-header'
@@ -9,6 +9,7 @@ import { StatusBadge } from '@/shared/ui/status-badge'
 
 type RuleType = 'threshold' | 'field_compare' | 'boolean_block' | 'data_required' | 'quota' | 'manual_review'
 type EligibilityStatus = 'DIRECT_READY' | 'REPAIRABLE_READY' | 'MANUAL_REVIEW' | 'BLOCKED'
+type HealthStatus = 'READY' | 'REPAIRABLE' | 'WARNING' | 'RISKY' | 'BLOCKED' | 'UNKNOWN'
 type WhatIfChangeType = 'restock' | 'price_adjustment' | 'content_fix' | 'certificate_upload'
 
 interface ParsedRuleDto {
@@ -27,11 +28,12 @@ interface SimulationResultDto {
   skuTitle: string
   skuCode: string
   eligibilityStatus: EligibilityStatus
-  healthStatus: 'READY' | 'REPAIRABLE' | 'RISKY' | 'BLOCKED'
+  healthStatus: HealthStatus
   failedRules: Array<{ ruleId: string; reason: string }>
   evidence: Array<{ label: string; value: string }>
   repairSuggestions: string[]
   manualReviewSource?: string
+  originalEligibility?: EligibilityStatus
 }
 
 interface WhatIfInputDto {
@@ -44,6 +46,49 @@ interface WhatIfOutputDto {
   beforeStatus: EligibilityStatus
   afterStatus: EligibilityStatus
   diffSummary: string[]
+}
+
+interface ActivityWorkbenchResponse {
+  source: 'business-foundation-runtime'
+  ruleSet: {
+    ruleSetId: string
+    rules: Array<{
+      id: string
+      type: RuleType
+      field?: string
+      operator?: string
+      value?: number | string | boolean
+      compareField?: string
+      message: string
+      severity: 'info' | 'warning' | 'blocking'
+    }>
+    parseStatus: string
+    confidence: number
+    errors: string[]
+  }
+  results: Array<{
+    simulationResultId: string
+    skuProfileId: string
+    eligibility: EligibilityStatus
+    failedRules: ActivityWorkbenchResponse['ruleSet']['rules']
+    evidence: Array<{ type: string; entityId: string; label: string; summary: string }>
+    repairSuggestions: string[]
+    originalEligibility?: EligibilityStatus
+  }>
+  skuDetails: Array<{
+    skuProfileId: string
+    canonicalSkuKey: string
+    productName: string
+    healthStatus: HealthStatus
+    latestSnapshot: {
+      stock?: number
+      positiveRate?: number
+      campaignPrice?: number
+      lowestPrice30d?: number
+      certificateStatus?: string
+    } | null
+  }>
+  todoNotes: string[]
 }
 
 const defaultRuleText = `双11珠宝会场报名规则：
@@ -96,7 +141,20 @@ const parsedRules: ParsedRuleDto[] = [
   },
 ]
 
-const simulationResults: SimulationResultDto[] = [
+function mapRule(rule: ActivityWorkbenchResponse['ruleSet']['rules'][number], confidence: number): ParsedRuleDto {
+  return {
+    id: rule.id,
+    type: rule.type,
+    title: rule.message,
+    field: rule.field ?? rule.compareField ?? 'activityContext',
+    operator: rule.operator ?? '=',
+    value: rule.value === undefined ? rule.severity : String(rule.value),
+    confidence,
+    evidence: rule.message,
+  }
+}
+
+const fallbackSimulationResults: SimulationResultDto[] = [
   {
     id: 'SKU-1001',
     skuTitle: '18K 金钻石项链 0.18ct',
@@ -166,8 +224,8 @@ const statusCopy: Record<EligibilityStatus, { label: string; tone: 'ready' | 'wa
   BLOCKED: { label: '阻断', tone: 'blocked' },
 }
 
-function createWhatIfOutput(input: WhatIfInputDto): WhatIfOutputDto {
-  const target = simulationResults.find((item) => item.id === input.targetSkuId) ?? simulationResults[1]
+function createMockWhatIfOutput(input: WhatIfInputDto): WhatIfOutputDto {
+  const target = fallbackSimulationResults.find((item) => item.id === input.targetSkuId) ?? fallbackSimulationResults[1]
 
   if (input.changeType === 'restock' && target.id === 'SKU-1002') {
     return {
@@ -197,32 +255,108 @@ function createWhatIfOutput(input: WhatIfInputDto): WhatIfOutputDto {
 
 export function ActivitiesPage() {
   const [ruleText, setRuleText] = useState(defaultRuleText)
-  const [selectedId, setSelectedId] = useState(simulationResults[1].id)
+  const [parsedRuleItems, setParsedRuleItems] = useState(parsedRules)
+  const [simulationItems, setSimulationItems] = useState<SimulationResultDto[]>(fallbackSimulationResults)
+  const [adapterState, setAdapterState] = useState<'loading' | 'ready' | 'fallback'>('loading')
+  const [adapterNotes, setAdapterNotes] = useState<string[]>([])
+  const [selectedId, setSelectedId] = useState(fallbackSimulationResults[1].id)
+  const [whatIfOutput, setWhatIfOutput] = useState<WhatIfOutputDto>(createMockWhatIfOutput({ targetSkuId: fallbackSimulationResults[1].id, changeType: 'restock', value: '28' }))
   const [whatIfInput, setWhatIfInput] = useState<WhatIfInputDto>({
-    targetSkuId: simulationResults[1].id,
+    targetSkuId: fallbackSimulationResults[1].id,
     changeType: 'restock',
     value: '28',
   })
 
-  const selectedResult = simulationResults.find((item) => item.id === selectedId) ?? simulationResults[0]
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadWorkbench() {
+      try {
+        const response = await fetch('/api/activity-workbench', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sourceText: ruleText }),
+        })
+        if (!response.ok) throw new Error(`activity-workbench failed: ${response.status}`)
+        const data = (await response.json()) as ActivityWorkbenchResponse
+        if (cancelled) return
+        const detailsById = new Map(data.skuDetails.map((item) => [item.skuProfileId, item]))
+        const mappedResults = data.results.map((result) => mapSimulationResult(result, detailsById.get(result.skuProfileId)))
+        setParsedRuleItems(data.ruleSet.rules.map((rule) => mapRule(rule, data.ruleSet.confidence)))
+        setSimulationItems(mappedResults)
+        setAdapterNotes(data.todoNotes)
+        setSelectedId((current) => mappedResults.some((item) => item.id === current) ? current : mappedResults[0]?.id ?? current)
+        setWhatIfInput((current) => ({ ...current, targetSkuId: mappedResults[0]?.id ?? current.targetSkuId }))
+        setAdapterState('ready')
+      } catch (error) {
+        if (cancelled) return
+        setAdapterState('fallback')
+        setAdapterNotes([error instanceof Error ? error.message : 'activity-workbench adapter failed; using mock fallback'])
+      }
+    }
+
+    const timer = window.setTimeout(loadWorkbench, 250)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [ruleText])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function runWhatIf() {
+      if (adapterState !== 'ready') {
+        setWhatIfOutput(createMockWhatIfOutput(whatIfInput))
+        return
+      }
+      try {
+        const response = await fetch('/api/activity-workbench', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sourceText: ruleText, whatIf: toServiceWhatIf(whatIfInput) }),
+        })
+        if (!response.ok) throw new Error(`activity-workbench what-if failed: ${response.status}`)
+        const data = (await response.json()) as ActivityWorkbenchResponse
+        if (cancelled) return
+        const result = data.results[0]
+        setWhatIfOutput({
+          beforeStatus: result?.originalEligibility ?? result?.eligibility ?? 'MANUAL_REVIEW',
+          afterStatus: result?.eligibility ?? 'MANUAL_REVIEW',
+          diffSummary: result?.originalEligibility && result.originalEligibility !== result.eligibility
+            ? [`ActivitySimulationService 已重跑 what-if：${result.originalEligibility} -> ${result.eligibility}。`]
+            : ['ActivitySimulationService 已重跑 what-if，准入状态未发生变化。'],
+        })
+      } catch {
+        if (cancelled) return
+        setWhatIfOutput(createMockWhatIfOutput(whatIfInput))
+      }
+    }
+
+    runWhatIf()
+    return () => {
+      cancelled = true
+    }
+  }, [adapterState, ruleText, whatIfInput])
+
+  const selectedResult = simulationItems.find((item) => item.id === selectedId) ?? simulationItems[0]
   const groupedResults = useMemo(
     () =>
-      simulationResults.reduce<Record<EligibilityStatus, SimulationResultDto[]>>(
+      simulationItems.reduce<Record<EligibilityStatus, SimulationResultDto[]>>(
         (groups, item) => {
           groups[item.eligibilityStatus].push(item)
           return groups
         },
         { DIRECT_READY: [], REPAIRABLE_READY: [], MANUAL_REVIEW: [], BLOCKED: [] },
       ),
-    [],
+    [simulationItems],
   )
-  const whatIfOutput = useMemo(() => createWhatIfOutput(whatIfInput), [whatIfInput])
 
   return (
     <div className="pageStack activityWorkbench">
       <PageHeader
         title="活动规则与准入模拟"
-        description="Layer 1 使用 mock DTO 固化录入、结构化规则、模拟结果和 what-if 路径；真实解析与模拟只保留接入边界。"
+        description={`Layer 3 接入 BusinessFoundation ActivityRuleService / ActivitySimulationService；当前状态：${adapterState === 'ready' ? '真实接入' : adapterState === 'loading' ? '加载中' : 'mock fallback'}`}
       />
 
       <div className="activityAuthoringGrid">
@@ -240,15 +374,15 @@ export function ActivitiesPage() {
             />
             <div className="activityContractNote">
               <span>Parse adapter</span>
-              <code>RuleTextInputDto -&gt; ParsedRuleSetDto</code>
+              <code>RuleTextInputDto -&gt; ActivityRuleService.parseRules</code>
             </div>
           </PanelBody>
         </Panel>
 
         <Panel>
-          <PanelHeader title="结构化规则" description="当前展示 mock Rule DSL；联调阶段替换数据源，不改变页面骨架。" />
+          <PanelHeader title="结构化规则" description="消费真实 Canonical Rule DSL；manual_review 只显示来源提示，正式审批交给 Review 工作台。" />
           <PanelBody className="structuredRuleList">
-            {parsedRules.map((rule) => (
+            {parsedRuleItems.map((rule) => (
               <article className="structuredRuleItem" key={rule.id}>
                 <div className="ruleItemTopline">
                   <div>
@@ -294,7 +428,7 @@ export function ActivitiesPage() {
         <Panel>
           <PanelHeader title="模拟对象列表" description="按活动准入状态查看对象入口；健康状态只读展示，不在本页重算。" />
           <PanelBody className="simulationList">
-            {simulationResults.map((item) => (
+            {simulationItems.map((item) => (
               <button
                 className={`simulationRow ${item.id === selectedResult.id ? 'simulationRow--active' : ''}`}
                 key={item.id}
@@ -369,13 +503,13 @@ export function ActivitiesPage() {
       </div>
 
       <Panel>
-        <PanelHeader title="What-if 模拟" description="基于指定变更条件查看 mock 差异；输出只改变活动准入结论，不写回健康诊断。" />
+        <PanelHeader title="What-if 模拟" description="通过 ActivitySimulationService 重跑指定变更；输出只改变活动准入结论，不写回健康诊断。" />
         <PanelBody className="whatIfBody">
           <div className="whatIfControls">
             <label>
               <span className="fieldLabel">对象</span>
               <select value={whatIfInput.targetSkuId} onChange={(event) => setWhatIfInput((current) => ({ ...current, targetSkuId: event.target.value }))}>
-                {simulationResults.map((item) => (
+                {simulationItems.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.skuCode}
                   </option>
@@ -416,8 +550,50 @@ export function ActivitiesPage() {
           </div>
         </PanelBody>
       </Panel>
+      {adapterNotes.length ? (
+        <Panel>
+          <PanelHeader title="接入说明" description="Layer 2 TODO 中与活动模拟相关的处理状态。" />
+          <PanelBody>
+            <ul>
+              {adapterNotes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </PanelBody>
+        </Panel>
+      ) : null}
     </div>
   )
+}
+
+function mapSimulationResult(result: ActivityWorkbenchResponse['results'][number], detail: ActivityWorkbenchResponse['skuDetails'][number] | undefined): SimulationResultDto {
+  const snapshot = detail?.latestSnapshot
+  return {
+    id: result.skuProfileId,
+    skuTitle: detail?.productName ?? result.skuProfileId,
+    skuCode: detail?.canonicalSkuKey ?? result.skuProfileId,
+    eligibilityStatus: result.eligibility,
+    healthStatus: detail?.healthStatus ?? 'UNKNOWN',
+    failedRules: result.failedRules.map((rule) => ({ ruleId: rule.id, reason: rule.message })),
+    evidence: [
+      ...(snapshot ? [
+        { label: '可售库存', value: snapshot.stock === undefined ? '缺失' : `${snapshot.stock} 件` },
+        { label: '好评率', value: snapshot.positiveRate === undefined ? '缺失' : `${Math.round(snapshot.positiveRate * 100)}%` },
+        { label: '证书状态', value: snapshot.certificateStatus ?? '缺失' },
+      ] : []),
+      ...result.evidence.map((item) => ({ label: item.label, value: item.summary })),
+    ],
+    repairSuggestions: result.repairSuggestions.length ? result.repairSuggestions : ['当前无修复建议。'],
+    manualReviewSource: result.failedRules.find((rule) => rule.type === 'manual_review')?.id,
+    originalEligibility: result.originalEligibility,
+  }
+}
+
+function toServiceWhatIf(input: WhatIfInputDto) {
+  if (input.changeType === 'restock') return { targetSkuId: input.targetSkuId, stock: Number(input.value) }
+  if (input.changeType === 'price_adjustment') return { targetSkuId: input.targetSkuId, campaignPrice: Number(input.value) }
+  if (input.changeType === 'certificate_upload') return { targetSkuId: input.targetSkuId, certificateStatus: input.value || 'valid' }
+  return { targetSkuId: input.targetSkuId, certificateStatus: 'valid' }
 }
 
 function DetailBlock({ title, children }: { title: string; children: ReactNode }) {

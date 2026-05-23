@@ -16,7 +16,7 @@
 ## 4. Final parse and simulation integration
 
 - [x] 4.1 在模块内部校验规则录入、结果查看和 what-if 的串行路径
-- [ ] 4.2 在模块最后接入真实 rule parse 与 simulation 接口
+- [x] 4.2 在模块最后接入真实 rule parse 与 simulation 接口
 
 ## 5. Module readiness gate
 
