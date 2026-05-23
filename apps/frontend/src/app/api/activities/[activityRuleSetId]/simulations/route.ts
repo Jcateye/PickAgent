@@ -11,7 +11,7 @@ export async function POST(request: Request, context: RouteContext) {
   const payload = (await request.json().catch(() => null)) as Omit<SimulationRequestDto, 'ruleSetId'> | null
   if (!payload?.skuProfileIds?.length) return fail('COMMON.VALIDATION_ERROR', 'skuProfileIds is required', 400)
   try {
-    return ok(finalApiRuntime.activityService.simulate(activityRuleSetId, payload))
+    return ok(await finalApiRuntime.activityService.simulate(activityRuleSetId, payload))
   } catch (error) {
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Simulation failed', 400)
   }
