@@ -48,6 +48,8 @@ test("backend business foundation supports ingest, projection, simulation, revie
     simulationResultIds: simulation.map((item) => item.simulationResultId),
   });
   assert.equal(report.status, "PREVIEW");
+  assert.ok(report.evidenceSummary.length > 0);
+  assert.ok(report.sections.some((section) => section.id === "unresolved_risks"));
 
   const tools = runtime.agentToolRegistry.listTools();
   assert.equal(tools.length, 5);

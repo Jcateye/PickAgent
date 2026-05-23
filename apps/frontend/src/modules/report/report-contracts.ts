@@ -30,4 +30,5 @@ export interface ReportPreviewDto {
   }
   executiveSummary: string
   sections: ReportSectionDto[]
+  evidenceSummary: ReportEvidenceSummaryDto[]
 }

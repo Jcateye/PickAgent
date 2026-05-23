@@ -24,6 +24,14 @@
 
 ## 遗留 TODO / 依赖项
 
+### staff-workbench-review-reporting Layer 3 处理记录
+
+- 已处理：Review 工作台已从纯 mock fixture 切换为消费 `ReviewService` 输出，并保留 mock fallback。
+- 已处理：报告页已从纯 mock fixture 切换为消费 `ReportService` 预览输出，并展示报告级 evidence summary。
+- 已处理：`ReportService` 预览 DTO 已补充“未解决风险”章节，覆盖非 READY 健康风险与 `MANUAL_REVIEW` / `BLOCKED` 模拟风险。
+- 仍保留：正式文件导出仍是前端动作状态占位，不在本模块声明完成真实导出。
+- 仍遗留：数据库 repository / transaction 接线仍归 P2 生产化项，本模块当前消费 Layer 2 application service runtime，不声明真实 Prisma 落库完成。
+
 ### P0：Layer 3 前必须处理
 
 1. **真实抖店页面 fixture 替换**

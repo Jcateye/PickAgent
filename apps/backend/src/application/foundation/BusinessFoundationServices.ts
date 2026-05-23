@@ -365,10 +365,13 @@ export class ReportService {
 
   generatePreview(input: { type: "HEALTH" | "ACTIVITY"; skuProfileIds: string[]; simulationResultIds?: string[] }): ReportPreviewDto {
     const details = input.skuProfileIds.map((id) => this.skuQueryService.getSkuDetail(id)).filter((item): item is SkuDetailDto => item !== null);
-    const simulationEvidence = (input.simulationResultIds ?? []).flatMap((id) => {
-      const result = this.store.simulations.get(id);
-      return result ? [evidence("simulation", id, "活动模拟", `准入状态：${result.eligibility}`)] : [];
-    });
+    const simulations = (input.simulationResultIds ?? []).map((id) => this.store.simulations.get(id)).filter((item): item is SimulationResultDto => item !== undefined);
+    const simulationEvidence = simulations.map((result) => evidence("simulation", result.simulationResultId, "活动模拟", `准入状态：${result.eligibility}`));
+    const unresolvedHealthRisks = details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map((issue) => `${item.productName}：${issue}`));
+    const unresolvedSimulationRisks = simulations
+      .filter((item) => item.eligibility === "MANUAL_REVIEW" || item.eligibility === "BLOCKED")
+      .map((item) => `${item.simulationResultId}：${item.eligibility}，失败规则 ${item.failedRules.length} 条`);
+    const unresolvedRisks = [...unresolvedHealthRisks, ...unresolvedSimulationRisks];
     const report: ReportPreviewDto = {
       reportId: nextId("report"),
       type: input.type,
@@ -386,6 +389,12 @@ export class ReportService {
           title: "下一步动作",
           summary: details.flatMap((item) => item.nextActions).join("；") || "暂无下一步动作",
           evidence: simulationEvidence,
+        },
+        {
+          id: "unresolved_risks",
+          title: "未解决风险",
+          summary: unresolvedRisks.length ? unresolvedRisks.join("；") : "当前预览没有未解决阻塞或人工确认风险",
+          evidence: [...details.flatMap((item) => item.evidence), ...simulationEvidence],
         },
       ],
       evidenceSummary: [...details.flatMap((item) => item.evidence), ...simulationEvidence],
