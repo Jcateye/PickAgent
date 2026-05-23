@@ -265,19 +265,53 @@ export class ActivityRuleService {
 
 function deterministicRules(sourceText: string): CanonicalRuleDto[] {
   const rules: CanonicalRuleDto[] = [];
+  const stockThreshold = matchFirstNumber(sourceText, /库存[^0-9一二三四五六七八九十百千万]*([0-9]+)/i);
+  const positiveRateThreshold = matchPercent(sourceText, /好评[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*%?/i);
   if (/库存|stock/i.test(sourceText)) {
-    rules.push({ id: "stock_min", type: "threshold", field: "stock", operator: "gte", value: 20, message: "活动库存不少于 20", severity: "blocking" });
+    rules.push({
+      id: "stock_min",
+      type: "threshold",
+      field: "stock",
+      operator: "gte",
+      value: stockThreshold ?? 20,
+      message: `活动库存不少于 ${stockThreshold ?? 20}`,
+      severity: "blocking",
+    });
   }
   if (/好评|positive/i.test(sourceText)) {
-    rules.push({ id: "positive_rate", type: "threshold", field: "positiveRate", operator: "gte", value: 0.92, message: "好评率不少于 92%", severity: "blocking" });
+    rules.push({
+      id: "positive_rate",
+      type: "threshold",
+      field: "positiveRate",
+      operator: "gte",
+      value: positiveRateThreshold ?? 0.92,
+      message: `好评率不少于 ${Math.round((positiveRateThreshold ?? 0.92) * 100)}%`,
+      severity: "blocking",
+    });
   }
   if (/证书|certificate/i.test(sourceText)) {
     rules.push({ id: "certificate_valid", type: "threshold", field: "certificateStatus", operator: "eq", value: "valid", message: "证书状态必须有效", severity: "blocking" });
+  }
+  if (/商机|business_chance_center|clue/i.test(sourceText)) {
+    rules.push({ id: "business_chance_manual_review", type: "manual_review", message: "business_chance_center 商机线索需要人工确认后才能转成活动规则", severity: "warning" });
   }
   if (/人工|manual/i.test(sourceText)) {
     rules.push({ id: "manual_check", type: "manual_review", message: "需要人工确认活动规则歧义", severity: "warning" });
   }
   return rules.length ? rules : [{ id: "manual_parse", type: "manual_review", message: "规则文本未命中确定性解析，需要人工确认", severity: "warning" }];
+}
+
+function matchFirstNumber(sourceText: string, pattern: RegExp): number | undefined {
+  const match = sourceText.match(pattern);
+  if (!match?.[1]) return undefined;
+  const value = Number(match[1]);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function matchPercent(sourceText: string, pattern: RegExp): number | undefined {
+  const value = matchFirstNumber(sourceText, pattern);
+  if (value === undefined) return undefined;
+  return value > 1 ? value / 100 : value;
 }
 
 export class ActivitySimulationService {

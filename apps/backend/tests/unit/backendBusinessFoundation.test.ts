@@ -82,3 +82,16 @@ test("douyin fxg captured stock records map into ingest payload and business cha
   });
   assert.equal(ruleSet.parseStatus, "NEEDS_REVIEW");
 });
+
+test("activity rule parser preserves numeric thresholds and business chance manual review context", () => {
+  const runtime = createBusinessFoundationRuntime();
+  const ruleSet = runtime.activityRuleService.parseRules({
+    name: "抖店商机活动准入规则",
+    platform: "douyin_fxg",
+    sourceText: "活动库存不得低于 80 件，business_chance_center 商机线索需要人工确认。",
+  });
+
+  assert.equal(ruleSet.parseStatus, "NEEDS_REVIEW");
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "stock_min")?.value, 80);
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "business_chance_manual_review")?.type, "manual_review");
+});
