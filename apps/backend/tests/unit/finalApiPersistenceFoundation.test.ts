@@ -2,6 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
 import { createFinalApiPersistenceRuntime } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
+
+const tenantA: P0AuthContextDto = {
+  actorId: "actor_a",
+  tenantId: "tenant_a",
+  sessionId: "session_a",
+  surface: "api-test",
+  requestId: "request_a",
+};
+
+const tenantB: P0AuthContextDto = {
+  actorId: "actor_b",
+  tenantId: "tenant_b",
+  sessionId: "session_b",
+  surface: "api-test",
+  requestId: "request_b",
+};
 
 test("final API persistence foundation writes ingest aggregate in one transaction boundary", () => {
   const runtime = createFinalApiPersistenceRuntime();
@@ -21,6 +38,32 @@ test("final API persistence foundation writes ingest aggregate in one transactio
   assert.equal(summary.total, 2);
   assert.equal(runtime.ingestService.listSkus().items.length, 2);
   assert.equal(runtime.ingestService.getSkuDetail(result.summaries[0].skuProfileId)?.latestSnapshot?.skuProfileId, result.summaries[0].skuProfileId);
+});
+
+test("final API repositories carry tenant and session boundary and deny cross-tenant access", () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingestA = runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
+
+  assert.equal(runtime.ingestService.getHealthSummary(tenantA).total, 2);
+  assert.equal(runtime.ingestService.getHealthSummary(tenantB).total, 0);
+  assert.throws(
+    () => runtime.ingestService.getSkuDetail(ingestA.summaries[0].skuProfileId, tenantB),
+    (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
+  );
+
+  const ruleSet = runtime.activityService.parse(
+    {
+      name: "Tenant A 规则",
+      platform: "tmall",
+      sourceText: businessFoundationActivityRuleText,
+    },
+    tenantA,
+  );
+
+  assert.throws(
+    () => runtime.activityService.simulate(ruleSet.ruleSetId, { skuProfileIds: [ingestA.summaries[0].skuProfileId] }, tenantB),
+    (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
+  );
 });
 
 test("final activity, review and report services share persistent repositories", () => {

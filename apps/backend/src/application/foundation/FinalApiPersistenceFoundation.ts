@@ -17,6 +17,7 @@ import {
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
+import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
 export interface ApiEnvelope<T> {
   code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND";
@@ -69,6 +70,14 @@ export interface ReportRequestDto {
   simulationResultIds?: string[];
 }
 
+const explicitDevBoundary: P0AuthContextDto = {
+  actorId: "dev_actor",
+  tenantId: "dev_tenant",
+  sessionId: "dev_session",
+  surface: "api-dev-fallback",
+  requestId: "dev_request",
+};
+
 interface SkuProfileRecord {
   skuProfileId: string;
   canonicalSkuKey: string;
@@ -103,6 +112,7 @@ export class FinalApiPersistenceStore {
   readonly reviews = new Map<string, ReviewItemDto>();
   readonly reports = new Map<string, ReportPreviewDto>();
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
+  readonly tenantByEntityId = new Map<string, string>();
 }
 
 export interface TransactionContext {
@@ -139,11 +149,13 @@ function evidence(type: "snapshot" | "diagnosis" | "rule" | "simulation" | "revi
 export class IngestRepository {
   upsertIngestAggregate(
     tx: TransactionContext,
-    input: { row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
+    input: { boundary: P0AuthContextDto; row: IngestRowDto; collectedAt: string; snapshot: NormalizedSkuSnapshotDto; diagnosis: HealthDiagnosisDto },
   ): SkuSummaryDto {
     const key = canonicalSkuKey(input.row);
+    const existingProfile = tx.store.profilesByCanonicalKey.get(key);
+    if (existingProfile) assertTenantBoundary(input.boundary, tx.store.tenantByEntityId.get(existingProfile.skuProfileId), existingProfile.skuProfileId);
     const profile =
-      tx.store.profilesByCanonicalKey.get(key) ??
+      existingProfile ??
       ({
         skuProfileId: input.snapshot.skuProfileId,
         canonicalSkuKey: key,
@@ -162,12 +174,16 @@ export class IngestRepository {
     tx.store.snapshots.set(input.snapshot.snapshotId, input.snapshot);
     tx.store.diagnoses.set(input.diagnosis.diagnosisId, input.diagnosis);
     tx.store.projections.set(updatedProfile.skuProfileId, summary);
+    for (const entityId of [updatedProfile.skuProfileId, input.snapshot.snapshotId, input.diagnosis.diagnosisId]) {
+      tx.store.tenantByEntityId.set(entityId, input.boundary.tenantId);
+    }
     return summary;
   }
 
-  recordWorkflowAudit(tx: TransactionContext, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): WorkflowAuditRecord {
+  recordWorkflowAudit(tx: TransactionContext, boundary: P0AuthContextDto, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): WorkflowAuditRecord {
     const audit: WorkflowAuditRecord = { ...record, workflowRunId: nextId("workflow"), status: "SUCCEEDED", createdAt: new Date().toISOString() };
     tx.store.workflowAudits.set(audit.workflowRunId, audit);
+    tx.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return audit;
   }
 }
@@ -175,8 +191,8 @@ export class IngestRepository {
 export class SkuQueryRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  healthSummary(): HealthSummaryDto {
-    const summaries = Array.from(this.store.projections.values());
+  healthSummary(boundary: P0AuthContextDto): HealthSummaryDto {
+    const summaries = Array.from(this.store.projections.values()).filter((item) => this.belongsToTenant(boundary, item.skuProfileId));
     return {
       total: summaries.length,
       ready: summaries.filter((item) => item.healthStatus === "READY").length,
@@ -185,13 +201,14 @@ export class SkuQueryRepository {
     };
   }
 
-  list(page = 1, pageSize = 20): PageDto<SkuSummaryDto> {
-    const items = Array.from(this.store.projections.values());
+  list(boundary: P0AuthContextDto, page = 1, pageSize = 20): PageDto<SkuSummaryDto> {
+    const items = Array.from(this.store.projections.values()).filter((item) => this.belongsToTenant(boundary, item.skuProfileId));
     const start = (page - 1) * pageSize;
     return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
   }
 
-  detail(skuProfileId: string): SkuDetailDto | null {
+  detail(boundary: P0AuthContextDto, skuProfileId: string): SkuDetailDto | null {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(skuProfileId), skuProfileId);
     const summary = this.store.projections.get(skuProfileId);
     if (!summary) return null;
     const latestSnapshot = Array.from(this.store.snapshots.values()).filter((item) => item.skuProfileId === skuProfileId).at(-1) ?? null;
@@ -206,24 +223,32 @@ export class SkuQueryRepository {
       ],
     };
   }
+
+  private belongsToTenant(boundary: P0AuthContextDto, entityId: string): boolean {
+    return this.store.tenantByEntityId.get(entityId) === boundary.tenantId;
+  }
 }
 
 export class ActivityRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  saveRuleSet(ruleSet: ActivityRuleSetDto): ActivityRuleSetDto {
+  saveRuleSet(boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): ActivityRuleSetDto {
     this.store.ruleSets.set(ruleSet.ruleSetId, ruleSet);
+    this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
     return ruleSet;
   }
 
-  getRuleSet(activityRuleSetId: string): ActivityRuleSetDto | null {
+  getRuleSet(boundary: P0AuthContextDto, activityRuleSetId: string): ActivityRuleSetDto | null {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(activityRuleSetId), activityRuleSetId);
     return this.store.ruleSets.get(activityRuleSetId) ?? null;
   }
 
-  saveSimulationRun(run: ActivitySimulationRunDto): ActivitySimulationRunDto {
+  saveSimulationRun(boundary: P0AuthContextDto, run: ActivitySimulationRunDto): ActivitySimulationRunDto {
     this.store.simulationRuns.set(run.simulationRunId, run);
+    this.store.tenantByEntityId.set(run.simulationRunId, boundary.tenantId);
     for (const result of run.results) {
       this.store.simulationResults.set(result.simulationResultId, result);
+      this.store.tenantByEntityId.set(result.simulationResultId, boundary.tenantId);
     }
     return run;
   }
@@ -232,19 +257,22 @@ export class ActivityRepository {
 export class ReviewRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  list(): ReviewItemDto[] {
-    return Array.from(this.store.reviews.values());
+  list(boundary: P0AuthContextDto): ReviewItemDto[] {
+    return Array.from(this.store.reviews.values()).filter((item) => this.store.tenantByEntityId.get(item.reviewItemId) === boundary.tenantId);
   }
 
-  create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): ReviewItemDto[] {
+  create(boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): ReviewItemDto[] {
     return items.map((item) => {
+      if (item.skuProfileId) assertTenantBoundary(boundary, this.store.tenantByEntityId.get(item.skuProfileId), item.skuProfileId);
       const review: ReviewItemDto = { ...item, reviewItemId: nextId("review"), status: "OPEN" };
       this.store.reviews.set(review.reviewItemId, review);
+      this.store.tenantByEntityId.set(review.reviewItemId, boundary.tenantId);
       return review;
     });
   }
 
-  decide(reviewItemId: string, request: ReviewDecisionRequestDto): ReviewItemDto {
+  decide(boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): ReviewItemDto {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
     const current = this.store.reviews.get(reviewItemId);
     if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "CHANGES_REQUESTED" } as const;
@@ -257,12 +285,14 @@ export class ReviewRepository {
 export class ReportRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  save(report: ReportPreviewDto): ReportPreviewDto {
+  save(boundary: P0AuthContextDto, report: ReportPreviewDto): ReportPreviewDto {
     this.store.reports.set(report.reportId, report);
+    this.store.tenantByEntityId.set(report.reportId, boundary.tenantId);
     return report;
   }
 
-  getSimulationResult(id: string): SimulationResultDto | null {
+  getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(id), id);
     return this.store.simulationResults.get(id) ?? null;
   }
 }
@@ -276,7 +306,7 @@ export class FinalIngestService {
     private readonly healthAssessmentService = new HealthAssessmentService(),
   ) {}
 
-  ingest(payload: IngestPayloadDto): IngestResponseDto {
+  ingest(payload: IngestPayloadDto, boundary: P0AuthContextDto = explicitDevBoundary): IngestResponseDto {
     assertValidIngestPayload(payload);
     return this.tx.transaction((tx) => {
       const summaries: SkuSummaryDto[] = [];
@@ -287,37 +317,37 @@ export class FinalIngestService {
         const skuProfileId = existing?.skuProfileId ?? nextId("sku");
         const snapshot = this.normalizationService.normalize(row, skuProfileId, payload.collectedAt);
         const diagnosis = this.healthAssessmentService.assess(snapshot);
-        summaries.push(this.repository.upsertIngestAggregate(tx, { row, collectedAt: payload.collectedAt, snapshot, diagnosis }));
+        summaries.push(this.repository.upsertIngestAggregate(tx, { boundary, row, collectedAt: payload.collectedAt, snapshot, diagnosis }));
         snapshots.push(snapshot);
         diagnoses.push(diagnosis);
       }
-      const audit = this.repository.recordWorkflowAudit(tx, {
+      const audit = this.repository.recordWorkflowAudit(tx, boundary, {
         workflowType: "ingest",
         subjectType: "sku_batch",
-        input: { connectorId: payload.connectorId, rowCount: payload.rows.length, collectedAt: payload.collectedAt },
-        output: { skuProfileIds: summaries.map((item) => item.skuProfileId) },
+        input: { connectorId: payload.connectorId, rowCount: payload.rows.length, collectedAt: payload.collectedAt, actorId: boundary.actorId, tenantId: boundary.tenantId, sessionId: boundary.sessionId, surface: boundary.surface },
+        output: { skuProfileIds: summaries.map((item) => item.skuProfileId), tenantId: boundary.tenantId, sessionId: boundary.sessionId },
       });
       return { summaries, snapshots, diagnoses, workflowRunId: audit.workflowRunId };
     });
   }
 
-  getHealthSummary(): HealthSummaryDto {
-    return this.skuQueryRepository.healthSummary();
+  getHealthSummary(boundary: P0AuthContextDto = explicitDevBoundary): HealthSummaryDto {
+    return this.skuQueryRepository.healthSummary(boundary);
   }
 
-  listSkus(page?: number, pageSize?: number): PageDto<SkuSummaryDto> {
-    return this.skuQueryRepository.list(page, pageSize);
+  listSkus(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): PageDto<SkuSummaryDto> {
+    return this.skuQueryRepository.list(boundary, page, pageSize);
   }
 
-  getSkuDetail(skuProfileId: string): SkuDetailDto | null {
-    return this.skuQueryRepository.detail(skuProfileId);
+  getSkuDetail(skuProfileId: string, boundary: P0AuthContextDto = explicitDevBoundary): SkuDetailDto | null {
+    return this.skuQueryRepository.detail(boundary, skuProfileId);
   }
 }
 
 export class FinalActivityService {
   constructor(private readonly repository: ActivityRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
-  parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }): ActivityRuleSetDto {
+  parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }, boundary: P0AuthContextDto = explicitDevBoundary): ActivityRuleSetDto {
     const rules = input.rules ?? deterministicRules(input.sourceText);
     const ruleSet: ActivityRuleSetDto = {
       ruleSetId: nextId("rules"),
@@ -336,15 +366,15 @@ export class FinalActivityService {
       ruleSet.confidence = 0;
       ruleSet.errors.push(error instanceof Error ? error.message : "Rule DSL validation failed");
     }
-    return this.repository.saveRuleSet(ruleSet);
+    return this.repository.saveRuleSet(boundary, ruleSet);
   }
 
-  simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">): ActivitySimulationRunDto {
-    const ruleSet = this.repository.getRuleSet(activityRuleSetId);
+  simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): ActivitySimulationRunDto {
+    const ruleSet = this.repository.getRuleSet(boundary, activityRuleSetId);
     if (!ruleSet || ruleSet.parseStatus === "FAILED") throw new Error("Valid rule set is required before simulation");
     const startedAt = new Date().toISOString();
     const results = request.skuProfileIds.map((skuProfileId) => {
-      const detail = this.skuQueryRepository.detail(skuProfileId);
+      const detail = this.skuQueryRepository.detail(boundary, skuProfileId);
       if (!detail?.latestSnapshot) throw new Error(`SKU detail not found: ${skuProfileId}`);
       const original = evaluate(detail.latestSnapshot, ruleSet.rules);
       const changedSnapshot = request.whatIf ? { ...detail.latestSnapshot, ...request.whatIf } : detail.latestSnapshot;
@@ -360,7 +390,7 @@ export class FinalActivityService {
         originalEligibility: request.whatIf ? original.eligibility : undefined,
       } satisfies SimulationResultDto;
     });
-    return this.repository.saveSimulationRun({
+    return this.repository.saveSimulationRun(boundary, {
       simulationRunId: nextId("simulation_run"),
       activityRuleSetId,
       status: "SUCCEEDED",
@@ -375,26 +405,26 @@ export class FinalActivityService {
 export class FinalReviewService {
   constructor(private readonly repository: ReviewRepository) {}
 
-  list(): PageDto<ReviewItemDto> {
-    const items = this.repository.list();
+  list(boundary: P0AuthContextDto = explicitDevBoundary): PageDto<ReviewItemDto> {
+    const items = this.repository.list(boundary);
     return { items, page: 1, pageSize: items.length || 20, total: items.length };
   }
 
-  create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): ReviewItemDto[] {
-    return this.repository.create(items);
+  create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>, boundary: P0AuthContextDto = explicitDevBoundary): ReviewItemDto[] {
+    return this.repository.create(boundary, items);
   }
 
-  decide(reviewItemId: string, request: ReviewDecisionRequestDto): ReviewItemDto {
-    return this.repository.decide(reviewItemId, request);
+  decide(reviewItemId: string, request: ReviewDecisionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): ReviewItemDto {
+    return this.repository.decide(boundary, reviewItemId, request);
   }
 }
 
 export class FinalReportService {
   constructor(private readonly repository: ReportRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
-  generate(input: ReportRequestDto): ReportPreviewDto {
-    const details = input.skuProfileIds.map((id) => this.skuQueryRepository.detail(id)).filter((item): item is SkuDetailDto => item !== null);
-    const simulations = (input.simulationResultIds ?? []).map((id) => this.repository.getSimulationResult(id)).filter((item): item is SimulationResultDto => item !== null);
+  generate(input: ReportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): ReportPreviewDto {
+    const details = input.skuProfileIds.map((id) => this.skuQueryRepository.detail(boundary, id)).filter((item): item is SkuDetailDto => item !== null);
+    const simulations = (input.simulationResultIds ?? []).map((id) => this.repository.getSimulationResult(boundary, id)).filter((item): item is SimulationResultDto => item !== null);
     const simulationEvidence = simulations.map((result) => evidence("simulation", result.simulationResultId, "活动模拟", `准入状态：${result.eligibility}`));
     const unresolvedHealthRisks = details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map((issue) => `${item.productName}：${issue}`));
     const unresolvedSimulationRisks = simulations.filter((item) => item.eligibility === "MANUAL_REVIEW" || item.eligibility === "BLOCKED").map((item) => `${item.simulationResultId}：${item.eligibility}，失败规则 ${item.failedRules.length} 条`);
@@ -410,7 +440,7 @@ export class FinalReportService {
       ],
       evidenceSummary: [...details.flatMap((item) => item.evidence), ...simulationEvidence],
     };
-    return this.repository.save(report);
+    return this.repository.save(boundary, report);
   }
 }
 

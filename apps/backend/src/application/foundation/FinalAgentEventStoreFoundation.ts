@@ -5,6 +5,7 @@ import type { AgentRunEvent } from "../../domain/entities/AgentRunEvent";
 import type { AgentSession } from "../../domain/entities/AgentSession";
 import type { AgentToolCall } from "../../domain/entities/AgentToolCall";
 import { createBusinessFoundationRuntime, type AgentToolRegistry } from "./BusinessFoundationServices";
+import { createP0RuntimeConfig, P0_PRODUCTION_TOOL_ALLOWLIST, P0_RUNTIME_TOOL_DENYLIST, redactSensitiveText, redactSensitiveValue, type P0RuntimeConfig } from "./P0AuthBoundaryRuntimeConfig";
 
 export type AgentRunStatus = "QUEUED" | "RUNNING" | "WAITING_REVIEW" | "SUCCEEDED" | "FAILED" | "CANCELED";
 export type AgentPermission = "ALLOW" | "REVIEW_REQUIRED" | "DENY";
@@ -318,10 +319,15 @@ interface ToolPolicyDecision {
 }
 
 export class AgentToolPolicy {
-  private readonly lowRiskTools = new Set(["parseactivityrules", "simulateactivityreadiness", "explaindecisionwithevidence"]);
+  private readonly lowRiskTools: Set<string>;
   private readonly reviewRequiredTools = new Set(["createreviewitems"]);
-  private readonly deniedExactNames = new Set(["coding", "file", "bash", "sql", "direct_sql", "credential_access"]);
-  private readonly deniedPatterns = [/^coding(?:\.|$)/i, /^file(?:\.|$)/i, /^bash(?:\.|$)/i, /direct[\s_-]?sql/i, /credential/i, /cookie/i, /token/i, /jwt/i, /sso/i, /secret/i, /api[_-]?key/i];
+  private readonly deniedExactNames: Set<string>;
+  private readonly deniedPatterns = [/^coding(?:\.|$)/i, /^file(?:\.|$)/i, /^bash(?:\.|$)/i, /direct[\s_-]?sql/i, /credential/i, /cookie/i, /token/i, /jwt/i, /sso/i, /secret/i, /api[_\s-]?key/i];
+
+  constructor(config: Pick<P0RuntimeConfig, "productionToolAllowlist" | "runtimeToolDenylist"> = { productionToolAllowlist: P0_PRODUCTION_TOOL_ALLOWLIST, runtimeToolDenylist: P0_RUNTIME_TOOL_DENYLIST }) {
+    this.lowRiskTools = new Set(config.productionToolAllowlist.map((tool) => canonicalizeToolName(tool).toLowerCase()));
+    this.deniedExactNames = new Set([...config.runtimeToolDenylist.map((tool) => tool.toLowerCase()), "direct_sql", "credential_access"]);
+  }
 
   decide(toolName: string): ToolPolicyDecision {
     const normalized = canonicalizeToolName(toolName).trim().toLowerCase();
@@ -363,7 +369,7 @@ export class AgentToolExecutor {
       type: "policy",
       entityId: decision.reasonCode,
       label: "ToolPolicy",
-      summary: decision.blockedReason ?? `tool ${toolName} matched ${decision.reasonCode}`,
+      summary: redactSensitiveText(decision.blockedReason ?? `tool ${toolName} matched ${decision.reasonCode}`),
     };
     let reviewGate: AgentReviewGate | undefined;
     let toolResult: unknown = undefined;
@@ -414,8 +420,8 @@ export class AgentToolExecutor {
       status: toolStatus,
       riskLevel: decision.riskLevel,
       reviewPolicy: decision.reviewPolicy,
-      inputJson: metadata({ requestedToolName, ...(input.inputJson ?? {}) }),
-      outputJson: decision.permission === "ALLOW" ? metadata({ ok: toolStatus === "SUCCEEDED", result: toolResult, summary: summarizeToolResult(toolResult) }) : {},
+      inputJson: metadata(redactSensitiveValue({ requestedToolName, ...(input.inputJson ?? {}) }) as Record<string, unknown>),
+      outputJson: decision.permission === "ALLOW" ? metadata(redactSensitiveValue({ ok: toolStatus === "SUCCEEDED", result: toolResult, summary: summarizeToolResult(toolResult) }) as Record<string, unknown>) : {},
       evidenceRefsJson: { refs: evidenceRefs },
       errorMessage,
       blockedReason: decision.permission === "DENY" ? decision.blockedReason ?? null : null,
@@ -436,9 +442,9 @@ export class AgentToolExecutor {
         permission: decision.permission,
         riskLevel: decision.riskLevel,
         reviewPolicy: decision.reviewPolicy,
-        evidenceRefs,
+        evidenceRefs: redactSensitiveValue(evidenceRefs),
         reviewGateId: reviewGate?.id ?? null,
-        outputSummary: summarizeToolResult(toolResult),
+        outputSummary: redactSensitiveText(summarizeToolResult(toolResult)),
       },
     });
     return { toolCall, permission: decision.permission, riskLevel: decision.riskLevel, reviewPolicy: decision.reviewPolicy, evidenceRefs, reviewGate };
@@ -448,10 +454,20 @@ export class AgentToolExecutor {
 export class MinimalPiAgentLoopAdapter {
   readonly provider = "pi";
   readonly contractVersion = "agent-run-events.v1";
-  readonly availableTools = ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"] as const;
-  readonly disabledRuntimeTools = ["coding", "file", "bash"] as const;
+  readonly availableTools: readonly string[];
+  readonly disabledRuntimeTools: readonly string[];
 
-  constructor(private readonly agentService: FinalAgentService, private readonly eventStore: AgentEventStore) {}
+  constructor(
+    private readonly agentService: FinalAgentService,
+    private readonly eventStore: AgentEventStore,
+    private readonly runtimeConfig: P0RuntimeConfig = createP0RuntimeConfig(),
+  ) {
+    this.availableTools = runtimeConfig.productionToolAllowlist;
+    this.disabledRuntimeTools = runtimeConfig.runtimeToolDenylist;
+    if (runtimeConfig.mode === "production" && runtimeConfig.allowDevAuthFallback) {
+      throw new Error("Pi production adapter cannot start with dev auth fallback");
+    }
+  }
 
   startMission(input: CreateAgentMissionInput): AgentMissionCreatedDto & { run: AgentRun } {
     const created = this.agentService.createMission(input);
@@ -462,13 +478,14 @@ export class MinimalPiAgentLoopAdapter {
         objective: input.objective,
         availableTools: [...this.availableTools],
         disabledRuntimeTools: [...this.disabledRuntimeTools],
+        runtimeMode: this.runtimeConfig.mode,
       },
     });
     this.eventStore.append({
       runId: run.id,
       eventType: "pi.adapter.started",
       eventPhase: "started",
-      payloadJson: { availableTools: [...this.availableTools], disabledRuntimeTools: [...this.disabledRuntimeTools] },
+      payloadJson: { availableTools: [...this.availableTools], disabledRuntimeTools: [...this.disabledRuntimeTools], runtimeMode: this.runtimeConfig.mode },
     });
     return { ...created, run };
   }
@@ -540,13 +557,14 @@ export class FinalAgentService {
 }
 
 export function createFinalAgentEventStoreRuntime() {
+  const runtimeConfig = createP0RuntimeConfig();
   const businessRuntime = createBusinessFoundationRuntime();
   const state = new AgentEventStoreState();
   const repository = new AgentRepository(state);
   const eventStore = new InMemoryAgentEventStore(repository, state);
-  const toolExecutor = new AgentToolExecutor(repository, eventStore, businessRuntime.agentToolRegistry);
+  const toolExecutor = new AgentToolExecutor(repository, eventStore, businessRuntime.agentToolRegistry, new AgentToolPolicy(runtimeConfig));
   const agentService = new FinalAgentService(repository, eventStore, toolExecutor);
-  const piAdapter = new MinimalPiAgentLoopAdapter(agentService, eventStore);
+  const piAdapter = new MinimalPiAgentLoopAdapter(agentService, eventStore, runtimeConfig);
   return { state, repository, eventStore, toolExecutor, agentService, businessRuntime, piAdapter };
 }
 
