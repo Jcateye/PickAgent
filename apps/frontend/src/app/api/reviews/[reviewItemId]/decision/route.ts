@@ -1,0 +1,18 @@
+import { fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
+
+import type { ReviewDecisionRequestDto } from '../../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+
+interface RouteContext {
+  params: Promise<{ reviewItemId: string }>
+}
+
+export async function POST(request: Request, context: RouteContext) {
+  const { reviewItemId } = await context.params
+  const payload = (await request.json().catch(() => null)) as ReviewDecisionRequestDto | null
+  if (!payload?.decision || !payload.decisionBy) return fail('COMMON.VALIDATION_ERROR', 'decision and decisionBy are required', 400)
+  try {
+    return ok(finalApiRuntime.reviewService.decide(reviewItemId, payload))
+  } catch (error) {
+    return fail('REVIEW.NOT_FOUND', error instanceof Error ? error.message : 'Review item not found', 404, { reviewItemId })
+  }
+}
