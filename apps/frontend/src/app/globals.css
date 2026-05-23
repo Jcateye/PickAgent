@@ -1015,6 +1015,38 @@ h4 {
   color: var(--fg);
 }
 
+.sourceLinks,
+.activityReviewAction {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sourceLinks a,
+.activityReviewAction a {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sourceLinks--compact {
+  display: inline-flex;
+  margin-left: 8px;
+}
+
+.activityReviewAction {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.activityReviewAction span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .whatIfControls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
