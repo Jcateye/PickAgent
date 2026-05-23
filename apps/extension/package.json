@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
+    "test": "rm -rf .test-build && tsc --rootDir src --outDir .test-build --module Node16 --moduleResolution Node16 --target ES2020 src/lib/ingest/fixture-smoke.test.ts && node .test-build/lib/ingest/fixture-smoke.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
