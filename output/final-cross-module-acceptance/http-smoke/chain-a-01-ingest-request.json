@@ -1,0 +1,297 @@
+{
+  "connectorId": "doudian-browser-extension",
+  "collectedAt": "2026-05-24T09:00:00.000Z",
+  "rows": [
+    {
+      "platform": "doudian",
+      "storeId": "fxg.jinritemai.com",
+      "externalSkuId": "3668752191222018",
+      "productName": "韩版夏季短袖上衣 / 浅蓝色/均码",
+      "category": "1000003337",
+      "sourceUrl": "https://fxg.jinritemai.com/ffa/g/list",
+      "rowIndex": 0,
+      "stock": 20000,
+      "raw": {
+        "product": {
+          "product_id": "3818388858177978472",
+          "product_name": "韩版夏季短袖上衣",
+          "category_id": 1000003337,
+          "status": 0,
+          "draft_status": 0,
+          "check_status": 3,
+          "stock_type": 0,
+          "shipping_mode": 0,
+          "total_stock_num": 20000,
+          "total_unoccupied_stock_num": 20000,
+          "total_occupied_stock_num": 0,
+          "tags": [
+            "现货"
+          ],
+          "skus": [
+            {
+              "sku_id": "3668752191222018",
+              "sku_name": "浅蓝色/均码",
+              "status": 0,
+              "total_stock_num": 20000,
+              "total_unoccupied_stock_num": 20000,
+              "total_occupied_stock_num": 0
+            }
+          ]
+        },
+        "sku": {
+          "sku_id": "3668752191222018",
+          "sku_name": "浅蓝色/均码",
+          "status": 0,
+          "total_stock_num": 20000,
+          "total_unoccupied_stock_num": 20000,
+          "total_occupied_stock_num": 0
+        },
+        "stockDiagnose": {
+          "product_id": "3818388858177978472",
+          "sku_id": "3668752191222018",
+          "is_alarming": false
+        },
+        "fxg": {
+          "productId": "3818388858177978472",
+          "skuId": "3668752191222018",
+          "productStatus": 0,
+          "skuStatus": 0,
+          "draftStatus": 0,
+          "checkStatus": 3,
+          "stockType": 0,
+          "shippingMode": 0,
+          "isAlarming": false,
+          "stockTags": [
+            "现货"
+          ]
+        },
+        "extensionWarnings": [
+          "缺少价格字段，stock/manage/list 未返回 sale price。",
+          "缺少类目名称，仅保留 category_id。"
+        ],
+        "extensionSourceKind": "product",
+        "extensionRunId": "final-cross-module-acceptance-seed",
+        "externalProductId": "3818388858177978472",
+        "listingStatus": "product:0;sku:0",
+        "activityLabels": [
+          "现货"
+        ],
+        "updatedAt": null
+      }
+    },
+    {
+      "platform": "doudian",
+      "storeId": "fxg.jinritemai.com",
+      "externalSkuId": "3668752191222019",
+      "productName": "夏季防晒外套 / 白色/S",
+      "category": "1000003338",
+      "sourceUrl": "https://fxg.jinritemai.com/ffa/g/list",
+      "rowIndex": 1,
+      "stock": 10,
+      "raw": {
+        "product": {
+          "product_id": "3818388858177978473",
+          "product_name": "夏季防晒外套",
+          "category_id": 1000003338,
+          "status": 0,
+          "draft_status": 0,
+          "check_status": 3,
+          "total_stock_num": 18,
+          "total_unoccupied_stock_num": 18,
+          "skus": [
+            {
+              "sku_id": "3668752191222019",
+              "sku_name": "白色/S",
+              "status": 0,
+              "total_stock_num": 10,
+              "total_unoccupied_stock_num": 10
+            },
+            {
+              "sku_id": "3668752191222020",
+              "sku_name": "白色/M",
+              "status": 0,
+              "total_stock_num": 8,
+              "total_unoccupied_stock_num": 8
+            }
+          ]
+        },
+        "sku": {
+          "sku_id": "3668752191222019",
+          "sku_name": "白色/S",
+          "status": 0,
+          "total_stock_num": 10,
+          "total_unoccupied_stock_num": 10
+        },
+        "stockDiagnose": {
+          "product_id": "3818388858177978473",
+          "sku_id": "3668752191222019",
+          "is_alarming": false
+        },
+        "fxg": {
+          "productId": "3818388858177978473",
+          "skuId": "3668752191222019",
+          "productStatus": 0,
+          "skuStatus": 0,
+          "draftStatus": 0,
+          "checkStatus": 3,
+          "isAlarming": false,
+          "stockTags": []
+        },
+        "extensionWarnings": [
+          "缺少价格字段，stock/manage/list 未返回 sale price。",
+          "缺少类目名称，仅保留 category_id。"
+        ],
+        "extensionSourceKind": "product",
+        "extensionRunId": "final-cross-module-acceptance-seed",
+        "externalProductId": "3818388858177978473",
+        "listingStatus": "product:0;sku:0",
+        "activityLabels": [],
+        "updatedAt": null
+      }
+    },
+    {
+      "platform": "doudian",
+      "storeId": "fxg.jinritemai.com",
+      "externalSkuId": "3668752191222020",
+      "productName": "夏季防晒外套 / 白色/M",
+      "category": "1000003338",
+      "sourceUrl": "https://fxg.jinritemai.com/ffa/g/list",
+      "rowIndex": 2,
+      "stock": 8,
+      "raw": {
+        "product": {
+          "product_id": "3818388858177978473",
+          "product_name": "夏季防晒外套",
+          "category_id": 1000003338,
+          "status": 0,
+          "draft_status": 0,
+          "check_status": 3,
+          "total_stock_num": 18,
+          "total_unoccupied_stock_num": 18,
+          "skus": [
+            {
+              "sku_id": "3668752191222019",
+              "sku_name": "白色/S",
+              "status": 0,
+              "total_stock_num": 10,
+              "total_unoccupied_stock_num": 10
+            },
+            {
+              "sku_id": "3668752191222020",
+              "sku_name": "白色/M",
+              "status": 0,
+              "total_stock_num": 8,
+              "total_unoccupied_stock_num": 8
+            }
+          ]
+        },
+        "sku": {
+          "sku_id": "3668752191222020",
+          "sku_name": "白色/M",
+          "status": 0,
+          "total_stock_num": 8,
+          "total_unoccupied_stock_num": 8
+        },
+        "stockDiagnose": {
+          "product_id": "3818388858177978473",
+          "sku_id": "3668752191222020",
+          "is_alarming": true
+        },
+        "fxg": {
+          "productId": "3818388858177978473",
+          "skuId": "3668752191222020",
+          "productStatus": 0,
+          "skuStatus": 0,
+          "draftStatus": 0,
+          "checkStatus": 3,
+          "isAlarming": true,
+          "stockTags": []
+        },
+        "extensionWarnings": [
+          "缺少价格字段，stock/manage/list 未返回 sale price。",
+          "缺少类目名称，仅保留 category_id。",
+          "库存诊断接口标记 is_alarming，作为采集层风险保留。"
+        ],
+        "extensionSourceKind": "product",
+        "extensionRunId": "final-cross-module-acceptance-seed",
+        "externalProductId": "3818388858177978473",
+        "listingStatus": "product:0;sku:0",
+        "activityLabels": [],
+        "updatedAt": null
+      }
+    },
+    {
+      "platform": "doudian",
+      "storeId": "fxg.jinritemai.com",
+      "externalSkuId": "3657304907025666",
+      "productName": "韩版夏季短袖上衣 / 浅蓝色/均码",
+      "category": "1000003337",
+      "sourceUrl": "https://fxg.jinritemai.com/ffa/g/list?page=2",
+      "rowIndex": 0,
+      "stock": 0,
+      "raw": {
+        "product": {
+          "product_id": "3813356105610952975",
+          "product_name": "韩版夏季短袖上衣",
+          "category_id": 1000003337,
+          "status": 1,
+          "draft_status": 0,
+          "check_status": 3,
+          "stock_type": 0,
+          "shipping_mode": 1,
+          "total_stock_num": 782,
+          "total_unoccupied_stock_num": 0,
+          "total_occupied_stock_num": 782,
+          "tags": [
+            "现货"
+          ],
+          "skus": [
+            {
+              "sku_id": "3657304907025666",
+              "sku_name": "浅蓝色/均码",
+              "status": 0,
+              "total_stock_num": 782,
+              "total_unoccupied_stock_num": 0,
+              "total_occupied_stock_num": 782
+            }
+          ]
+        },
+        "sku": {
+          "sku_id": "3657304907025666",
+          "sku_name": "浅蓝色/均码",
+          "status": 0,
+          "total_stock_num": 782,
+          "total_unoccupied_stock_num": 0,
+          "total_occupied_stock_num": 782
+        },
+        "stockDiagnose": null,
+        "fxg": {
+          "productId": "3813356105610952975",
+          "skuId": "3657304907025666",
+          "productStatus": 1,
+          "skuStatus": 0,
+          "draftStatus": 0,
+          "checkStatus": 3,
+          "stockType": 0,
+          "shippingMode": 1,
+          "isAlarming": null,
+          "stockTags": [
+            "现货"
+          ]
+        },
+        "extensionWarnings": [
+          "缺少价格字段，stock/manage/list 未返回 sale price。",
+          "缺少类目名称，仅保留 category_id。"
+        ],
+        "extensionSourceKind": "product",
+        "extensionRunId": "final-cross-module-acceptance-seed",
+        "externalProductId": "3813356105610952975",
+        "listingStatus": "product:1;sku:0",
+        "activityLabels": [
+          "现货"
+        ],
+        "updatedAt": null
+      }
+    }
+  ]
+}

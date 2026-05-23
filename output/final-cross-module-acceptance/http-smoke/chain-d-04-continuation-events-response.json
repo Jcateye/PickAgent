@@ -1,0 +1,23 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "id": "agent_event_0023",
+        "runId": "agent_run_0022",
+        "sequence": 1,
+        "eventType": "run.continuation_started",
+        "eventPhase": "started",
+        "payloadJson": {
+          "missionId": "agent_mission_0006",
+          "reviewGateId": "agent_gate_0017",
+          "previousRunId": "agent_run_0007"
+        },
+        "createdAt": "2026-05-23T17:47:52.871Z"
+      }
+    ],
+    "after": 0
+  },
+  "requestId": "req_mpin61mb_j6m3ja"
+}

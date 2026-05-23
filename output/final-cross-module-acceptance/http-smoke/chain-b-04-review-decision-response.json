@@ -1,0 +1,33 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "skuProfileId": "sku_0001",
+    "sourceType": "simulation",
+    "sourceId": "simulation_0015",
+    "question": "商机活动准入是否允许继续推进？",
+    "recommendation": "先由运营确认线索，再回归模拟。",
+    "riskLevel": "L2",
+    "evidence": [
+      {
+        "type": "rule",
+        "entityId": "rules_0014",
+        "label": "活动规则集",
+        "summary": "准入模拟基于持久化规则集执行"
+      },
+      {
+        "type": "snapshot",
+        "entityId": "snapshot_0001",
+        "label": "SKU 快照",
+        "summary": "模拟读取当前 SKU 快照，不修改长期健康状态"
+      }
+    ],
+    "reviewItemId": "review_0019",
+    "status": "CHANGES_REQUESTED",
+    "decision": "REQUEST_CHANGES",
+    "decisionBy": "final-acceptance@pickagent.local",
+    "decisionComment": "验收 smoke：需要补齐活动线索归属后重跑。",
+    "decidedAt": "2026-05-23T17:47:51.873Z"
+  },
+  "requestId": "req_mpin60u9_rlsz7n"
+}

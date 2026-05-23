@@ -1,0 +1,198 @@
+{
+  "code": "OK",
+  "message": "success",
+  "data": {
+    "reportId": "report_0021",
+    "type": "ACTIVITY",
+    "status": "PREVIEW",
+    "title": "活动准入报告预览",
+    "sections": [
+      {
+        "id": "summary",
+        "title": "摘要",
+        "summary": "覆盖 3 个 SKU，阻塞 0 个。",
+        "evidence": [
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0001",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0002",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0003",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0004",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0005",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0006",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          }
+        ]
+      },
+      {
+        "id": "next_actions",
+        "title": "下一步动作",
+        "summary": "检查差评原因并准备客服处理；补全或更新证书资料",
+        "evidence": [
+          {
+            "type": "simulation",
+            "entityId": "simulation_0015",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          },
+          {
+            "type": "simulation",
+            "entityId": "simulation_0016",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          },
+          {
+            "type": "simulation",
+            "entityId": "simulation_0017",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          }
+        ]
+      },
+      {
+        "id": "unresolved_risks",
+        "title": "未解决风险",
+        "summary": "韩版夏季短袖上衣 / 浅蓝色/均码：资质证书未通过；simulation_0015：MANUAL_REVIEW，失败规则 2 条；simulation_0016：MANUAL_REVIEW，失败规则 2 条；simulation_0017：MANUAL_REVIEW，失败规则 2 条",
+        "evidence": [
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0001",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0002",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0003",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0004",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "snapshot",
+            "entityId": "snapshot_0005",
+            "label": "采集事实",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "diagnosis",
+            "entityId": "diagnosis_0006",
+            "label": "健康诊断",
+            "summary": "当前 DTO 由 repository 读模型装配"
+          },
+          {
+            "type": "simulation",
+            "entityId": "simulation_0015",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          },
+          {
+            "type": "simulation",
+            "entityId": "simulation_0016",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          },
+          {
+            "type": "simulation",
+            "entityId": "simulation_0017",
+            "label": "活动模拟",
+            "summary": "准入状态：MANUAL_REVIEW"
+          }
+        ]
+      }
+    ],
+    "evidenceSummary": [
+      {
+        "type": "snapshot",
+        "entityId": "snapshot_0001",
+        "label": "采集事实",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "diagnosis",
+        "entityId": "diagnosis_0002",
+        "label": "健康诊断",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "snapshot",
+        "entityId": "snapshot_0003",
+        "label": "采集事实",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "diagnosis",
+        "entityId": "diagnosis_0004",
+        "label": "健康诊断",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "snapshot",
+        "entityId": "snapshot_0005",
+        "label": "采集事实",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "diagnosis",
+        "entityId": "diagnosis_0006",
+        "label": "健康诊断",
+        "summary": "当前 DTO 由 repository 读模型装配"
+      },
+      {
+        "type": "simulation",
+        "entityId": "simulation_0015",
+        "label": "活动模拟",
+        "summary": "准入状态：MANUAL_REVIEW"
+      },
+      {
+        "type": "simulation",
+        "entityId": "simulation_0016",
+        "label": "活动模拟",
+        "summary": "准入状态：MANUAL_REVIEW"
+      },
+      {
+        "type": "simulation",
+        "entityId": "simulation_0017",
+        "label": "活动模拟",
+        "summary": "准入状态：MANUAL_REVIEW"
+      }
+    ]
+  },
+  "requestId": "req_mpin60vy_n6z3v6"
+}

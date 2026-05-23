@@ -1,0 +1,4 @@
+id: 1
+event: run.started
+data: {"id":"agent_event_0004","runId":"agent_run_0003","sequence":1,"eventType":"run.started","eventPhase":"started","payloadJson":{"missionId":"agent_mission_0002","input":{"objective":"acceptance chain C replay/sse smoke"}},"createdAt":"2026-05-23T17:47:52.263Z"}
+

@@ -1,0 +1,10 @@
+{
+  "skuProfileIds": [
+    "sku_0001",
+    "sku_0002",
+    "sku_0009"
+  ],
+  "whatIf": {
+    "stock": 12
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "baseUrl": "http://127.0.0.1:3204",
+  "chainA": {
+    "workflowRunId": "workflow_0013",
+    "acceptedRows": 4,
+    "healthTotal": 6,
+    "skuListTotal": 6,
+    "firstSkuProfileId": "sku_0009",
+    "firstSkuPlatform": "doudian",
+    "firstSkuEvidenceCount": 2
+  },
+  "chainB": {
+    "ruleSetId": "rules_0014",
+    "parseStatus": "NEEDS_REVIEW",
+    "simulationRunId": "simulation_run_0018",
+    "simulationResultCount": 3,
+    "reviewItemId": "review_0019",
+    "reviewDecisionStatus": "CHANGES_REQUESTED",
+    "reportId": "report_0021",
+    "reportStatus": "PREVIEW"
+  },
+  "chainC": {
+    "missionId": "agent_mission_0002",
+    "runId": "agent_run_0003",
+    "replayEvents": 1,
+    "replayAfter": 0,
+    "sseHasRunStartedEvent": true
+  },
+  "chainD": {
+    "piRunId": "agent_run_0007",
+    "reviewGateId": "agent_gate_0017",
+    "gateStatus": "APPROVED",
+    "continuationRunId": "agent_run_0022",
+    "piVisibleTools": [
+      "parseActivityRules",
+      "simulateActivityReadiness",
+      "explainDecisionWithEvidence"
+    ],
+    "disabledRuntimeTools": [
+      "coding",
+      "file",
+      "bash"
+    ],
+    "piRunEventCount": 9,
+    "continuationEventCount": 1
+  },
+  "generatedAt": "2026-05-23T17:47:50.212Z"
+}

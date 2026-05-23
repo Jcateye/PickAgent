@@ -1,0 +1,5 @@
+{
+  "decision": "APPROVE",
+  "decidedBy": "final-acceptance@pickagent.local",
+  "decisionComment": "验收 smoke：批准继续，验证 continuation replay。"
+}
