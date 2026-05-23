@@ -541,6 +541,21 @@ interface EvidenceRef {
 }
 ```
 
+服务端返回给 UI 时，`EvidenceRef` 必须由 assembler 映射为可点击的 `TraceableRef` 或 drawer target。P0 允许 evidence 仍存 JSON，但不允许前端只拿到不可跳转的自然语言摘要。
+
+```ts
+interface TraceableRef {
+  entityType: EvidenceRef["sourceType"] | "sku_profile" | "activity_simulation_run" | "agent_review_gate" | "agent_run" | "report";
+  entityId: string;
+  label: string;
+  href?: string;
+  drawerTarget?: {
+    route: string;
+    panel: "evidence" | "source" | "trace" | "review_gate";
+  };
+}
+```
+
 ## 7. 后端模块架构
 
 建议目录：
@@ -763,6 +778,14 @@ Request：
   }
 }
 ```
+
+处理要求：
+
+- 更新 `AgentReviewGate.status`、`decision`、`decisionComment` 和 `decidedAt`。
+- 若 Gate 关联 `ReviewItem`，同步调用 `ReviewService.decide()`，并写入 Review 决策审计。
+- 写入 `AgentRunEvent(type=review_gate_decided)`，供 SSE 和刷新恢复读取。
+- 返回 `TraceableRef[]`，至少包含当前 Gate、关联 ReviewItem、AgentRun 和触发 Gate 的 ToolCall。
+- 决策后继续执行时创建 continuation run；不依赖前端内存状态恢复。
 
 ### 9.6 取消 Run
 
@@ -989,10 +1012,69 @@ Application Services
 8. Pi 默认高危工具未暴露。
 ```
 
-## 16. 待确认问题
+## 16. Layer 3 后的缺口收敛设计
+
+当前 schema、migration、CRUD 模板和 fake runtime 边界已经具备，但最终后端闭环还没有完成。后续收敛以 `docs/final-design-gap-closure.md` 为主入口，本文件补充后端落地口径。
+
+### 16.1 API route binding
+
+后端 P0 不能停留在 route 常量和 controller 骨架。最小可交付 route binding 应按下列顺序推进：
+
+1. SKU / ingest 链路：`POST /api/ingest`、`GET /api/health/summary`、`GET /api/skus`、`GET /api/skus/:skuProfileId`。
+2. 活动链路：`POST /api/activities/parse`、`POST /api/activities/:activityRuleSetId/simulations`。
+3. Review / report 链路：`GET /api/reviews`、`POST /api/reviews/:reviewItemId/decision`、`POST /api/reports`。
+4. Agent 链路：`POST /api/agent/missions`、`POST /api/agent/missions/:missionId/runs`、`GET /api/agent/runs/:runId/events`、`POST /api/agent/review-gates/:gateId/decision`。
+
+所有 route handler 保持薄层，只负责 request parse、auth boundary、service call 和 response DTO。
+
+### 16.2 Repository / transaction
+
+Repository 接线必须优先服务主链路，而不是一次性补齐所有 CRUD：
+
+- `IngestRepository` 组合 `SkuProfile`、`SkuSnapshot`、`SkuHealthDiagnosis`、`CurrentSkuProjection`，由 `IngestService` 在单事务里调用。
+- `ActivityRepository` 组合 `ActivityRuleSet`、`ActivitySimulationRun`、`ActivitySimulationResult`。
+- `ReviewRepository` 只负责 ReviewItem 状态流转，不反写模拟结论。
+- `ReportRepository` 先保存 report preview metadata、sections、evidence summary。
+- `AgentRepository` 按 `AgentSession`、`AgentMission`、`AgentRun`、`AgentRunEvent`、`AgentToolCall`、`AgentReviewGate` 拆分，但由 `AgentRunService` 统一编排。
+
+事务边界默认在 application service，不在 controller、runtime adapter 或 React route 中。
+
+### 16.3 Agent EventStore 和 SSE
+
+`AgentEventStore` 是最终设计里的关键缺口。它必须提供：
+
+- `append(runId, event)`：分配 run 内递增 `sequence` 并写入 `AgentRunEvent`。
+- `listAfter(runId, sequence)`：给 SSE 断线重连使用。
+- `markRunStatus(runId, status)`：根据 lifecycle event 更新 `AgentRun`。
+- `linkWorkflowStep(toolCallId, workflowStepId)`：把重要工具调用落到全局审计视图。
+
+SSE endpoint 必须以数据库事件为源，不能只转发内存 callback。页面刷新后，前端用最后一个 sequence 继续恢复。
+
+### 16.4 AgentToolExecutor
+
+`AgentToolRegistry` 只负责注册和 schema。真正执行工具时必须经过 `AgentToolExecutor`：
+
+```text
+AgentToolExecutor
+  -> ToolPolicy
+  -> ReviewGatePolicy
+  -> Application Service
+  -> AgentToolCall / WorkflowStep / EvidenceRef
+```
+
+L2 工具必须先创建 `AgentReviewGate` 或 `ReviewItem`，不得在 policy 之外直接执行。
+
+### 16.5 默认决策
+
+- P0 用户身份先允许字符串占位，但 route 需要保留 auth boundary。
+- P0 建 `AgentContextSnapshot`，因为当前 schema 已有该表，后续不再退回只写 `AgentRun.inputJson`。
+- Review Gate 批准后默认启动 continuation run，工程上比恢复同一个 Pi run 更稳。
+- `AgentToolDefinition` P0 继续代码注册，P1 再考虑配置化。
+
+## 17. 待确认问题
 
 1. 用户身份是否先用字符串占位，还是接入正式 auth。
 2. Pi session 文件放在哪里，是否需要加密或只存引用。
-3. P0 是否立即建 `AgentContextSnapshot`，还是先放进 `AgentRun.inputJson`。
-4. Review Gate 被批准后，是恢复同一个 Pi run，还是启动 continuation run。建议 P0 用 continuation run，工程更稳。
+3. Pi session 文件是否需要单独加密存储，还是只保存外部安全存储引用。
+4. 真实 auth 接入前，哪些 route 可以用 demo user 字符串占位。
 5. 是否需要给 `AgentToolDefinition` 建表。建议 P0 先代码注册，P1 再后台可配置。

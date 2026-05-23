@@ -65,7 +65,14 @@ test("agent repository creates session mission run tool call review gate and con
 
 test("pi adapter only exposes three low-risk tools and executes through real business services", () => {
   const { runtime, run } = seededRun();
-  assert.deepEqual([...runtime.piAdapter.availableTools], ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"]);
+  assert.deepEqual([...runtime.piAdapter.availableTools], [
+    "getSkuSummary",
+    "checkDataFreshness",
+    "diagnoseSkuHealth",
+    "parseActivityRules",
+    "simulateActivityReadiness",
+    "explainDecisionWithEvidence",
+  ]);
 
   const ruleSet = runtime.agentService.executeTool({
     runId: run.id,
@@ -86,7 +93,7 @@ test("pi adapter only exposes three low-risk tools and executes through real bus
   assert.ok(allowed.evidenceRefs.length > 1);
   assert.equal(runtime.state.toolCalls.get(allowed.toolCall.id)?.status, "SUCCEEDED");
 
-  for (const toolName of ["unknown_tool", "coding", "file.read", "bash", "direct SQL", "credential access", "cookie_reader", "token_vault", "diagnoseSkuHealth"]) {
+  for (const toolName of ["unknown_tool", "coding", "file.read", "bash", "direct SQL", "credential access", "cookie_reader", "token_vault"]) {
     const result = runtime.agentService.executeTool({ runId: run.id, toolName, inputJson: { request: "blocked" } });
     assert.equal(result.permission, "DENY", toolName);
     assert.equal(result.riskLevel, "L3", toolName);
@@ -112,7 +119,7 @@ test("production ToolPolicy allowlist and denylist fail closed", () => {
     assert.equal(decision.reviewPolicy, "DENY", toolName);
   }
 
-  assert.equal(policy.decide("diagnoseSkuHealth").permission, "DENY");
+  assert.equal(policy.decide("diagnoseSkuHealth").permission, "ALLOW");
   assert.equal(policy.decide("runSimulation").permission, "ALLOW");
 });
 
@@ -123,7 +130,14 @@ test("production Pi adapter smoke exposes only allowlisted tools and hides dange
   try {
     const { runtime } = seededRun();
     const tools = [...runtime.piAdapter.availableTools];
-    assert.deepEqual(tools, ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"]);
+    assert.deepEqual(tools, [
+      "getSkuSummary",
+      "checkDataFreshness",
+      "diagnoseSkuHealth",
+      "parseActivityRules",
+      "simulateActivityReadiness",
+      "explainDecisionWithEvidence",
+    ]);
     for (const denied of ["coding", "file", "bash", "sql", "credential", "cookie", "token", "jwt", "sso", "secret", "api key"]) {
       assert.ok(!tools.some((tool) => tool.toLowerCase().includes(denied)));
       assert.ok(runtime.piAdapter.disabledRuntimeTools.includes(denied));

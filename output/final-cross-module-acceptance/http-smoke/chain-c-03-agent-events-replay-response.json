@@ -4,8 +4,8 @@
   "data": {
     "items": [
       {
-        "id": "agent_event_0004",
-        "runId": "agent_run_0003",
+        "id": "agent_event_0005",
+        "runId": "agent_run_0004",
         "sequence": 1,
         "eventType": "run.started",
         "eventPhase": "started",
@@ -15,10 +15,10 @@
             "objective": "acceptance chain C replay/sse smoke"
           }
         },
-        "createdAt": "2026-05-23T17:47:52.263Z"
+        "createdAt": "2026-05-23T18:38:12.981Z"
       }
     ],
     "after": 0
   },
-  "requestId": "req_mpin61cb_edbzu6"
+  "requestId": "req_mpioys5k_d63lrp"
 }

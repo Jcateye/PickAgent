@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-23] 补充最终设计缺口收敛方案
+
+- 模块：docs / architecture / openspec
+- 类型：架构
+- 摘要：新增 `docs/final-design-gap-closure.md`，把 Layer 3 当前能力与最终设计目标之间的差距拆成 L4 联调、P0 生产化和 P1 扩展三层，并明确 API route、repository/transaction、Agent SSE、Copilot Overlay、Pi adapter、Tool Registry、Evidence 和真实采集证据的收口口径。
+- 影响范围：`docs/final-design-gap-closure.md`、`docs/architecture.md`、`docs/pi-agent-copilot-design.md`、`docs/agent-backend-data-architecture.md`、`openspec/changes/cross-module-integration-and-acceptance/design.md`
+- 是否影响 contracts：否
+- 是否影响数据结构：否
+- 兼容性说明：仅完善设计和验收口径，不改变当前运行时代码。
+- 关联任务 / 决策：Layer 3 到最终设计收敛
+
+---
+
 ### [2026-05-23] 更新并行 worktree 路径与状态同步规则
 
 - 模块：docs / workflow / worktree

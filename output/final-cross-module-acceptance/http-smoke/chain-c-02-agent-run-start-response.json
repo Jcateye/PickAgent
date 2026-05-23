@@ -2,11 +2,11 @@
   "code": "OK",
   "message": "success",
   "data": {
-    "id": "agent_run_0003",
+    "id": "agent_run_0004",
     "missionId": "agent_mission_0002",
     "sessionId": "agent_session_0001",
     "piRunId": null,
-    "workflowRunId": null,
+    "workflowRunId": "workflow_run_0003",
     "status": "RUNNING",
     "modelProvider": "pi",
     "modelName": "pi-tool-policy-poc",
@@ -19,10 +19,10 @@
     "cancelRequested": false,
     "usageJson": {},
     "metadataJson": {},
-    "startedAt": "2026-05-23T17:47:52.263Z",
+    "startedAt": "2026-05-23T18:38:12.981Z",
     "completedAt": null,
-    "createdAt": "2026-05-23T17:47:52.263Z",
-    "updatedAt": "2026-05-23T17:47:52.263Z"
+    "createdAt": "2026-05-23T18:38:12.981Z",
+    "updatedAt": "2026-05-23T18:38:12.981Z"
   },
-  "requestId": "req_mpin6153_s8nd2u"
+  "requestId": "req_mpioyrxx_qq4bkc"
 }

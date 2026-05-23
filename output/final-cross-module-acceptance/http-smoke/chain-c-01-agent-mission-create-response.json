@@ -12,9 +12,9 @@
       "title": "验证 WorkbenchContext 到 Agent sidecar/SSE/Review Gate 主链路",
       "status": "ACTIVE",
       "configJson": {},
-      "lastActiveAt": "2026-05-23T17:47:51.998Z",
-      "createdAt": "2026-05-23T17:47:51.998Z",
-      "updatedAt": "2026-05-23T17:47:51.998Z"
+      "lastActiveAt": "2026-05-23T18:38:12.696Z",
+      "createdAt": "2026-05-23T18:38:12.696Z",
+      "updatedAt": "2026-05-23T18:38:12.696Z"
     },
     "mission": {
       "id": "agent_mission_0002",
@@ -39,9 +39,9 @@
       "createdBy": null,
       "completedAt": null,
       "canceledAt": null,
-      "createdAt": "2026-05-23T17:47:51.998Z",
-      "updatedAt": "2026-05-23T17:47:51.998Z"
+      "createdAt": "2026-05-23T18:38:12.696Z",
+      "updatedAt": "2026-05-23T18:38:12.696Z"
     }
   },
-  "requestId": "req_mpin60xq_ffdpvt"
+  "requestId": "req_mpioyrq1_h985ti"
 }

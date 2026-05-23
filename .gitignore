@@ -8,3 +8,7 @@ apps/frontend/tsconfig.tsbuildinfo
 .DS_Store
 .plasmo/
 apps/extension/build/
+apps/frontend/test-results/
+.agents/
+output/playwright/
+output/.playwright-cli/

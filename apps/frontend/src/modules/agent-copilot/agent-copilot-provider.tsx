@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { PropsWithChildren } from 'react'
 
-import { AgentCopilotWorkbench } from './agent-copilot-workbench'
+import { AgentCopilotChatShell } from './agent-copilot-chat-shell'
 import type { WorkbenchContext } from './types'
 import { WorkbenchContextProvider } from './workbench-context'
 
@@ -37,7 +37,7 @@ export function AgentCopilotProvider({ children }: PropsWithChildren) {
           </button>
         </div>
         <div className="agentCopilotSidecarBody">
-          <AgentCopilotWorkbench context={context} compact />
+          <AgentCopilotChatShell context={context} compact />
         </div>
       </aside>
     </WorkbenchContextProvider>

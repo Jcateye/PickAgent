@@ -6,6 +6,7 @@
 风险等级：设计阶段 L2；实际引入 Pi runtime 依赖前需要 ADR 确认  
 适用范围：`apps/frontend`、`apps/backend`、`apps/contracts`
 后端数据结构专项设计：`docs/agent-backend-data-architecture.md`
+Layer 3 到最终设计收敛：`docs/final-design-gap-closure.md`
 
 ## 1. 设计目标
 
@@ -545,6 +546,21 @@ apps/backend/src/agent/
 
 ## 15. 分阶段实现
 
+当前 Layer 3 已经达到“模块级可演示集成”：有单独 Agent 工作台页面、fake runtime adapter、`AgentToolRegistry` 边界和 Review Gate 展示。后续阶段不应继续扩张 fake 页面能力，而应按 `docs/final-design-gap-closure.md` 收敛为 Console Overlay、SSE 事件流、真实 route 和最小 Pi adapter。
+
+### 当前到最终的关键收敛点
+
+| 设计目标 | 当前状态 | 下一步 |
+|---|---|---|
+| 常驻 Copilot Overlay | 仍是 `/agent-chat` 单页 | 抽出 `agent-copilot` 模块并挂到 console layout |
+| WorkbenchContext | 只有展示型 linked context | 每个工作台页面注册 route、selectedEntity、filters |
+| SSE event stream | fake run 一次性返回整包 | `AgentRunEvent` 落库后通过 SSE 推送和重放 |
+| Pi adapter | fake adapter 正确但非生产 runtime | 接最小 Pi POC，并保留 Vercel AI SDK tool schema 层 |
+| Tool Registry | 5 个工具，缺 policy 字段 | 补齐 permission、riskLevel、reviewPolicy、evidencePolicy |
+| Review Gate | UI 可决策，未落库恢复，批准后缺少可点击追溯入口 | 通过 `AgentReviewGate`、`ReviewItem`、`TraceableRef` 和 continuation run 承接 |
+
+Layer 4 可以继续用 fake adapter 证明 contract，但最终 P0 不能把 fake adapter 当生产路径。
+
 ### Phase 0：设计与可点击 Demo
 
 - 写清 Agent Copilot 设计。
@@ -582,12 +598,15 @@ apps/backend/src/agent/
 - Agent 能基于当前 SKU / 规则 / Review 回答。
 - Agent 触发 Review Gate 时暂停。
 - 人工确认后继续执行。
+- Gate 决策结果必须返回可点击的 ReviewItem、AgentReviewGate、AgentRun / ToolCall trace 链接。
+- 刷新页面后必须能从服务端恢复 Gate 状态和最近决策，不能只依赖前端内存。
 
 验收：
 
 - 选中 G003 后问“为什么不能报名”，Agent 能引用库存字段和规则。
 - 规则歧义时生成 Review Gate。
 - Approve 后 Agent 继续生成检查清单。
+- Approve 后能打开对应 Review / Gate / Run Trace。
 
 ### Phase 3：长任务与恢复
 

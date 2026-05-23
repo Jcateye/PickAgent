@@ -1,21 +1,21 @@
 'use client'
 
-import { AgentCopilotWorkbench } from '@/modules/agent-copilot/agent-copilot-workbench'
+import { AgentCopilotChatShell } from '@/modules/agent-copilot/agent-copilot-chat-shell'
 
 const compatibleContext = {
   route: '/agent-chat',
-  pageTitle: 'Agent Chat 兼容入口',
+  pageTitle: 'Agent Copilot 对话',
   selectedEntity: {
     entityType: 'dashboard' as const,
-    entityId: 'agent-chat-compatible-entry',
-    label: 'Agent Chat 兼容入口',
+    entityId: 'agent-chat-root',
+    label: 'Agent Copilot',
   },
   visibleFilters: {
-    compatibilityMode: true,
+    chatFirst: true,
   },
-  visibleColumns: ['mission', 'plan', 'trace', 'context', 'reviewGate'],
+  visibleColumns: ['conversation', 'trace', 'evidence'],
 }
 
 export function AgentChatPage() {
-  return <AgentCopilotWorkbench context={compatibleContext} />
+  return <AgentCopilotChatShell context={compatibleContext} />
 }

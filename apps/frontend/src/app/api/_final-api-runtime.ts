@@ -41,11 +41,15 @@ function nextRequestId(): string {
 
 function createFinalApiRuntime(): FinalApiRuntime {
   const adapter = process.env.PICKAGENT_PERSISTENCE_ADAPTER
-  const shouldUsePrisma = adapter === 'prisma' || (!adapter && (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL))
+  const shouldUsePrisma = adapter === 'prisma' || (adapter !== 'memory' && Boolean(process.env.DATABASE_URL))
   if (!shouldUsePrisma) return createFinalApiPersistenceRuntime({ adapter: 'memory' })
-  const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => PrismaPersistenceClient }
-  const { PrismaClient } = requireFromNode('@prisma/client')
-  return createFinalApiPersistenceRuntime({ adapter: 'prisma', prisma: new PrismaClient() })
+  try {
+    const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => PrismaPersistenceClient }
+    const { PrismaClient } = requireFromNode('@prisma/client')
+    return createFinalApiPersistenceRuntime({ adapter: 'prisma', prisma: new PrismaClient() })
+  } catch {
+    return createFinalApiPersistenceRuntime({ adapter: 'memory' })
+  }
 }
 
 async function ensureFinalApiSeed(runtime: FinalApiRuntime): Promise<ReportRequestDto> {

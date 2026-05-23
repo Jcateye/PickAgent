@@ -21,16 +21,16 @@
   },
   "chainC": {
     "missionId": "agent_mission_0002",
-    "runId": "agent_run_0003",
+    "runId": "agent_run_0004",
     "replayEvents": 1,
     "replayAfter": 0,
     "sseHasRunStartedEvent": true
   },
   "chainD": {
-    "piRunId": "agent_run_0007",
-    "reviewGateId": "agent_gate_0017",
+    "piRunId": "agent_run_0009",
+    "reviewGateId": "agent_gate_0023",
     "gateStatus": "APPROVED",
-    "continuationRunId": "agent_run_0022",
+    "continuationRunId": "agent_run_0030",
     "piVisibleTools": [
       "parseActivityRules",
       "simulateActivityReadiness",
@@ -39,10 +39,18 @@
     "disabledRuntimeTools": [
       "coding",
       "file",
-      "bash"
+      "bash",
+      "sql",
+      "credential",
+      "cookie",
+      "token",
+      "jwt",
+      "sso",
+      "secret",
+      "api key"
     ],
     "piRunEventCount": 9,
     "continuationEventCount": 1
   },
-  "generatedAt": "2026-05-23T17:47:50.212Z"
+  "generatedAt": "2026-05-23T18:38:11.115Z"
 }

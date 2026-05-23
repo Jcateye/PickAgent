@@ -3,11 +3,11 @@
   "message": "success",
   "data": {
     "gate": {
-      "id": "agent_gate_0017",
-      "missionId": "agent_mission_0006",
-      "runId": "agent_run_0007",
-      "toolCallId": "agent_tool_0016",
-      "reviewItemId": null,
+      "id": "agent_gate_0023",
+      "missionId": "agent_mission_0007",
+      "runId": "agent_run_0009",
+      "toolCallId": "agent_tool_0021",
+      "reviewItemId": "review_item_0022",
       "status": "APPROVED",
       "reasonCode": "review_gate_required_tool",
       "question": "是否允许创建 L2 Review items？",
@@ -24,7 +24,7 @@
           },
           {
             "type": "review_gate",
-            "entityId": "agent_gate_0017",
+            "entityId": "agent_gate_0023",
             "label": "Review Gate",
             "summary": "L2 tool requires human approval before write-side review item creation"
           }
@@ -33,22 +33,22 @@
       "decision": "APPROVE",
       "decisionComment": "验收 smoke：批准继续，验证 continuation replay。",
       "decidedBy": "final-acceptance@pickagent.local",
-      "decidedAt": "2026-05-23T17:47:52.871Z",
-      "createdAt": "2026-05-23T17:47:52.599Z",
-      "updatedAt": "2026-05-23T17:47:52.871Z"
+      "decidedAt": "2026-05-23T18:38:13.612Z",
+      "createdAt": "2026-05-23T18:38:13.332Z",
+      "updatedAt": "2026-05-23T18:38:13.612Z"
     },
     "continuationRun": {
-      "id": "agent_run_0022",
-      "missionId": "agent_mission_0006",
-      "sessionId": "agent_session_0005",
+      "id": "agent_run_0030",
+      "missionId": "agent_mission_0007",
+      "sessionId": "agent_session_0006",
       "piRunId": null,
-      "workflowRunId": null,
+      "workflowRunId": "workflow_run_0029",
       "status": "RUNNING",
       "modelProvider": null,
       "modelName": null,
       "inputJson": {
-        "continuationOfRunId": "agent_run_0007",
-        "reviewGateId": "agent_gate_0017",
+        "continuationOfRunId": "agent_run_0009",
+        "reviewGateId": "agent_gate_0023",
         "decision": "APPROVE"
       },
       "outputJson": {},
@@ -57,24 +57,24 @@
       "cancelRequested": false,
       "usageJson": {},
       "metadataJson": {},
-      "startedAt": "2026-05-23T17:47:52.871Z",
+      "startedAt": "2026-05-23T18:38:13.612Z",
       "completedAt": null,
-      "createdAt": "2026-05-23T17:47:52.871Z",
-      "updatedAt": "2026-05-23T17:47:52.871Z"
+      "createdAt": "2026-05-23T18:38:13.612Z",
+      "updatedAt": "2026-05-23T18:38:13.612Z"
     },
     "event": {
-      "id": "agent_event_0023",
-      "runId": "agent_run_0022",
+      "id": "agent_event_0031",
+      "runId": "agent_run_0030",
       "sequence": 1,
       "eventType": "run.continuation_started",
       "eventPhase": "started",
       "payloadJson": {
-        "missionId": "agent_mission_0006",
-        "reviewGateId": "agent_gate_0017",
-        "previousRunId": "agent_run_0007"
+        "missionId": "agent_mission_0007",
+        "reviewGateId": "agent_gate_0023",
+        "previousRunId": "agent_run_0009"
       },
-      "createdAt": "2026-05-23T17:47:52.871Z"
+      "createdAt": "2026-05-23T18:38:13.612Z"
     }
   },
-  "requestId": "req_mpin61m0_3ay6s2"
+  "requestId": "req_mpioysfg_by3hz4"
 }

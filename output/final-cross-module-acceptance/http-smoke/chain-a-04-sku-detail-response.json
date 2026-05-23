@@ -121,7 +121,7 @@
           "summary": "健康诊断基于最新标准化采集事实生成"
         }
       ],
-      "diagnosedAt": "2026-05-23T17:47:50.865Z"
+      "diagnosedAt": "2026-05-23T18:38:11.524Z"
     },
     "evidence": [
       {
@@ -138,5 +138,5 @@
       }
     ]
   },
-  "requestId": "req_mpin60cg_hhafnc"
+  "requestId": "req_mpioyr4c_nlh0a0"
 }

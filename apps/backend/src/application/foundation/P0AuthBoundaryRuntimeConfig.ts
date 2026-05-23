@@ -36,7 +36,14 @@ export class P0AuthBoundaryError extends Error {
   }
 }
 
-export const P0_PRODUCTION_TOOL_ALLOWLIST = ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"] as const;
+export const P0_PRODUCTION_TOOL_ALLOWLIST = [
+  "getSkuSummary",
+  "checkDataFreshness",
+  "diagnoseSkuHealth",
+  "parseActivityRules",
+  "simulateActivityReadiness",
+  "explainDecisionWithEvidence",
+] as const;
 
 export const P0_RUNTIME_TOOL_DENYLIST = ["coding", "file", "bash", "sql", "credential", "cookie", "token", "jwt", "sso", "secret", "api key"] as const;
 

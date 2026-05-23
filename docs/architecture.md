@@ -2,7 +2,7 @@
 
 > 本文件记录 PickAgent / SKU Ready Agent 的项目级技术架构、模块边界、数据主语、客户端职责与服务端分层。产品叙事见 `docs/PRD.md`，评审汇总见 `claude_prd_report.html`。
 >
-> Pi Agent Copilot 细化设计见 `docs/pi-agent-copilot-design.md`，Agent 后端数据结构与模块落位见 `docs/agent-backend-data-architecture.md`。
+> Pi Agent Copilot 细化设计见 `docs/pi-agent-copilot-design.md`，Agent 后端数据结构与模块落位见 `docs/agent-backend-data-architecture.md`，Layer 3 到最终设计的收敛计划见 `docs/final-design-gap-closure.md`。
 
 ## 1. 项目目标
 
@@ -56,6 +56,20 @@ Persistence Layer
 └── Workflow / audit logs
 ```
 
+### 2.1 Layer 3 后的目标状态
+
+当前 Layer 3 已完成模块级可演示集成，但最终架构仍以 `docs/final-design-gap-closure.md` 为收口口径。进入 Layer 4 时，系统必须从“内存 runtime + mock fallback + route 骨架”收敛到以下形态：
+
+- 插件采集通过真实 HTTP route 进入 `IngestService`，并在事务中生成 SKU 档案、快照、诊断和当前投影。
+- 员工工作台默认消费真实 API DTO；mock 只保留为开发 fallback，不作为生产默认数据源。
+- 员工工作台的首屏业务 DTO 必须由 server/API 提供稳定 snapshot，client component 不在 hydration 初始化阶段创建业务 runtime 或分配业务 ID。
+- 活动模拟、Review 和报告必须共用后端 application service 和持久化对象，不在前端重新生成业务结论。
+- Agent Copilot 必须从单独页面收敛为 Console layout 上的 Overlay / Sidecar，并通过 `WorkbenchContext` 读取当前页面对象。
+- Agent runtime 必须通过 `AgentToolRegistry`、`AgentEventStore`、SSE 和 Review Gate 留下可恢复、可审计的执行链路。
+- Evidence、source object、Review Gate、tool trace 和 report section 必须携带 `TraceableRef`，前端不能只展示不可点击的静态证据文本。
+
+因此，Layer 4 的架构工作不是新增单点业务功能，而是完成 API route binding、repository / transaction、Copilot Overlay、Agent event stream 和端到端验收证据。
+
 ## 3. 客户端拆分
 
 ### 3.1 浏览器插件：`apps/extension/`
@@ -102,6 +116,8 @@ Persistence Layer
 
 - 不在前端重算健康状态、准入状态或规则结果
 - 页面只读 DTO / projection，不直接拼底层事实模型
+- 首屏 DTO 不在 client hydration 阶段即时生成；报告、Review、Agent run 等带 ID 的对象必须来自稳定 server snapshot 或持久化 API
+- Evidence、来源对象、Review Gate 和报告章节必须渲染为可点击链接或详情抽屉，不允许空按钮
 - Agent Copilot 不拥有私有业务逻辑，只编排与展示服务端 tools 的执行结果
 
 ## 4. 服务端分层
@@ -283,6 +299,7 @@ MVP 中 Mission 不直接写业务结论。它负责：
 P0 建议：
 
 - 核心对象先保留 `evidenceJson`
+- UI 可追溯对象统一携带 `TraceableRef`，包含 `entityType`、`entityId`、`label`、`href?`、`drawerTarget?`
 - 至少包含：
   - `sourceType`
   - `sourceId`

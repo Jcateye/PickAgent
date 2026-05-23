@@ -4,13 +4,13 @@
   "data": {
     "items": [
       {
-        "id": "agent_event_0008",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0010",
+        "runId": "agent_run_0009",
         "sequence": 1,
         "eventType": "run.started",
         "eventPhase": "started",
         "payloadJson": {
-          "missionId": "agent_mission_0006",
+          "missionId": "agent_mission_0007",
           "input": {
             "objective": "验证 Agent 到真实业务工具与 Review Gate 链路",
             "availableTools": [
@@ -21,15 +21,24 @@
             "disabledRuntimeTools": [
               "coding",
               "file",
-              "bash"
-            ]
+              "bash",
+              "sql",
+              "credential",
+              "cookie",
+              "token",
+              "jwt",
+              "sso",
+              "secret",
+              "api key"
+            ],
+            "runtimeMode": "development"
           }
         },
-        "createdAt": "2026-05-23T17:47:52.598Z"
+        "createdAt": "2026-05-23T18:38:13.331Z"
       },
       {
-        "id": "agent_event_0009",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0011",
+        "runId": "agent_run_0009",
         "sequence": 2,
         "eventType": "pi.adapter.started",
         "eventPhase": "started",
@@ -42,19 +51,28 @@
           "disabledRuntimeTools": [
             "coding",
             "file",
-            "bash"
-          ]
+            "bash",
+            "sql",
+            "credential",
+            "cookie",
+            "token",
+            "jwt",
+            "sso",
+            "secret",
+            "api key"
+          ],
+          "runtimeMode": "development"
         },
-        "createdAt": "2026-05-23T17:47:52.598Z"
+        "createdAt": "2026-05-23T18:38:13.331Z"
       },
       {
-        "id": "agent_event_0011",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0014",
+        "runId": "agent_run_0009",
         "sequence": 3,
         "eventType": "tool.call_recorded",
         "eventPhase": "SUCCEEDED",
         "payloadJson": {
-          "toolCallId": "agent_tool_0010",
+          "toolCallId": "agent_tool_0012",
           "toolName": "parseActivityRules",
           "requestedToolName": "parseActivityRules",
           "permission": "ALLOW",
@@ -71,16 +89,16 @@
           "reviewGateId": null,
           "outputSummary": "ok"
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0013",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0017",
+        "runId": "agent_run_0009",
         "sequence": 4,
         "eventType": "tool.call_recorded",
         "eventPhase": "SUCCEEDED",
         "payloadJson": {
-          "toolCallId": "agent_tool_0012",
+          "toolCallId": "agent_tool_0015",
           "toolName": "simulateActivityReadiness",
           "requestedToolName": "simulateActivityReadiness",
           "permission": "ALLOW",
@@ -109,16 +127,16 @@
           "reviewGateId": null,
           "outputSummary": "items=1"
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0015",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0020",
+        "runId": "agent_run_0009",
         "sequence": 5,
         "eventType": "tool.call_recorded",
         "eventPhase": "SUCCEEDED",
         "payloadJson": {
-          "toolCallId": "agent_tool_0014",
+          "toolCallId": "agent_tool_0018",
           "toolName": "explainDecisionWithEvidence",
           "requestedToolName": "explainDecisionWithEvidence",
           "permission": "ALLOW",
@@ -159,11 +177,11 @@
           "reviewGateId": null,
           "outputSummary": "recommendation=围绕“是否需要进入 Review Gate？”建议先核对 evidence 再做人工决策。"
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0018",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0024",
+        "runId": "agent_run_0009",
         "sequence": 6,
         "eventType": "run.status_changed",
         "eventPhase": "WAITING_REVIEW",
@@ -171,29 +189,29 @@
           "status": "WAITING_REVIEW",
           "errorMessage": null
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0019",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0025",
+        "runId": "agent_run_0009",
         "sequence": 7,
         "eventType": "review_gate.opened",
         "eventPhase": "opened",
         "payloadJson": {
-          "gateId": "agent_gate_0017",
-          "toolCallId": "agent_tool_0016",
+          "gateId": "agent_gate_0023",
+          "toolCallId": "agent_tool_0021",
           "toolName": "createReviewItems"
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0020",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0027",
+        "runId": "agent_run_0009",
         "sequence": 8,
         "eventType": "tool.call_recorded",
         "eventPhase": "REVIEW_REQUIRED",
         "payloadJson": {
-          "toolCallId": "agent_tool_0016",
+          "toolCallId": "agent_tool_0021",
           "toolName": "createReviewItems",
           "requestedToolName": "createReviewItems",
           "permission": "REVIEW_REQUIRED",
@@ -208,32 +226,32 @@
             },
             {
               "type": "review_gate",
-              "entityId": "agent_gate_0017",
+              "entityId": "agent_gate_0023",
               "label": "Review Gate",
               "summary": "L2 tool requires human approval before write-side review item creation"
             }
           ],
-          "reviewGateId": "agent_gate_0017",
+          "reviewGateId": "agent_gate_0023",
           "outputSummary": "empty"
         },
-        "createdAt": "2026-05-23T17:47:52.599Z"
+        "createdAt": "2026-05-23T18:38:13.332Z"
       },
       {
-        "id": "agent_event_0021",
-        "runId": "agent_run_0007",
+        "id": "agent_event_0028",
+        "runId": "agent_run_0009",
         "sequence": 9,
         "eventType": "review_gate.decided",
         "eventPhase": "APPROVED",
         "payloadJson": {
-          "gateId": "agent_gate_0017",
+          "gateId": "agent_gate_0023",
           "decision": "APPROVE",
           "decidedBy": "final-acceptance@pickagent.local",
           "decisionComment": "验收 smoke：批准继续，验证 continuation replay。"
         },
-        "createdAt": "2026-05-23T17:47:52.871Z"
+        "createdAt": "2026-05-23T18:38:13.612Z"
       }
     ],
     "after": 0
   },
-  "requestId": "req_mpin61m7_n32diq"
+  "requestId": "req_mpioysfp_h2gtgd"
 }

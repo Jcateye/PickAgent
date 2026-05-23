@@ -154,7 +154,14 @@ test("P0 repository adapter sanitizes sensitive input and keeps Pi adapter away 
   assert.equal(denied.permission, "DENY");
   assert.doesNotMatch(serialized, /should-not-persist|Bearer secret/);
   assert.match(serialized, /\[REDACTED\]/);
-  assert.deepEqual([...runtime.piAdapter.availableTools], ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"]);
+  assert.deepEqual([...runtime.piAdapter.availableTools], [
+    "getSkuSummary",
+    "checkDataFreshness",
+    "diagnoseSkuHealth",
+    "parseActivityRules",
+    "simulateActivityReadiness",
+    "explainDecisionWithEvidence",
+  ]);
   assert.equal("state" in runtime.piAdapter, false);
   assert.equal("businessRuntime" in runtime.piAdapter, false);
 });
