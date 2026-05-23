@@ -14,7 +14,7 @@ const mappingConfig = [
   { sourceLabel: "商品状态", targetKey: "listingStatus", targetLabel: "标准字段：listingStatus" }
 ] as const
 
-function stringValue(value: string | number | null | undefined): string {
+function stringValue(value: unknown): string {
   if (value === null || value === undefined) {
     return ""
   }
@@ -22,7 +22,7 @@ function stringValue(value: string | number | null | undefined): string {
   return String(value).trim()
 }
 
-function numberValue(value: string | number | null | undefined): number | null {
+function numberValue(value: unknown): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null
   }

@@ -23,7 +23,7 @@ export interface PageRecognitionResult {
 
 export interface RawProductRow {
   readonly rowIndex: number
-  readonly source: Record<string, string | number | null>
+  readonly source: Record<string, unknown>
 }
 
 export interface StandardProductRow {
@@ -35,7 +35,7 @@ export interface StandardProductRow {
   readonly category: string | null
   readonly listingStatus: string | null
   readonly sourceUrl: string
-  readonly raw: Record<string, string | number | null>
+  readonly raw: Record<string, unknown>
   readonly warnings: readonly string[]
 }
 
@@ -72,13 +72,17 @@ export interface CollectionRunState {
   readonly collectedRows: readonly StandardProductRow[]
   readonly currentPreview?: PageExtractionPreview
   readonly interruptionReason?: string
-  readonly submitReceipt?: MockSubmitReceipt
+  readonly submitReceipt?: SubmitReceipt
 }
 
-export interface MockSubmitReceipt {
+export interface SubmitReceipt {
   readonly ok: boolean
   readonly submitId: string
   readonly acceptedRows: number
-  readonly adapter: "mock"
+  readonly adapter: "mock" | "real-api"
   readonly message: string
+}
+
+export type MockSubmitReceipt = SubmitReceipt & {
+  readonly adapter: "mock"
 }

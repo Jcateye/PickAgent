@@ -30,33 +30,40 @@
    - 当前 Layer 1 插件仍使用 synthetic fixture。
    - 需要用 `source/business-http-records-2026-05-23-11-53-35.json` 中的脱敏响应结构生成/替换真实 fixture。
    - 不允许提交 token、Cookie、JWT、SSO 标识或完整原始 response body。
+   - Layer 3 处理：已新增插件脱敏 fixture `apps/extension/src/lib/fixtures/real-doudian-http.ts`，只保留 `stock/manage/list` 与 `sku_stock_diagnose` 的必要商品/SKU/状态/库存字段，不包含 token、Cookie、JWT、SSO 标识或完整 response body。
 
 2. **插件真实采集 adapter**
    - 主接口：`POST /stock/manage/list`。
    - SKU 诊断：`POST /stock/manage/sku_stock_diagnose`。
    - Layer 3 插件 agent 需要实现从当前抖店页面上下文发起请求，依赖浏览器当前会话，不复制 Cookie。
    - Payload 按 `product_id + sku_id` 展开为 SKU 行。
+   - Layer 3 处理：已新增 `apps/extension/src/lib/ingest/doudian-http-adapter.ts`，在当前页面上下文以 `credentials: "include"` 调用库存列表与诊断接口，按 `product_id + sku_id` 展开为标准采集行，不读取、不复制、不保存 Cookie/token。
 
 3. **价格字段缺口**
    - `stock/manage/list` 没有明确 sale price。
    - 需要另录商品列表、商品详情或价格接口；否则 Layer 3 只能标记价格缺失风险。
+   - Layer 3 处理：当前 adapter 将 `salePrice` 保持为 `null`，并为每行标记“缺少价格字段，stock/manage/list 未返回 sale price。”采集层风险。
 
 4. **类目名称缺口**
    - 当前库存接口主要给 `category_id`，类目名称来源需确认。
    - 可先保留 `category_id`，类目名作为待补字段。
+   - Layer 3 处理：当前 adapter 将 `category_id` 写入 `category` 与 `raw.fxg`，并标记“缺少类目名称，仅保留 category_id。”采集层风险。
 
 ### P1：Layer 3 接真实接口时处理
 
 5. **分页/筛选参数确认**
    - 需要验证 `page/pageSize`、`page_size`、排序、商品状态、库存告警、类目/仓库筛选等真实请求体。
    - 需要确认最大 page size 和翻页过程中 token 是否刷新。
+   - Layer 3 处理：adapter 已实现 `page/pageSize/page_size/sort` 的受控分页循环；最大 page size、筛选参数和 token 刷新行为仍需真实页面操作验证。
 
 6. **状态码字典确认**
    - `status`、`draft_status`、`check_status`、`stock_type`、`shipping_mode`、`has_stock_occupied` 的业务含义需要对照页面显示确认。
+   - Layer 3 处理：adapter 仅保留原始状态码到 `listingStatus` 与 `raw.fxg`，不在插件侧翻译为业务结论；字典含义仍需页面显示对照。
 
 7. **SKU 诊断批量能力确认**
    - `sku_stock_diagnose` 当前只确认可返回 `is_alarming`。
    - 需要确认是否支持多 SKU、是否逐商品调用、频率限制如何。
+   - Layer 3 处理：adapter 按商品批量提交 `sku_ids`，并将 `is_alarming` 作为采集层 warning/raw 字段保留；批量上限和频率限制仍需真实页面验证。
 
 8. **业务商机线索的真实归属**
    - `business_chance_center/*` 暂作为活动/商机上下文，不是商品库存采集主链路。

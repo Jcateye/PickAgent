@@ -9,7 +9,7 @@ export interface ExtensionIngestRow {
   readonly category: string | null
   readonly listingStatus: string | null
   readonly sourceUrl: string
-  readonly raw: Record<string, string | number | null>
+  readonly raw: Record<string, unknown>
   readonly warnings: readonly string[]
 }
 

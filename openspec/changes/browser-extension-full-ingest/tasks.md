@@ -16,7 +16,7 @@
 ## 4. Submission integration
 
 - [x] 4.1 用 mock submit adapter 打通采集结果提交流程
-- [ ] 4.2 在模块最后接入真实 ingest API 并校验 payload 契约一致性
+- [x] 4.2 在模块最后接入真实 ingest API 并校验 payload 契约一致性
 
 ## 5. Module readiness gate
 

@@ -1,5 +1,6 @@
 export * from "../../schemas/ingest"
 export * from "../fixtures/synthetic-doudian"
+export * from "./doudian-http-adapter"
 export * from "./extractor"
 export * from "./page-recognition"
 export * from "./real-ingest-adapter"
