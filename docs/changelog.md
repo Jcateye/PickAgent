@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-23] 更新并行 worktree 路径与状态同步规则
+
+- 模块：docs / workflow / worktree
+- 类型：文档
+- 摘要：将并行 worktree 根目录调整为 `/Users/haoqi/Documents/GitHub/worktrees/PickAgent`，并在 Codex worktree 启动模板中补充完成后只能同步更新自己被授权 task / requirement 状态、不得修改未授权状态的规则。
+- 影响范围：`docs/parallel-worktree-plan.md`
+- 是否影响 contracts：否
+- 是否影响数据结构：否
+- 兼容性说明：仅更新协作与文档流程，不改变运行时代码。
+- 关联任务 / 决策：并行 Codex worktree 协作约束
+
+---
+
 ### [2026-05-23] 补充 macmini 本机运维兜底连接
 
 - 模块：docs / deployment / database

@@ -38,13 +38,13 @@
 建议 worktree 路径：
 
 ```text
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/backend-business-foundation
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/browser-extension-full-ingest
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-health-console
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-activity-simulation
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-review-reporting
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/agent-copilot-workbench
-/Users/haoqi/OnePersonCompany/PickAgent.worktrees/cross-module-integration
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/backend-business-foundation
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/browser-extension-full-ingest
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-health-console
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-activity-simulation
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-review-reporting
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/agent-copilot-workbench
+/Users/haoqi/Documents/GitHub/worktrees/PickAgent/cross-module-integration
 ```
 
 ### 2.2 抖店插件目标
@@ -91,17 +91,18 @@ Pi 是 Hermes 内部可选/确认使用的 agent harness 框架组件。根据 [
 - 每个 worktree 读取对应 OpenSpec change、`docs/architecture.md`、`docs/engineering-rules.md`、`design.md`。
 - 每个 worktree 只能改自己责任范围；共享 contract 变更优先进入 `backend-business-foundation`。
 - 每个 worktree 每次完成一个 requirement 后提交代码，提交说明用中文写清楚完成的需求。
+- 每个 worktree 只能更新自己被授权的 OpenSpec task / requirement 状态，不修改其他 change 或其他负责人的状态。
 
 建议命令模板：
 
 ```bash
-mkdir -p /Users/haoqi/OnePersonCompany/PickAgent.worktrees
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/backend-business-foundation -b codex/l1-backend-business-foundation main
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/browser-extension-full-ingest -b codex/l1-browser-extension-full-ingest main
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-health-console -b codex/l1-staff-health-console main
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-activity-simulation -b codex/l1-staff-activity-simulation main
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/staff-review-reporting -b codex/l1-staff-review-reporting main
-git worktree add /Users/haoqi/OnePersonCompany/PickAgent.worktrees/agent-copilot-workbench -b codex/l1-agent-copilot-workbench main
+mkdir -p /Users/haoqi/Documents/GitHub/worktrees/PickAgent
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/backend-business-foundation -b codex/l1-backend-business-foundation main
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/browser-extension-full-ingest -b codex/l1-browser-extension-full-ingest main
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-health-console -b codex/l1-staff-health-console main
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-activity-simulation -b codex/l1-staff-activity-simulation main
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/staff-review-reporting -b codex/l1-staff-review-reporting main
+git worktree add /Users/haoqi/Documents/GitHub/worktrees/PickAgent/agent-copilot-workbench -b codex/l1-agent-copilot-workbench main
 ```
 
 Layer 0 完成条件：
@@ -247,6 +248,8 @@ Layer 4 完成条件：
 执行要求：
 - 只做本 change 范围内的任务。
 - 每完成一个 requirement，提交一次代码，commit message 用中文说明完成内容。
+- 如果完成了被授权的 task 或 requirement，同步更新本 change 下 `tasks.md` 或对应需求状态，并只勾选 / 标记真实完成的内容。
+- 不要修改未授权的 OpenSpec change、未负责模块、其他 Codex worktree 的 task 或需求状态。
 - 不要跨模块改业务逻辑；需要共享 contract 或后端 service 时，先记录依赖或回流到 backend-business-foundation。
 - 完成后运行必要验证，并在最终回复里给出验证命令、结果、阻塞项和下一层依赖。
 ```
