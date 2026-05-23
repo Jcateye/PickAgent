@@ -1,12 +1,10 @@
-import {
-  mockConnectorConsole,
-  mockDashboardSummary,
-  mockSkuDetails,
-} from '@/modules/staff-health-console/mock-fixtures'
+import { headers } from 'next/headers'
+
+import { mockConnectorConsole, mockDashboardSummary, mockSkuDetails } from '@/modules/staff-health-console/mock-fixtures'
 import type {
+  ApiViewState,
   ConnectorConsoleDto,
   ConnectorDto,
-  ConnectorStatus,
   CurrentSkuProjectionDto,
   DashboardMetricDto,
   DashboardSummaryDto,
@@ -16,17 +14,29 @@ import type {
   SkuEvidenceDto,
   SkuIssueDto,
   StatusTone,
-  WorkflowRunStatus,
 } from '@/modules/staff-health-console/contracts'
 
 type BackendHealthStatus = 'READY' | 'WARNING' | 'BLOCKED' | 'UNKNOWN'
+
+interface ApiEnvelope<T> {
+  code: string
+  message: string
+  data: T | null
+  requestId: string
+}
+
+interface PageDto<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+}
 
 interface BackendHealthSummary {
   total: number
   ready: number
   warning: number
   blocked: number
-  dataQualityScore?: number
 }
 
 interface BackendSkuSummary {
@@ -44,18 +54,31 @@ interface BackendSkuSummary {
 
 interface BackendSkuDetail extends BackendSkuSummary {
   latestSnapshot: {
-    collectedAt?: string
+    snapshotId: string
+    skuProfileId: string
+    collectedAt: string
+    productName: string
     category?: string
+    brand?: string
+    sales30d?: number
+    positiveRate?: number
+    stock?: number
     originalPrice?: number
     lowestPrice30d?: number
     campaignPrice?: number
-    stock?: number
+    joinedBrandDay?: boolean
     certificateStatus?: string
   } | null
   latestDiagnosis: {
-    diagnosedAt?: string
-    issues?: string[]
-    nextActions?: string[]
+    diagnosisId: string
+    skuProfileId: string
+    snapshotId: string
+    healthStatus: BackendHealthStatus
+    healthScore: number
+    dataQualityScore: number
+    issues: string[]
+    nextActions: string[]
+    diagnosedAt: string
   } | null
   evidence: Array<{
     type: string
@@ -65,312 +88,285 @@ interface BackendSkuDetail extends BackendSkuSummary {
   }>
 }
 
-interface BackendConnector {
-  id: string
-  name?: string
-  platform?: string
-  status?: string
-  lastIngestedAt?: string | null
-  lastIngestSummary?: string
-  capabilityBoundary?: string
-}
+type ApiResult<T> =
+  | { ok: true; data: T; requestId: string; endpoint: string }
+  | { ok: false; reason: string; requestId?: string; endpoint: string }
 
-interface BackendWorkflowRun {
-  id: string
-  workflowType?: string
-  status?: string
-  subjectType?: string
-  subjectId?: string
-  completedAt?: string | null
-  startedAt?: string | null
-  updatedAt?: string | null
-}
-
-const apiBaseUrl = process.env.PICKAGENT_QUERY_API_BASE_URL ?? process.env.NEXT_PUBLIC_PICKAGENT_QUERY_API_BASE_URL
+const STAFF_HEALTH_ENDPOINTS = {
+  summary: '/api/health/summary',
+  skuList: '/api/skus?pageSize=100',
+  skuDetail: (skuProfileId: string) => `/api/skus/${encodeURIComponent(skuProfileId)}`,
+} as const
 
 export async function getDashboardSummary(): Promise<DashboardSummaryDto> {
-  const [summary, runs] = await Promise.all([fetchBackend<BackendHealthSummary>('/api/v1/health/summary'), fetchList<BackendWorkflowRun>('/api/v1/workflow-runs?pageSize=3')])
+  const result = await fetchApi<BackendHealthSummary>(STAFF_HEALTH_ENDPOINTS.summary)
 
-  if (!summary) return mockDashboardSummary
+  if (!result.ok) {
+    return { ...mockDashboardSummary, viewState: fallbackState(result.endpoint, result.reason) }
+  }
+
+  if (result.data.total === 0) {
+    return {
+      metrics: dashboardMetricsFromSummary(result.data),
+      riskSummaries: [],
+      recentRuns: [],
+      primaryLinks: mockDashboardSummary.primaryLinks,
+      viewState: emptyState(result.endpoint, result.requestId, '真实 health summary 已返回，但当前没有 ingest 后的 SKU projection。'),
+    }
+  }
 
   return {
-    metrics: dashboardMetricsFromSummary(summary),
-    riskSummaries: [
-      {
-        id: 'repairable-or-risky',
-        label: '需修复或复核',
-        count: summary.warning,
-        description: '来自服务端 summary 查询的 WARNING/RISKY 当前状态聚合。',
-        targetHref: '/sku-health',
-        tone: 'warning',
-      },
-      {
-        id: 'blocked',
-        label: '阻断 SKU',
-        count: summary.blocked,
-        description: '服务端 projection 标记为 BLOCKED 的 SKU，需要先补齐证据或库存。',
-        targetHref: '/sku-health',
-        tone: 'blocked',
-      },
-      {
-        id: 'collection-gap',
-        label: '采集缺口风险',
-        count: summary.warning + summary.blocked,
-        description: '价格字段和类目名称缺口按采集风险展示，不在前端推导健康结论。',
-        targetHref: '/connectors',
-        tone: 'review',
-      },
-    ],
-    recentRuns: runs.length > 0 ? runs.map(toRecentRun) : mockDashboardSummary.recentRuns,
+    metrics: dashboardMetricsFromSummary(result.data),
+    riskSummaries: riskSummariesFromSummary(result.data),
+    recentRuns: recentRunsFromSummary(result.data),
     primaryLinks: mockDashboardSummary.primaryLinks,
+    viewState: realState(result.endpoint, result.requestId),
   }
 }
 
 export async function getConnectorConsole(): Promise<ConnectorConsoleDto> {
-  const connectors = await fetchList<BackendConnector>('/api/v1/connectors?pageSize=20')
-  if (connectors.length === 0) return mockConnectorConsole
+  const [summaryResult, skuListResult] = await Promise.all([
+    fetchApi<BackendHealthSummary>(STAFF_HEALTH_ENDPOINTS.summary),
+    fetchApi<PageDto<BackendSkuSummary>>(STAFF_HEALTH_ENDPOINTS.skuList),
+  ])
+
+  if (!summaryResult.ok && !skuListResult.ok) {
+    return {
+      ...mockConnectorConsole,
+      viewState: fallbackState(`${summaryResult.endpoint}, ${skuListResult.endpoint}`, `${summaryResult.reason}; ${skuListResult.reason}`),
+    }
+  }
+
+  const connectors: ConnectorDto[] = [
+    {
+      id: 'health-summary-api',
+      name: 'Health Summary API',
+      platform: 'PickAgent API',
+      status: summaryResult.ok ? 'CONNECTED' : 'DEGRADED',
+      lastIngestedAtLabel: summaryResult.ok ? `request ${summaryResult.requestId}` : '不可用',
+      lastIngestSummary: summaryResult.ok
+        ? `GET ${STAFF_HEALTH_ENDPOINTS.summary} 返回 total=${summaryResult.data.total}, ready=${summaryResult.data.ready}, warning=${summaryResult.data.warning}, blocked=${summaryResult.data.blocked}`
+        : summaryResult.reason,
+      capabilityBoundary: '只展示健康汇总 DTO，不在 Connectors 页面重算任何健康状态。',
+      targetHref: '/dashboard',
+    },
+    {
+      id: 'sku-list-api',
+      name: 'SKU List API',
+      platform: 'PickAgent API',
+      status: skuListResult.ok ? 'CONNECTED' : 'DEGRADED',
+      lastIngestedAtLabel: skuListResult.ok ? `request ${skuListResult.requestId}` : '不可用',
+      lastIngestSummary: skuListResult.ok ? `GET ${STAFF_HEALTH_ENDPOINTS.skuList} 返回 ${skuListResult.data.items.length}/${skuListResult.data.total} 条 SKU。` : skuListResult.reason,
+      capabilityBoundary: '只展示 CurrentSkuProjection/SkuSummary DTO，不拼 snapshot 与 diagnosis。',
+      targetHref: '/sku-health',
+    },
+  ]
 
   return {
-    connectors: connectors.map(toConnector),
+    connectors,
     collectionBoundaries: [
       ...mockConnectorConsole.collectionBoundaries.filter((boundary) => boundary.id !== 'mock-first'),
       {
-        id: 'layer3-query-adapter',
-        label: '真实查询优先',
-        description: '页面优先读取后端 connector/query DTO；接口不可用时回退 mock fixture，不保存 Cookie 或 token。',
+        id: 'real-api-default',
+        label: '真实 API 默认路径',
+        description: 'Dashboard、Connectors、SKU Health 默认请求 /api/health/summary、/api/skus、/api/skus/:skuProfileId。',
       },
       {
-        id: 'price-category-gap',
-        label: '价格与类目缺口',
-        description: '抖店库存接口缺少销售价和类目名称时，只展示为采集风险，等待后续采集源补齐。',
+        id: 'explicit-fallback',
+        label: '显式 fallback',
+        description: '接口错误或空数据会在页面显示 API 状态，不把 mock/fallback 声明为生产闭环。',
       },
     ],
+    viewState: skuListResult.ok || summaryResult.ok ? realState('/api/health/summary + /api/skus', skuListResult.ok ? skuListResult.requestId : summaryResult.requestId) : fallbackState('/api/health/summary + /api/skus', 'health API 不可用'),
   }
 }
 
-export async function getSkuList(): Promise<CurrentSkuProjectionDto[]> {
-  const skus = await fetchList<BackendSkuSummary>('/api/v1/current-sku-projections?pageSize=100')
-  if (skus.length === 0) return mockSkuDetails.map((detail) => detail.projection)
+export async function getSkuList(): Promise<{ items: CurrentSkuProjectionDto[]; viewState: ApiViewState }> {
+  const result = await fetchApi<PageDto<BackendSkuSummary>>(STAFF_HEALTH_ENDPOINTS.skuList)
 
-  return skus.map(toProjection)
+  if (!result.ok) {
+    return { items: mockSkuDetails.map((detail) => detail.projection), viewState: fallbackState(result.endpoint, result.reason) }
+  }
+
+  if (result.data.items.length === 0) {
+    return { items: [], viewState: emptyState(result.endpoint, result.requestId, '真实 SKU list 已返回，但当前没有 ingest 后的 projection。') }
+  }
+
+  return { items: result.data.items.map(toProjection), viewState: realState(result.endpoint, result.requestId) }
 }
 
 export async function getSkuDetail(skuProfileId?: string): Promise<SkuDetailDto> {
-  if (!skuProfileId) return mockSkuDetails[0]
-
-  const detail = await fetchBackend<BackendSkuDetail>(`/api/v1/skus/${encodeURIComponent(skuProfileId)}`)
-  if (!detail) {
-    const projection = (await getSkuList()).find((item) => item.skuProfileId === skuProfileId)
-    if (projection) return detailFromProjection(projection)
-    return mockSkuDetails.find((item) => item.projection.skuProfileId === skuProfileId) ?? mockSkuDetails[0]
+  if (!skuProfileId) {
+    return {
+      ...mockSkuDetails[0],
+      viewState: emptyState('/api/skus/:skuProfileId', undefined, 'SKU list 为空，无法选择真实 detail；当前展示 mock fallback。'),
+    }
   }
 
-  return toSkuDetail(detail)
+  const result = await fetchApi<BackendSkuDetail>(STAFF_HEALTH_ENDPOINTS.skuDetail(skuProfileId))
+  if (!result.ok) {
+    const list = await getSkuList()
+    const projection = list.items.find((item) => item.skuProfileId === skuProfileId)
+    return projection
+      ? detailFromProjection(projection, fallbackState(result.endpoint, result.reason))
+      : { ...(mockSkuDetails.find((item) => item.projection.skuProfileId === skuProfileId) ?? mockSkuDetails[0]), viewState: fallbackState(result.endpoint, result.reason) }
+  }
+
+  return { ...toSkuDetail(result.data), viewState: realState(result.endpoint, result.requestId) }
 }
 
 export const realQueryIntegrationDependency =
-  'Layer 3 已接入真实 summary / connector / sku / workflow 查询 adapter；接口不可用或未配置 PICKAGENT_QUERY_API_BASE_URL 时保留 mock fallback。'
+  'Layer 4B 已将员工健康工作台默认数据源收口到 GET /api/health/summary、GET /api/skus、GET /api/skus/:skuProfileId；接口错误或空数据时显式 fallback，不声明为生产默认路径。'
 
-async function fetchList<T>(path: string): Promise<T[]> {
-  const response = await fetchBackend<{ items?: T[] } | T[]>(path)
-  if (Array.isArray(response)) return response
-  return response?.items ?? []
-}
-
-async function fetchBackend<T>(path: string): Promise<T | null> {
-  if (!apiBaseUrl) return null
+async function fetchApi<T>(path: string): Promise<ApiResult<T>> {
+  const endpoint = path
 
   try {
-    const response = await fetch(new URL(path, apiBaseUrl), { cache: 'no-store' })
-    if (!response.ok) return null
-    return (await response.json()) as T
-  } catch {
-    return null
+    const response = await fetch(await apiUrl(path), { cache: 'no-store' })
+    const envelope = (await response.json()) as ApiEnvelope<T>
+    if (!response.ok || envelope.code !== 'OK' || envelope.data === null) {
+      return { ok: false, endpoint, requestId: envelope.requestId, reason: `${envelope.code}: ${envelope.message}` }
+    }
+    return { ok: true, endpoint, requestId: envelope.requestId, data: envelope.data }
+  } catch (error) {
+    return { ok: false, endpoint, reason: error instanceof Error ? error.message : 'API request failed' }
   }
 }
 
-function dashboardMetricsFromSummary(summary: BackendHealthSummary): DashboardMetricDto[] {
-  const repairable = summary.warning
-  const dataQuality = summary.dataQualityScore ?? 0
+async function apiUrl(path: string): Promise<URL> {
+  const configured = process.env.PICKAGENT_QUERY_API_BASE_URL ?? process.env.NEXT_PUBLIC_PICKAGENT_QUERY_API_BASE_URL
+  if (configured) return new URL(path, configured)
 
+  const requestHeaders = await headers()
+  const host = requestHeaders.get('x-forwarded-host') ?? requestHeaders.get('host') ?? 'localhost:3000'
+  const protocol = requestHeaders.get('x-forwarded-proto') ?? 'http'
+  return new URL(path, `${protocol}://${host}`)
+}
+
+function dashboardMetricsFromSummary(summary: BackendHealthSummary): DashboardMetricDto[] {
   return [
-    { id: 'scope', label: '监控 SKU', value: String(summary.total), description: '来自后端 health summary 查询。', tone: 'neutral' },
-    { id: 'ready', label: 'Ready', value: String(summary.ready), description: '服务端 projection 当前为 READY。', tone: 'ready' },
-    { id: 'repairable', label: 'Repairable', value: String(repairable), description: '后端 WARNING 状态映射为前端可修复/复核展示。', tone: 'review' },
-    { id: 'blocked', label: 'Blocked', value: String(summary.blocked), description: '服务端 projection 当前为 BLOCKED。', tone: 'blocked' },
+    { id: 'scope', label: '监控 SKU', value: String(summary.total), description: '来自 GET /api/health/summary 的 total。', tone: 'neutral' },
+    { id: 'ready', label: 'Ready', value: String(summary.ready), description: '服务端 summary DTO 当前为 READY。', tone: 'ready' },
+    { id: 'repairable', label: 'Warning', value: String(summary.warning), description: '服务端 summary DTO 当前为 WARNING；前端只展示，不重算。', tone: 'review' },
+    { id: 'blocked', label: 'Blocked', value: String(summary.blocked), description: '服务端 summary DTO 当前为 BLOCKED。', tone: 'blocked' },
+  ]
+}
+
+function riskSummariesFromSummary(summary: BackendHealthSummary) {
+  return [
+    { id: 'warning', label: 'WARNING SKU', count: summary.warning, description: '服务端已判定需要修复或复核的 SKU。', targetHref: '/sku-health', tone: 'warning' as const },
+    { id: 'blocked', label: 'BLOCKED SKU', count: summary.blocked, description: '服务端已判定阻断的 SKU，需先补齐证据或库存。', targetHref: '/sku-health', tone: 'blocked' as const },
+  ]
+}
+
+function recentRunsFromSummary(summary: BackendHealthSummary): RecentWorkflowRunDto[] {
+  return [
     {
-      id: 'quality',
-      label: '数据质量',
-      value: dataQuality > 0 ? `${dataQuality}%` : '待补',
-      description: '仅展示服务端 summary DTO；无字段时不在前端重算。',
-      tone: dataQuality >= 80 ? 'ready' : 'review',
+      id: 'health-summary-current',
+      title: 'Health summary query',
+      source: 'GET /api/health/summary',
+      status: 'SUCCEEDED',
+      finishedAtLabel: '当前请求',
+      targetHref: '/sku-health',
+      summary: `当前真实 summary 覆盖 ${summary.total} 个 SKU；READY ${summary.ready}、WARNING ${summary.warning}、BLOCKED ${summary.blocked}。`,
     },
   ]
 }
 
 function toProjection(summary: BackendSkuSummary): CurrentSkuProjectionDto {
-  const issueSummary = summary.topIssues.length > 0 ? summary.topIssues.join('；') : '当前 projection 未返回阻断问题。'
-  const nextAction = summary.nextActions.length > 0 ? summary.nextActions.join('；') : '保持监控，等待下一次服务端刷新。'
-
   return {
     skuProfileId: summary.skuProfileId,
     canonicalSkuKey: summary.canonicalSkuKey,
     productName: summary.productName,
     platform: summary.platform,
     storeName: summary.storeId,
-    healthStatus: toUiHealthStatus(summary.healthStatus, summary.healthScore),
+    healthStatus: toUiHealthStatus(summary.healthStatus),
     healthScore: summary.healthScore,
     dataQualityScore: summary.dataQualityScore,
-    issueSummary,
-    nextAction,
-    updatedAtLabel: '来自真实 query',
+    issueSummary: summary.topIssues.length > 0 ? summary.topIssues.join('；') : '服务端 DTO 未返回问题摘要。',
+    nextAction: summary.nextActions.length > 0 ? summary.nextActions.join('；') : '服务端 DTO 未返回下一步动作。',
+    updatedAtLabel: '来自 GET /api/skus',
     targetHref: `/sku-health/${summary.skuProfileId}`,
   }
 }
 
 function toSkuDetail(detail: BackendSkuDetail): SkuDetailDto {
-  const projection = toProjection(detail)
+  const projection = { ...toProjection(detail), updatedAtLabel: formatDateLabel(detail.latestDiagnosis?.diagnosedAt ?? detail.latestSnapshot?.collectedAt) }
   const collectionRisks = collectionRiskIssues(detail)
   const diagnosisIssues = detail.latestDiagnosis?.issues ?? detail.topIssues
-  const issues: SkuIssueDto[] = [
-    ...diagnosisIssues.map((issue, index) => ({
-      id: `issue-${index}`,
-      severity: issueTone(projection.healthStatus),
-      title: issue,
-      summary: issue,
-    })),
-    ...collectionRisks,
-  ]
 
   return {
-    projection: {
-      ...projection,
-      updatedAtLabel: formatDateLabel(detail.latestDiagnosis?.diagnosedAt ?? detail.latestSnapshot?.collectedAt),
-    },
-    issues,
+    projection,
+    issues: [
+      ...diagnosisIssues.map((issue, index) => ({ id: `diagnosis-issue-${index}`, severity: issueTone(projection.healthStatus), title: issue, summary: issue })),
+      ...collectionRisks,
+    ],
     evidence: toEvidence(detail),
-    nextActions: (detail.latestDiagnosis?.nextActions ?? detail.nextActions).map((action, index) => ({
-      id: `action-${index}`,
-      title: action,
-      description: action,
-      owner: '服务端 DTO',
-    })),
+    nextActions: (detail.latestDiagnosis?.nextActions ?? detail.nextActions).map((action, index) => ({ id: `action-${index}`, title: action, description: action, owner: '服务端 DTO' })),
+    traceability: {
+      snapshot: detail.latestSnapshot
+        ? {
+            id: detail.latestSnapshot.snapshotId,
+            collectedAtLabel: formatDateLabel(detail.latestSnapshot.collectedAt),
+            summary: `库存 ${valueOrMissing(detail.latestSnapshot.stock)}，价格字段 ${hasAnyPrice(detail.latestSnapshot) ? '已返回' : '缺失'}，类目 ${detail.latestSnapshot.category ?? '缺失'}。`,
+          }
+        : null,
+      diagnosis: detail.latestDiagnosis
+        ? {
+            id: detail.latestDiagnosis.diagnosisId,
+            diagnosedAtLabel: formatDateLabel(detail.latestDiagnosis.diagnosedAt),
+            summary: `服务端诊断状态 ${detail.latestDiagnosis.healthStatus}，健康分 ${detail.latestDiagnosis.healthScore}，数据质量 ${detail.latestDiagnosis.dataQualityScore}。`,
+          }
+        : null,
+      collectionRisks: collectionRisks.map((risk) => risk.summary),
+      evidenceSources: detail.evidence.map((item) => `${item.label}: ${item.summary}`),
+    },
   }
 }
 
-function detailFromProjection(projection: CurrentSkuProjectionDto): SkuDetailDto {
+function detailFromProjection(projection: CurrentSkuProjectionDto, viewState: ApiViewState): SkuDetailDto {
   return {
     projection,
-    issues: projection.issueSummary
-      ? [
-          {
-            id: 'projection-issue-summary',
-            severity: issueTone(projection.healthStatus),
-            title: 'Projection 问题摘要',
-            summary: projection.issueSummary,
-          },
-        ]
-      : [],
-    evidence: [
-      {
-        id: 'projection',
-        label: 'CurrentSkuProjection',
-        value: projection.skuProfileId,
-        source: '真实 projection list 查询；detail 查询不可用时的最小详情 fallback。',
-      },
-    ],
-    nextActions: [
-      {
-        id: 'projection-next-action',
-        title: projection.nextAction,
-        description: projection.nextAction,
-        owner: '服务端 projection',
-      },
-    ],
+    issues: [{ id: 'projection-issue-summary', severity: issueTone(projection.healthStatus), title: 'Projection 问题摘要', summary: projection.issueSummary }],
+    evidence: [{ id: 'projection', label: 'CurrentSkuProjection', value: projection.skuProfileId, source: 'GET /api/skus 成功，但 detail 查询不可用时的显式 fallback。' }],
+    nextActions: [{ id: 'projection-next-action', title: projection.nextAction, description: projection.nextAction, owner: '服务端 projection' }],
+    traceability: {
+      snapshot: null,
+      diagnosis: null,
+      collectionRisks: ['detail API 不可用，不能展示 snapshot / diagnosis。'],
+      evidenceSources: ['CurrentSkuProjection fallback'],
+    },
+    viewState,
   }
 }
 
 function collectionRiskIssues(detail: BackendSkuDetail): SkuIssueDto[] {
   const risks: SkuIssueDto[] = []
   if (!hasAnyPrice(detail.latestSnapshot)) {
-    risks.push({
-      id: 'collection-price-gap',
-      severity: 'review',
-      title: '价格采集缺口',
-      summary: '当前真实查询未返回销售价或近 30 天价格字段，按采集风险展示。',
-    })
+    risks.push({ id: 'collection-price-gap', severity: 'review', title: '价格采集缺口', summary: '真实 detail DTO 未返回 originalPrice / lowestPrice30d / campaignPrice，按 collection risk 展示。' })
   }
   if (!detail.latestSnapshot?.category) {
-    risks.push({
-      id: 'collection-category-gap',
-      severity: 'review',
-      title: '类目名称采集缺口',
-      summary: '当前真实查询未返回类目名称，保留 category_id 或等待后续采集源补齐。',
-    })
+    risks.push({ id: 'collection-category-gap', severity: 'review', title: '类目名称采集缺口', summary: '真实 detail DTO 未返回 category，按 collection risk 展示。' })
   }
   return risks
 }
 
 function toEvidence(detail: BackendSkuDetail): SkuEvidenceDto[] {
-  const fromBackend = detail.evidence.map((item) => ({
-    id: `${item.type}-${item.entityId}`,
-    label: item.label,
-    value: item.entityId,
-    source: item.summary,
-  }))
   const snapshot = detail.latestSnapshot
   return [
-    ...fromBackend,
-    { id: 'stock', label: '可售库存', value: valueOrMissing(snapshot?.stock), source: 'Latest snapshot DTO' },
-    { id: 'price', label: '价格字段', value: hasAnyPrice(snapshot) ? '已返回' : '缺失', source: 'Latest snapshot DTO' },
-    { id: 'category', label: '类目字段', value: snapshot?.category ?? '缺失', source: 'Latest snapshot DTO' },
+    ...detail.evidence.map((item) => ({ id: `${item.type}-${item.entityId}`, label: item.label, value: item.entityId, source: item.summary })),
+    { id: 'snapshot-id', label: 'snapshotId', value: snapshot?.snapshotId ?? '缺失', source: 'latestSnapshot DTO' },
+    { id: 'stock', label: '可售库存', value: valueOrMissing(snapshot?.stock), source: 'latestSnapshot DTO' },
+    { id: 'price', label: '价格字段', value: hasAnyPrice(snapshot) ? '已返回' : '缺失', source: 'latestSnapshot DTO' },
+    { id: 'diagnosis-id', label: 'diagnosisId', value: detail.latestDiagnosis?.diagnosisId ?? '缺失', source: 'latestDiagnosis DTO' },
   ]
 }
 
-function toConnector(connector: BackendConnector): ConnectorDto {
-  return {
-    id: connector.id,
-    name: connector.name ?? connector.id,
-    platform: connector.platform ?? 'Unknown',
-    status: toConnectorStatus(connector.status),
-    lastIngestedAtLabel: formatDateLabel(connector.lastIngestedAt),
-    lastIngestSummary: connector.lastIngestSummary ?? '真实 connector 查询未返回最近采集摘要。',
-    capabilityBoundary: connector.capabilityBoundary ?? '只展示连接状态与采集摘要，不控制插件自动化。',
-    targetHref: '/workflows',
-  }
-}
-
-function toRecentRun(run: BackendWorkflowRun): RecentWorkflowRunDto {
-  return {
-    id: run.id,
-    title: run.workflowType ?? run.id,
-    source: run.subjectType ? `${run.subjectType}:${run.subjectId ?? 'unknown'}` : 'Workflow query',
-    status: toWorkflowStatus(run.status),
-    finishedAtLabel: formatDateLabel(run.completedAt ?? run.updatedAt ?? run.startedAt),
-    targetHref: '/workflows',
-    summary: '来自真实 workflow run 查询的最近运行摘要。',
-  }
-}
-
-function toUiHealthStatus(status: BackendHealthStatus, score: number): HealthStatus {
+function toUiHealthStatus(status: BackendHealthStatus): HealthStatus {
   if (status === 'READY') return 'READY'
+  if (status === 'WARNING') return 'REPAIRABLE'
   if (status === 'BLOCKED') return 'BLOCKED'
-  if (status === 'WARNING') return score >= 50 ? 'REPAIRABLE' : 'RISKY'
   return 'RISKY'
-}
-
-function toConnectorStatus(status?: string): ConnectorStatus {
-  if (status === 'CONNECTED' || status === 'DEGRADED' || status === 'DISCONNECTED' || status === 'SETUP_REQUIRED') return status
-  if (status === 'ACTIVE') return 'CONNECTED'
-  if (status === 'ERROR') return 'DEGRADED'
-  return 'SETUP_REQUIRED'
-}
-
-function toWorkflowStatus(status?: string): WorkflowRunStatus {
-  if (status === 'SUCCEEDED' || status === 'RUNNING' || status === 'WAITING_FOR_REVIEW' || status === 'FAILED') return status
-  if (status === 'COMPLETED') return 'SUCCEEDED'
-  if (status === 'PENDING_REVIEW') return 'WAITING_FOR_REVIEW'
-  return 'RUNNING'
 }
 
 function issueTone(status: HealthStatus): StatusTone {
@@ -383,7 +379,7 @@ function hasAnyPrice(snapshot: BackendSkuDetail['latestSnapshot']): boolean {
   return snapshot?.originalPrice !== undefined || snapshot?.lowestPrice30d !== undefined || snapshot?.campaignPrice !== undefined
 }
 
-function valueOrMissing(value: number | string | undefined): string {
+function valueOrMissing(value: number | string | boolean | undefined): string {
   return value === undefined ? '缺失' : String(value)
 }
 
@@ -392,4 +388,16 @@ function formatDateLabel(value?: string | null): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function realState(endpoint: string, requestId?: string): ApiViewState {
+  return { kind: 'real', endpoint, requestId, message: '正在消费真实 API DTO。' }
+}
+
+function emptyState(endpoint: string, requestId: string | undefined, message: string): ApiViewState {
+  return { kind: 'empty', endpoint, requestId, message }
+}
+
+function fallbackState(endpoint: string, reason: string): ApiViewState {
+  return { kind: 'fallback', endpoint, message: `真实 API 不可用，当前显式使用 mock/fallback：${reason}` }
 }
