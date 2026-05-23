@@ -31,8 +31,12 @@ export interface AgentLoopAdapter {
 const registeredBusinessTools = [
   "getSkuSummary",
   "parseActivityRules",
+  "simulateActivityReadiness",
   "runSimulation",
+  "checkDataFreshness",
+  "diagnoseSkuHealth",
   "createReviewItems",
+  "explainDecisionWithEvidence",
   "generateReportPreview",
 ] as const satisfies readonly AgentToolName[];
 

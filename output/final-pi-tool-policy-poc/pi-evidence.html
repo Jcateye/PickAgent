@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Pi Tool Policy POC Evidence</title>
+<style>
+body{font-family:ui-monospace,Menlo,monospace;background:#f5f1e8;color:#1d1d1b;padding:32px;line-height:1.5}
+section{background:#fffdf8;border:1px solid #d6c8ad;border-radius:16px;padding:20px;margin:0 0 20px;box-shadow:0 10px 30px rgba(90,70,20,.08)}
+h1,h2{margin:0 0 12px} code,pre{background:#f3ead8;border-radius:10px;padding:2px 6px} pre{padding:16px;overflow:auto}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#d98f2b;color:white;font-weight:600}
+</style></head><body>
+<h1>final-pi-tool-policy-poc</h1>
+<section><h2>Smoke Summary</h2>
+<p><span class="badge">APPROVED</span></p>
+<div class="grid">
+<div><strong>Run</strong><div><code>agent_run_0003</code></div></div>
+<div><strong>Continuation</strong><div><code>agent_run_0018</code></div></div>
+<div><strong>Review Gate</strong><div><code>agent_gate_0013</code></div></div>
+<div><strong>Visible Tools</strong><div><code>parseActivityRules, simulateActivityReadiness, explainDecisionWithEvidence</code></div></div>
+</div></section>
+<section><h2>Original Run Events</h2><pre>[
+  {
+    "sequence": 1,
+    "eventType": "run.started",
+    "eventPhase": "started"
+  },
+  {
+    "sequence": 2,
+    "eventType": "pi.adapter.started",
+    "eventPhase": "started"
+  },
+  {
+    "sequence": 3,
+    "eventType": "tool.call_recorded",
+    "eventPhase": "SUCCEEDED"
+  },
+  {
+    "sequence": 4,
+    "eventType": "tool.call_recorded",
+    "eventPhase": "SUCCEEDED"
+  },
+  {
+    "sequence": 5,
+    "eventType": "tool.call_recorded",
+    "eventPhase": "SUCCEEDED"
+  },
+  {
+    "sequence": 6,
+    "eventType": "run.status_changed",
+    "eventPhase": "WAITING_REVIEW"
+  },
+  {
+    "sequence": 7,
+    "eventType": "review_gate.opened",
+    "eventPhase": "opened"
+  },
+  {
+    "sequence": 8,
+    "eventType": "tool.call_recorded",
+    "eventPhase": "REVIEW_REQUIRED"
+  },
+  {
+    "sequence": 9,
+    "eventType": "review_gate.decided",
+    "eventPhase": "APPROVED"
+  }
+]</pre></section>
+<section><h2>Continuation Events</h2><pre>[
+  {
+    "sequence": 1,
+    "eventType": "run.continuation_started",
+    "eventPhase": "started"
+  }
+]</pre></section>
+<section><h2>Tool Calls</h2><pre>[
+  {
+    "toolName": "parseActivityRules",
+    "status": "SUCCEEDED",
+    "riskLevel": "L1",
+    "reviewPolicy": "AUTO_ALLOW"
+  },
+  {
+    "toolName": "simulateActivityReadiness",
+    "status": "SUCCEEDED",
+    "riskLevel": "L1",
+    "reviewPolicy": "AUTO_ALLOW"
+  },
+  {
+    "toolName": "explainDecisionWithEvidence",
+    "status": "SUCCEEDED",
+    "riskLevel": "L1",
+    "reviewPolicy": "AUTO_ALLOW"
+  },
+  {
+    "toolName": "createReviewItems",
+    "status": "REVIEW_REQUIRED",
+    "riskLevel": "L2",
+    "reviewPolicy": "REVIEW_GATE"
+  }
+]</pre></section>
+</body></html>

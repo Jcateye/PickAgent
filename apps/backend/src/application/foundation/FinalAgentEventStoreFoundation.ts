@@ -4,6 +4,7 @@ import type { AgentRun } from "../../domain/entities/AgentRun";
 import type { AgentRunEvent } from "../../domain/entities/AgentRunEvent";
 import type { AgentSession } from "../../domain/entities/AgentSession";
 import type { AgentToolCall } from "../../domain/entities/AgentToolCall";
+import { createBusinessFoundationRuntime, type AgentToolRegistry } from "./BusinessFoundationServices";
 
 export type AgentRunStatus = "QUEUED" | "RUNNING" | "WAITING_REVIEW" | "SUCCEEDED" | "FAILED" | "CANCELED";
 export type AgentPermission = "ALLOW" | "REVIEW_REQUIRED" | "DENY";
@@ -317,17 +318,22 @@ interface ToolPolicyDecision {
 }
 
 export class AgentToolPolicy {
+  private readonly lowRiskTools = new Set(["parseactivityrules", "simulateactivityreadiness", "explaindecisionwithevidence"]);
+  private readonly reviewRequiredTools = new Set(["createreviewitems"]);
   private readonly deniedExactNames = new Set(["coding", "file", "bash", "sql", "direct_sql", "credential_access"]);
   private readonly deniedPatterns = [/^coding(?:\.|$)/i, /^file(?:\.|$)/i, /^bash(?:\.|$)/i, /direct[\s_-]?sql/i, /credential/i, /cookie/i, /token/i, /jwt/i, /sso/i, /secret/i, /api[_-]?key/i];
 
   decide(toolName: string): ToolPolicyDecision {
-    const normalized = toolName.trim().toLowerCase();
+    const normalized = canonicalizeToolName(toolName).trim().toLowerCase();
     if (!normalized) return this.deny("empty_tool_name", "toolName is required");
     if (this.deniedExactNames.has(normalized) || this.deniedPatterns.some((pattern) => pattern.test(normalized))) {
       return this.deny("dangerous_tool_denied", `${toolName} is outside AgentToolExecutor policy`);
     }
-    if (normalized === "sku_health_summary" || normalized === "activity_simulation_preview" || normalized === "report_preview") {
-      return { permission: "ALLOW", riskLevel: "L1", reviewPolicy: "AUTO_ALLOW", reasonCode: "registered_safe_tool" };
+    if (this.lowRiskTools.has(normalized)) {
+      return { permission: "ALLOW", riskLevel: "L1", reviewPolicy: "AUTO_ALLOW", reasonCode: "registered_low_risk_tool" };
+    }
+    if (this.reviewRequiredTools.has(normalized)) {
+      return { permission: "REVIEW_REQUIRED", riskLevel: "L2", reviewPolicy: "REVIEW_GATE", reasonCode: "review_gate_required_tool" };
     }
     return this.deny("unregistered_tool_denied", `${toolName} is not registered`);
   }
@@ -338,31 +344,81 @@ export class AgentToolPolicy {
 }
 
 export class AgentToolExecutor {
-  constructor(private readonly repository: AgentRepository, private readonly eventStore: AgentEventStore, private readonly policy = new AgentToolPolicy()) {}
+  constructor(
+    private readonly repository: AgentRepository,
+    private readonly eventStore: AgentEventStore,
+    private readonly agentToolRegistry: AgentToolRegistry,
+    private readonly policy = new AgentToolPolicy(),
+  ) {}
 
   execute(input: ExecuteAgentToolInput): AgentToolExecutionResult {
     const run = this.repository.getRun(input.runId);
     if (!run) throw new Error(`Agent run not found: ${input.runId}`);
     const startedAt = nowIso();
-    const decision = this.policy.decide(input.toolName);
+    const requestedToolName = input.toolName;
+    const toolName = canonicalizeToolName(requestedToolName);
+    const decision = this.policy.decide(toolName);
     const toolCallId = nextAgentId("agent_tool");
-    const evidenceRefs: EvidenceRef[] = [
-      { type: "policy", entityId: decision.reasonCode, label: "ToolPolicy", summary: decision.blockedReason ?? "registered tool allowed by policy" },
-    ];
+    const policyEvidence: EvidenceRef = {
+      type: "policy",
+      entityId: decision.reasonCode,
+      label: "ToolPolicy",
+      summary: decision.blockedReason ?? `tool ${toolName} matched ${decision.reasonCode}`,
+    };
+    let reviewGate: AgentReviewGate | undefined;
+    let toolResult: unknown = undefined;
+    let toolStatus: AgentToolStatus = "BLOCKED";
+    let errorMessage: string | null = null;
+    const evidenceRefs: EvidenceRef[] = [policyEvidence];
+
+    if (decision.permission === "ALLOW") {
+      const execution = this.agentToolRegistry.execute(toolName as never, input.inputJson ?? {});
+      toolResult = execution.result ?? {};
+      evidenceRefs.push(...toPolicyEvidenceRefs(execution.evidence));
+      errorMessage = execution.status === "FAILED" ? execution.trace.map((item) => item.summary).join("；") : null;
+      toolStatus = execution.status === "SUCCEEDED" ? "SUCCEEDED" : "FAILED";
+    } else if (decision.permission === "REVIEW_REQUIRED") {
+      reviewGate = this.repository.createReviewGate({
+        missionId: run.missionId,
+        runId: run.id,
+        toolCallId,
+        reasonCode: decision.reasonCode,
+        question: "是否允许创建 L2 Review items？",
+        agentRecommendation: "建议先进入 Review Gate，由人工确认后再创建正式 Review item。",
+        riskIfApproved: "会创建新的 Review item，把后续业务动作转交 Review 工作台。",
+        riskIfRejected: "本次 run 停留在建议态，不会写入新的 Review item。",
+        evidenceRefs,
+      });
+      evidenceRefs.push({
+        type: "review_gate",
+        entityId: reviewGate.id,
+        label: "Review Gate",
+        summary: "L2 tool requires human approval before write-side review item creation",
+      });
+      toolStatus = "REVIEW_REQUIRED";
+      this.eventStore.markRunStatus(run.id, "WAITING_REVIEW");
+      this.eventStore.append({
+        runId: run.id,
+        eventType: "review_gate.opened",
+        eventPhase: "opened",
+        payloadJson: { gateId: reviewGate.id, toolCallId, toolName },
+      });
+    }
+
     const toolCall: AgentToolCall = {
       id: toolCallId,
       runId: input.runId,
       externalToolCallId: input.externalToolCallId ?? null,
       workflowStepId: null,
-      toolName: input.toolName,
-      status: decision.permission === "ALLOW" ? "SUCCEEDED" : "BLOCKED",
+      toolName,
+      status: toolStatus,
       riskLevel: decision.riskLevel,
       reviewPolicy: decision.reviewPolicy,
-      inputJson: metadata(input.inputJson),
-      outputJson: decision.permission === "ALLOW" ? { ok: true, result: "foundation_tool_stub" } : {},
+      inputJson: metadata({ requestedToolName, ...(input.inputJson ?? {}) }),
+      outputJson: decision.permission === "ALLOW" ? metadata({ ok: toolStatus === "SUCCEEDED", result: toolResult, summary: summarizeToolResult(toolResult) }) : {},
       evidenceRefsJson: { refs: evidenceRefs },
-      errorMessage: null,
-      blockedReason: decision.blockedReason ?? null,
+      errorMessage,
+      blockedReason: decision.permission === "DENY" ? decision.blockedReason ?? null : null,
       startedAt,
       completedAt: nowIso(),
       createdAt: startedAt,
@@ -373,9 +429,52 @@ export class AgentToolExecutor {
       runId: input.runId,
       eventType: "tool.call_recorded",
       eventPhase: toolCall.status,
-      payloadJson: { toolCallId, toolName: input.toolName, permission: decision.permission, riskLevel: decision.riskLevel, reviewPolicy: decision.reviewPolicy, evidenceRefs },
+      payloadJson: {
+        toolCallId,
+        toolName,
+        requestedToolName,
+        permission: decision.permission,
+        riskLevel: decision.riskLevel,
+        reviewPolicy: decision.reviewPolicy,
+        evidenceRefs,
+        reviewGateId: reviewGate?.id ?? null,
+        outputSummary: summarizeToolResult(toolResult),
+      },
     });
-    return { toolCall, permission: decision.permission, riskLevel: decision.riskLevel, reviewPolicy: decision.reviewPolicy, evidenceRefs };
+    return { toolCall, permission: decision.permission, riskLevel: decision.riskLevel, reviewPolicy: decision.reviewPolicy, evidenceRefs, reviewGate };
+  }
+}
+
+export class MinimalPiAgentLoopAdapter {
+  readonly provider = "pi";
+  readonly contractVersion = "agent-run-events.v1";
+  readonly availableTools = ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"] as const;
+  readonly disabledRuntimeTools = ["coding", "file", "bash"] as const;
+
+  constructor(private readonly agentService: FinalAgentService, private readonly eventStore: AgentEventStore) {}
+
+  startMission(input: CreateAgentMissionInput): AgentMissionCreatedDto & { run: AgentRun } {
+    const created = this.agentService.createMission(input);
+    const run = this.agentService.startRun(created.mission.id, {
+      modelProvider: "pi",
+      modelName: "pi-tool-policy-poc",
+      inputJson: {
+        objective: input.objective,
+        availableTools: [...this.availableTools],
+        disabledRuntimeTools: [...this.disabledRuntimeTools],
+      },
+    });
+    this.eventStore.append({
+      runId: run.id,
+      eventType: "pi.adapter.started",
+      eventPhase: "started",
+      payloadJson: { availableTools: [...this.availableTools], disabledRuntimeTools: [...this.disabledRuntimeTools] },
+    });
+    return { ...created, run };
+  }
+
+  executeTool(runId: string, toolName: string, inputJson?: Record<string, unknown>): AgentToolExecutionResult {
+    return this.agentService.executeTool({ runId, toolName, inputJson });
   }
 }
 
@@ -441,10 +540,34 @@ export class FinalAgentService {
 }
 
 export function createFinalAgentEventStoreRuntime() {
+  const businessRuntime = createBusinessFoundationRuntime();
   const state = new AgentEventStoreState();
   const repository = new AgentRepository(state);
   const eventStore = new InMemoryAgentEventStore(repository, state);
-  const toolExecutor = new AgentToolExecutor(repository, eventStore);
+  const toolExecutor = new AgentToolExecutor(repository, eventStore, businessRuntime.agentToolRegistry);
   const agentService = new FinalAgentService(repository, eventStore, toolExecutor);
-  return { state, repository, eventStore, toolExecutor, agentService };
+  const piAdapter = new MinimalPiAgentLoopAdapter(agentService, eventStore);
+  return { state, repository, eventStore, toolExecutor, agentService, businessRuntime, piAdapter };
+}
+
+function canonicalizeToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (trimmed === "runSimulation") return "simulateActivityReadiness";
+  return trimmed;
+}
+
+function toPolicyEvidenceRefs(items: Array<{ entityId: string; label: string; summary: string }>): EvidenceRef[] {
+  return items.map((item) => ({ type: "tool_call", entityId: item.entityId, label: item.label, summary: item.summary }));
+}
+
+function summarizeToolResult(result: unknown): string {
+  if (Array.isArray(result)) return `items=${result.length}`;
+  if (result && typeof result === "object") {
+    if ("eligibility" in result) return `eligibility=${String((result as { eligibility: unknown }).eligibility)}`;
+    if ("isFresh" in result) return `isFresh=${String((result as { isFresh: unknown }).isFresh)}`;
+    if ("healthStatus" in result) return `healthStatus=${String((result as { healthStatus: unknown }).healthStatus)}`;
+    if ("recommendation" in result) return `recommendation=${String((result as { recommendation: unknown }).recommendation)}`;
+  }
+  if (result === null || result === undefined) return "empty";
+  return typeof result === "string" ? result : "ok";
 }
