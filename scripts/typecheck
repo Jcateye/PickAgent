@@ -9,9 +9,11 @@ if [[ -f "$PRISMA_SCHEMA" ]]; then
 fi
 
 backend_ts_files=()
-while IFS= read -r file; do
-  backend_ts_files+=("$file")
-done < <(find "$ROOT_DIR/apps/backend/src" -type f -name '*.ts' | sort)
+if [[ -d "$ROOT_DIR/apps/backend/src" ]]; then
+  while IFS= read -r file; do
+    backend_ts_files+=("$file")
+  done < <(find "$ROOT_DIR/apps/backend/src" -type f -name '*.ts' | sort)
+fi
 
 if ((${#backend_ts_files[@]})); then
   npx --yes -p typescript tsc \
@@ -22,5 +24,7 @@ if ((${#backend_ts_files[@]})); then
     --target es2022 \
     "${backend_ts_files[@]}"
 fi
+
+pnpm --dir "$ROOT_DIR/apps/frontend" typecheck
 
 printf '%s\n' "scripts/typecheck completed."

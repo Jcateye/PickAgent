@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TODO: 为当前项目实现 scripts/dev。
-# 请保持脚本名称稳定，并在这里代理到实际工具链。
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "scripts/dev 尚未实现。"
-exit 1
+cd "$ROOT_DIR/apps/frontend"
+pnpm dev "$@"
