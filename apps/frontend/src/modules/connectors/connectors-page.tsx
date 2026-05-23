@@ -6,8 +6,8 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
-export function ConnectorsPage() {
-  const consoleState = getConnectorConsole()
+export async function ConnectorsPage() {
+  const consoleState = await getConnectorConsole()
 
   return (
     <div className="pageStack">

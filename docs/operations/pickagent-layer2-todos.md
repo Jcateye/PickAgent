@@ -85,3 +85,12 @@
 - 每进入下一层前先检查本文件。
 - 若 Layer 3/4 后仍有未解决项，最终统一拉一个收尾 agent 处理。
 - 阻塞项必须标明归属模块，不能用“待后端/待前端”泛化。
+
+## Layer 3 staff-workbench-health-console 处理记录
+
+日期：2026-05-23
+
+- 已处理：员工健康工作台已接入 summary、connector、current SKU projection、SKU detail 与 workflow run 查询 adapter；通过 `PICKAGENT_QUERY_API_BASE_URL` 或 `NEXT_PUBLIC_PICKAGENT_QUERY_API_BASE_URL` 指向真实查询服务。
+- 已保留：真实查询不可用、未配置 base URL 或单个接口失败时，页面回退到同一 DTO contract 的 mock fixture，不改变 Dashboard、Connectors、SKU 列表和详情交互结构。
+- 已处理：价格字段缺口和类目名称缺口在 SKU detail fallback 中展示为“采集风险”，不在前端重算健康状态、数据质量分或活动准入结论。
+- 未处理且不属于本模块：插件从当前抖店页面上下文发起 `stock/manage/list` / `sku_stock_diagnose` 请求、真实数据库 repository/transaction 接线、真实外部生产接口调用策略、Pi/Hermes runtime 联调。

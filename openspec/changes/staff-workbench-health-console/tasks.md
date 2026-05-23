@@ -16,7 +16,7 @@
 ## 4. Final query integration
 
 - [x] 4.1 接入最近运行摘要与导航关系校验
-- [ ] 4.2 在模块最后接入真实 summary、connector、sku 和 workflow 查询接口
+- [x] 4.2 在模块最后接入真实 summary、connector、sku 和 workflow 查询接口
 
 ## 5. Module readiness gate
 

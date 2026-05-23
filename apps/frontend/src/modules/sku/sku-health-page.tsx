@@ -6,9 +6,9 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
-export function SkuHealthPage({ skuProfileId }: { skuProfileId?: string }) {
-  const skuList = getSkuList()
-  const selectedSku = getSkuDetail(skuProfileId)
+export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string }) {
+  const skuList = await getSkuList()
+  const selectedSku = await getSkuDetail(skuProfileId ?? skuList[0]?.skuProfileId)
 
   return (
     <div className="pageStack">
