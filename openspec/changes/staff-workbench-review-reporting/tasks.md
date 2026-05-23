@@ -16,11 +16,11 @@
 ## 4. Final review and report integration
 
 - [x] 4.1 校验 Review 与报告模块内部串行工作流
-- [ ] 4.2 在模块最后接入真实 review 与 report 接口
-  - Layer 1 不实现真实 ReviewService / ReportService；该项等待 `backend-business-foundation` 后再进入联调。
+- [x] 4.2 在模块最后接入真实 review 与 report 接口
+  - Layer 3 已接入 `backend-business-foundation` 的 `ReviewService` / `ReportService` 输出，并保留 mock fallback。
 
 ## 5. Module readiness gate
 
 - [x] 5.1 用 mock DTO fixture 校验 Review 列表、筛选、详情、决策动作、报告预览和输出状态
 - [x] 5.2 校验模块不重新生成活动模拟、不重新解释 Agent run，只消费 Review / Report DTO 与来源对象
-- [x] 5.3 标记真实 Review/Report 依赖：仅当 `backend-business-foundation` 的 ReviewService / ReportService 完成后，4.2 才能进入“已完成，不阻塞”
+- [x] 5.3 标记真实 Review/Report 依赖：`backend-business-foundation` 的 ReviewService / ReportService 已完成，4.2 已进入“已完成，不阻塞”

@@ -14,7 +14,7 @@ import type {
   ReviewSourceType,
   ReviewStatus
 } from './review-contracts'
-import { mockReviewItems } from './review-fixtures'
+import { createReviewProviderSnapshot } from './review-service-provider'
 
 const statusOptions: Array<{ value: ReviewListFiltersDto['status']; label: string }> = [
   { value: 'all', label: '全部状态' },
@@ -76,9 +76,10 @@ function decisionLabel(decision: ReviewDecision) {
 }
 
 export function ReviewsPage() {
-  const [reviews, setReviews] = useState<ReviewItemDto[]>(mockReviewItems)
+  const provider = useMemo(() => createReviewProviderSnapshot(), [])
+  const [reviews, setReviews] = useState<ReviewItemDto[]>(provider.items)
   const [filters, setFilters] = useState<ReviewListFiltersDto>({ status: 'all', sourceType: 'all' })
-  const [selectedId, setSelectedId] = useState(mockReviewItems[0]?.id)
+  const [selectedId, setSelectedId] = useState(provider.items[0]?.id)
   const [comment, setComment] = useState('同意按证据摘要推进，保留来源对象追溯。')
   const [lastAction, setLastAction] = useState<string | null>(null)
 
@@ -98,17 +99,11 @@ export function ReviewsPage() {
     if (!selectedReview) return
 
     const status = decisionToStatus(decision)
-    const decidedAt = new Date().toLocaleString('zh-CN', { hour12: false })
+    const updated = provider.decide(selectedReview.id, decision, 'staff@example.test', comment)
     setReviews((current) =>
       current.map((item) =>
         item.id === selectedReview.id
-          ? {
-              ...item,
-              status,
-              decisionComment: comment,
-              decidedAt,
-              updatedAt: decidedAt
-            }
+          ? updated
           : item
       )
     )
@@ -119,7 +114,7 @@ export function ReviewsPage() {
     <div className="pageStack">
       <PageHeader
         title="Review 工作台"
-        description="消费 Review DTO 和来源对象 DTO，完成列表筛选、详情检查、证据摘要与人工决策 mock 闭环。"
+        description={`消费 ReviewService 输出和来源对象 DTO，完成列表筛选、详情检查、证据摘要与人工决策闭环。当前数据源：${provider.mode === 'service' ? 'ReviewService' : 'mock fallback'}`}
       />
 
       <div className="reviewWorkbenchLayout">
@@ -249,6 +244,7 @@ export function ReviewsPage() {
                   </p>
                 ) : null}
                 {lastAction ? <p className="decisionFeedback">{lastAction}</p> : null}
+                {provider.fallbackReason ? <p className="decisionFeedback">Fallback：{provider.fallbackReason}</p> : null}
               </PanelBody>
             </Panel>
           </div>

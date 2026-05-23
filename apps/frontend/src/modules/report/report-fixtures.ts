@@ -42,5 +42,11 @@ export const mockReportPreview: ReportPreviewDto = {
         { id: 'REV-EV-4', label: '待处理来源', value: 'Review / Report DTO', source: 'ReportService DTO' }
       ]
     }
+  ],
+  evidenceSummary: [
+    { id: 'REV-EV-1', label: '模拟 Run', value: 'SIM-RUN-2026-05-22-01', source: 'ActivitySimulationRun' },
+    { id: 'REV-EV-2', label: '规则集', value: 'MIDYEAR-RULESET-V3', source: 'ActivityRuleSet' },
+    { id: 'REV-EV-3', label: 'Review Queue', value: 'REV-1001 / REV-1002 / REV-1003', source: 'ReviewItem' },
+    { id: 'REV-EV-4', label: '待处理来源', value: 'Review / Report DTO', source: 'ReportService DTO' }
   ]
 }
