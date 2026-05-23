@@ -1,18 +1,24 @@
 import { NextResponse } from 'next/server'
 
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
 import { createFinalApiPersistenceRuntime } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
+type FinalAgentRuntime = ReturnType<typeof createFinalAgentEventStoreRuntime>
 
 declare global {
   // eslint-disable-next-line no-var
   var pickAgentFinalApiRuntime: FinalApiRuntime | undefined
+  // eslint-disable-next-line no-var
+  var pickAgentFinalAgentRuntime: FinalAgentRuntime | undefined
 }
 
 export const dynamic = 'force-dynamic'
 export const finalApiRuntime = globalThis.pickAgentFinalApiRuntime ?? createFinalApiPersistenceRuntime()
 globalThis.pickAgentFinalApiRuntime = finalApiRuntime
+export const finalAgentRuntime = globalThis.pickAgentFinalAgentRuntime ?? createFinalAgentEventStoreRuntime()
+globalThis.pickAgentFinalAgentRuntime = finalAgentRuntime
 
 export function ok<T>(data: T, requestId = nextRequestId()): NextResponse<ApiEnvelope<T>> {
   return NextResponse.json({ code: 'OK', message: 'success', data, requestId })
