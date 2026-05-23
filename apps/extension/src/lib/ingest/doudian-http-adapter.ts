@@ -56,7 +56,32 @@ export interface DoudianHttpCollectOptions {
   readonly sourceUrl: string
   readonly pageSize?: number
   readonly maxPages?: number
+  readonly sort?: number
+  readonly filters?: DoudianStockListFilters
   readonly fetcher?: Fetcher
+}
+
+export interface DoudianStockListFilters {
+  readonly product_name?: string
+  readonly status?: number
+  readonly stock_type?: number
+  readonly category_id?: number | string
+}
+
+export interface DoudianStockListRequest {
+  readonly page: number
+  readonly pageSize: number
+  readonly page_size: number
+  readonly sort: number
+  readonly product_name?: string
+  readonly status?: number
+  readonly stock_type?: number
+  readonly category_id?: number | string
+}
+
+export interface DoudianSkuStockDiagnoseRequest {
+  readonly product_id: string
+  readonly sku_ids: readonly string[]
 }
 
 const listPath = "/stock/manage/list"
@@ -69,12 +94,7 @@ export async function collectDoudianStockPages(options: DoudianHttpCollectOption
   const previews: PageExtractionPreview[] = []
 
   for (let page = 1; page <= maxPages; page += 1) {
-    const stockList = await postDoudianJson<DoudianStockListResponse>(fetcher, listPath, {
-      page,
-      pageSize,
-      page_size: pageSize,
-      sort: 0
-    })
+    const stockList = await postDoudianJson<DoudianStockListResponse>(fetcher, listPath, buildStockListRequest({ page, pageSize, sort: options.sort, filters: options.filters }))
     const products = stockList.data ?? []
     const diagnoseByKey = await fetchDiagnoseBySku(fetcher, products)
     const preview = mapDoudianStockListToPreview(stockList, {
@@ -92,6 +112,32 @@ export async function collectDoudianStockPages(options: DoudianHttpCollectOption
   }
 
   return previews
+}
+
+export function buildStockListRequest(input: {
+  readonly page: number
+  readonly pageSize: number
+  readonly sort?: number
+  readonly filters?: DoudianStockListFilters
+}): DoudianStockListRequest {
+  return {
+    page: input.page,
+    pageSize: input.pageSize,
+    page_size: input.pageSize,
+    sort: input.sort ?? 0,
+    ...dropUndefined(input.filters ?? {})
+  }
+}
+
+export function buildSkuStockDiagnoseRequest(product: DoudianStockProduct): DoudianSkuStockDiagnoseRequest | null {
+  const productId = stringValue(product.product_id)
+  const skuIds = (product.skus ?? []).map((sku) => stringValue(sku.sku_id)).filter(Boolean)
+  if (!productId || skuIds.length === 0) return null
+
+  return {
+    product_id: productId,
+    sku_ids: skuIds
+  }
 }
 
 export function mapDoudianStockListToPreview(
@@ -181,10 +227,9 @@ async function fetchDiagnoseBySku(fetcher: Fetcher, products: readonly DoudianSt
     const skuIds = (product.skus ?? []).map((sku) => stringValue(sku.sku_id)).filter(Boolean)
     if (!productId || skuIds.length === 0) continue
 
-    const response = await postDoudianJson<DoudianStockDiagnoseResponse>(fetcher, diagnosePath, {
-      product_id: productId,
-      sku_ids: skuIds
-    })
+    const request = buildSkuStockDiagnoseRequest(product)
+    if (!request) continue
+    const response = await postDoudianJson<DoudianStockDiagnoseResponse>(fetcher, diagnosePath, request)
 
     for (const row of response.data ?? []) {
       diagnoseByKey.set(diagnoseKey(stringValue(row.product_id), stringValue(row.sku_id)), row)
@@ -194,7 +239,7 @@ async function fetchDiagnoseBySku(fetcher: Fetcher, products: readonly DoudianSt
   return diagnoseByKey
 }
 
-async function postDoudianJson<T>(fetcher: Fetcher, path: string, body: Record<string, unknown>): Promise<T> {
+async function postDoudianJson<T>(fetcher: Fetcher, path: string, body: object): Promise<T> {
   const response = await fetcher(path, {
     method: "POST",
     credentials: "include",
@@ -245,4 +290,8 @@ function stringValue(value: unknown): string {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function dropUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, childValue]) => childValue !== undefined)) as T
 }

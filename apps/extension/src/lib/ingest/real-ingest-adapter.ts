@@ -1,5 +1,6 @@
 import type { CommentIngestCollectionPayload, IngestCollectionPayload } from "../../schemas/ingest"
 import type { SubmitReceipt } from "../../schemas/ingest"
+import { toFoundationIngestPayload } from "./foundation-ingest-payload"
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -30,7 +31,7 @@ export async function submitToRealIngestApi(payload: IngestCollectionPayload, op
     headers: {
       "content-type": "application/json"
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(toFoundationIngestPayload(payload))
   })
 
   if (!response.ok) {
@@ -38,8 +39,9 @@ export async function submitToRealIngestApi(payload: IngestCollectionPayload, op
   }
 
   const responseBody = await safeJson(response)
-  const acceptedRows = numberValue(responseBody?.acceptedRows) ?? arrayLength(responseBody?.summaries) ?? payload.rows.length
-  const submitId = stringValue(responseBody?.submitId) || stringValue(responseBody?.runId) || `REAL-INGEST-${payload.runId}`
+  const responseData = unwrapEnvelopeData(responseBody)
+  const acceptedRows = numberValue(responseData?.acceptedRows) ?? arrayLength(responseData?.summaries) ?? payload.rows.length
+  const submitId = stringValue(responseData?.submitId) || stringValue(responseData?.runId) || stringValue(responseData?.workflowRunId) || `REAL-INGEST-${payload.runId}`
 
   return {
     ok: true,
@@ -97,4 +99,10 @@ function stringValue(value: unknown): string {
 
 function arrayLength(value: unknown): number | undefined {
   return Array.isArray(value) ? value.length : undefined
+}
+
+function unwrapEnvelopeData(responseBody: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!responseBody) return undefined
+  const data = responseBody.data
+  return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : responseBody
 }
