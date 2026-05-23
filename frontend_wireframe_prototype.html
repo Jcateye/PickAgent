@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SKU Ready Agent - Frontend Wireframe</title>
+    <style>
+      :root {
+        --bg: #f6f6f1;
+        --ink: #1f2520;
+        --muted: #6d716b;
+        --line: #202720;
+        --soft: #e7e5dc;
+        --panel: #fffdf6;
+        --accent: #2f6f5e;
+        --warn: #9b4d28;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      header {
+        border-bottom: 2px solid var(--line);
+        background: var(--panel);
+        padding: 18px 22px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 22px;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 17px;
+        margin-bottom: 12px;
+      }
+
+      h3 {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      .sub {
+        margin-top: 6px;
+        color: var(--muted);
+      }
+
+      .page {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 22px;
+      }
+
+      .section {
+        border: 2px solid var(--line);
+        background: var(--panel);
+        margin-bottom: 22px;
+      }
+
+      .section-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 2px solid var(--line);
+        padding: 10px 12px;
+        background: var(--soft);
+      }
+
+      .tag {
+        border: 1px solid var(--line);
+        padding: 1px 7px;
+        background: var(--panel);
+        white-space: nowrap;
+      }
+
+      .content {
+        padding: 14px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .cols-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .cols-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .cols-main {
+        grid-template-columns: 210px 1fr 330px;
+      }
+
+      .box {
+        border: 2px dashed var(--line);
+        background: #fffefa;
+        padding: 10px;
+        min-height: 72px;
+      }
+
+      .solid {
+        border-style: solid;
+      }
+
+      .mini {
+        min-height: 42px;
+      }
+
+      .tall {
+        min-height: 180px;
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .btn {
+        border: 2px solid var(--line);
+        background: var(--soft);
+        padding: 6px 10px;
+      }
+
+      .btn.primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn.warn {
+        background: #f3d7c9;
+        color: var(--warn);
+      }
+
+      .nav {
+        display: grid;
+        gap: 7px;
+      }
+
+      .nav span,
+      .filter span,
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--line);
+        background: var(--soft);
+        padding: 4px 7px;
+      }
+
+      .filter {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+
+      .kpi {
+        border: 2px solid var(--line);
+        padding: 8px;
+        background: var(--panel);
+        min-height: 64px;
+      }
+
+      .num {
+        display: block;
+        font-size: 20px;
+        margin-top: 4px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--line);
+        padding: 7px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--soft);
+      }
+
+      .ascii-note {
+        white-space: pre-wrap;
+        color: var(--muted);
+      }
+
+      .phone {
+        max-width: 380px;
+      }
+
+      .browser-shell {
+        border: 2px solid var(--line);
+        background: white;
+      }
+
+      .browser-top {
+        border-bottom: 2px solid var(--line);
+        padding: 8px 10px;
+        background: var(--soft);
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      @media (max-width: 980px) {
+        .cols-2,
+        .cols-3,
+        .cols-main,
+        .split,
+        .kpis {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>SKU Ready Agent / 前端低保真线框原型</h1>
+      <p class="sub">来源：docs/PRD.md + claude_prd_report.html；重点覆盖插件采集、总控制台、SKU 健康、活动模拟、Review、Chat。</p>
+    </header>
+
+    <main class="page">
+      <section class="section">
+        <div class="section-title">
+          <h2>0. 信息架构</h2>
+          <span class="tag">MVP Navigation</span>
+        </div>
+        <div class="content grid cols-3">
+          <div class="box">
+            <h3>插件端</h3>
+            <p>Popup 入口</p>
+            <p>Side Panel 扫描 / 预览 / 提交</p>
+            <p>连接状态 / 最近 Run</p>
+          </div>
+          <div class="box">
+            <h3>总控制台</h3>
+            <p>Dashboard / Connectors / SKU 健康</p>
+            <p>Activities / Reviews / Reports</p>
+            <p>Agent Chat / Workflows</p>
+          </div>
+          <div class="box">
+            <h3>业务边界</h3>
+            <p>前端只做展示、筛选、录入、审批。</p>
+            <p>健康诊断、规则解析、模拟结果来自服务端。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>1. 浏览器插件 Popup</h2>
+          <span class="tag">Light Entry</span>
+        </div>
+        <div class="content">
+          <div class="box solid phone">
+            <h3>SKU Ready Connector</h3>
+            <div class="box mini">当前页面：Tmall Mock 商品列表页<br />平台识别：已识别<br />店铺：TMALL_DEMO_001<br />API 状态：Connected</div>
+            <div class="button-row">
+              <span class="btn primary">打开采集侧边栏</span>
+              <span class="btn">打开总控制台</span>
+            </div>
+            <div class="box mini" style="margin-top: 10px;">最近一次提交：run_20260523_001<br />状态：Success</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>2. 浏览器插件 Side Panel</h2>
+          <span class="tag">Scan / Preview / Ingest</span>
+        </div>
+        <div class="content grid cols-2">
+          <div class="box solid tall">
+            <h3>页面识别卡</h3>
+            <p>状态：Ready to Scan</p>
+            <p>平台：Tmall Mock / 店铺：DEMO_001</p>
+            <p>页面类型：商品列表页</p>
+            <p>支持字段：销量 / 库存 / 好评率 / 价格 / 证书状态</p>
+            <div class="button-row"><span class="btn primary">扫描当前页面</span></div>
+          </div>
+          <div class="box solid tall">
+            <h3>扫描结果卡</h3>
+            <p>已识别 SKU：12</p>
+            <p>字段覆盖率：13 / 16</p>
+            <p>数据质量预估：86 / 100</p>
+            <p>高风险提示：3</p>
+          </div>
+          <div class="box solid">
+            <h3>字段映射预览</h3>
+            <table>
+              <thead><tr><th>源字段</th><th>标准字段</th></tr></thead>
+              <tbody>
+                <tr><td>月销量</td><td>sales30d</td></tr>
+                <tr><td>评价率</td><td>positiveRate</td></tr>
+                <tr><td>可售库存</td><td>stock</td></tr>
+                <tr><td>日常价</td><td>originalPrice</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="box solid">
+            <h3>风险提示 + 操作区</h3>
+            <p>- 缺少字段：lowestPrice30d</p>
+            <p>- 3 行 certificateStatus 为空</p>
+            <p>- 1 个价格字段格式异常</p>
+            <div class="button-row">
+              <span class="btn">重新扫描</span>
+              <span class="btn primary">发送到 Agent 分析</span>
+              <span class="btn">打开总控制台</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>3. 总控制台 App Shell</h2>
+          <span class="tag">Next.js Console</span>
+        </div>
+        <div class="content browser-shell">
+          <div class="browser-top">搜索 SKU / Product / Activity ｜ Platform ▼ ｜ Store ▼ ｜ Category ▼ ｜ Latest Run: Success</div>
+          <div class="grid cols-main" style="padding: 12px;">
+            <aside class="box solid">
+              <h3>Left Sidebar</h3>
+              <div class="nav">
+                <span>Dashboard</span>
+                <span>Connectors</span>
+                <span>SKU 健康</span>
+                <span>Activities</span>
+                <span>Reviews</span>
+                <span>Reports</span>
+                <span>Agent Chat</span>
+                <span>Workflows</span>
+              </div>
+            </aside>
+            <section class="box solid">
+              <h3>Main Content</h3>
+              <p class="ascii-note">当前页面内容区：Dashboard / SKU List / SKU Detail / Simulation / Review 等在这里切换。</p>
+            </section>
+            <aside class="box solid">
+              <h3>Right Context</h3>
+              <p>Agent Chat 摘要</p>
+              <p>Linked Evidence</p>
+              <p>Pending Review</p>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>4. Dashboard 总览页</h2>
+          <span class="tag">Decision Overview</span>
+        </div>
+        <div class="content">
+          <div class="kpis">
+            <div class="kpi">监控 SKU<span class="num">1280</span></div>
+            <div class="kpi">Ready<span class="num">426</span></div>
+            <div class="kpi">Repairable<span class="num">312</span></div>
+            <div class="kpi">Risky<span class="num">89</span></div>
+            <div class="kpi">Blocked<span class="num">133</span></div>
+            <div class="kpi">数据质量<span class="num">92/100</span></div>
+          </div>
+          <div class="grid cols-3" style="margin-top: 12px;">
+            <div class="box tall">风险分布图<br />inventory_risk<br />certificate_missing<br />stale_data</div>
+            <div class="box tall">最近采集 / 最近模拟<br />latest ingest run<br />latest simulation run<br />parse failed runs</div>
+            <div class="box tall">Pending Reviews<br />证书缺失<br />价格口径歧义<br />高风险运营动作</div>
+          </div>
+          <div class="box mini" style="margin-top: 12px;">外部 Agent 信号卡 / 快捷入口</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>5. SKU 健康</h2>
+          <span class="tag">List + Detail</span>
+        </div>
+        <div class="content split">
+          <div class="box solid">
+            <h3>SKU 列表页</h3>
+            <div class="filter"><span>platform ▼</span><span>store ▼</span><span>healthStatus ▼</span><span>keyword</span></div>
+            <table>
+              <thead><tr><th>sku</th><th>name</th><th>status</th><th>score</th><th>issue</th></tr></thead>
+              <tbody>
+                <tr><td>G001</td><td>足金手链</td><td>READY</td><td>92</td><td>-</td></tr>
+                <tr><td>G003</td><td>古法金戒指</td><td>REPAIRABLE</td><td>72</td><td>inventory</td></tr>
+                <tr><td>D001</td><td>钻石耳钉</td><td>BLOCKED</td><td>58</td><td>positive_rate</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="box solid">
+            <h3>SKU 健康档案页 / G003</h3>
+            <div class="grid cols-3">
+              <div class="box mini">基本信息<br />platform/store/sku</div>
+              <div class="box mini">当前健康状态<br />healthScore / issues</div>
+              <div class="box mini">数据质量<br />dqScore / stale</div>
+            </div>
+            <div class="box mini" style="margin-top: 10px;">Issues / Next Actions</div>
+            <div class="box mini" style="margin-top: 10px;">Evidence Timeline</div>
+            <div class="box mini" style="margin-top: 10px;">Snapshot History / Diagnosis History / Related Reviews</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>6. 活动规则解析 + 准入模拟</h2>
+          <span class="tag">Rules / Simulation</span>
+        </div>
+        <div class="content">
+          <div class="grid cols-2">
+            <div class="box tall">
+              <h3>Rule Input</h3>
+              <p>activityName / platform / ruleText textarea</p>
+              <div class="box" style="margin-top: 10px; min-height: 110px;">粘贴活动规则文本...</div>
+              <div class="button-row"><span class="btn primary">Parse Rules</span></div>
+            </div>
+            <div class="box tall">
+              <h3>Parsed Canonical Rule DSL</h3>
+              <p>- threshold rules</p>
+              <p>- field_compare rules</p>
+              <p>- quota rules</p>
+              <p>- manualReviewItems</p>
+            </div>
+          </div>
+          <div class="box mini" style="margin-top: 12px;">Simulation Summary: <span class="pill">Direct Ready</span> <span class="pill">Repairable</span> <span class="pill">Manual Review</span> <span class="pill">Blocked</span></div>
+          <table style="margin-top: 12px;">
+            <thead><tr><th>sku</th><th>eligibilityStatus</th><th>failedRules</th><th>repairPlan</th><th>priority</th><th>evidence</th></tr></thead>
+            <tbody>
+              <tr><td>G001</td><td>DIRECT_READY</td><td>-</td><td>-</td><td>91</td><td>view</td></tr>
+              <tr><td>G003</td><td>REPAIRABLE_READY</td><td>stock</td><td>replenish</td><td>78</td><td>view</td></tr>
+              <tr><td>G004</td><td>MANUAL_REVIEW</td><td>certificate</td><td>complete</td><td>70</td><td>view</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>7. Review 工作台 + Agent Chat</h2>
+          <span class="tag">Human Gate</span>
+        </div>
+        <div class="content grid cols-2">
+          <div class="box solid">
+            <h3>Review Workbench</h3>
+            <div class="filter"><span>status ▼</span><span>reviewType ▼</span><span>assigneeRole ▼</span></div>
+            <div class="grid cols-2">
+              <div class="box tall">Review List<br />G003 补货确认<br />G004 证书补全<br />折扣口径确认</div>
+              <div class="box tall">Review Detail<br />Question / Recommendation<br />RiskIfIgnored<br />Evidence<br /><br /><span class="btn primary">Approve</span> <span class="btn warn">Reject</span> <span class="btn">Modify</span></div>
+            </div>
+          </div>
+          <div class="box solid">
+            <h3>Agent Chat</h3>
+            <div class="box tall">Conversation Panel<br /><br />User: 为什么 G003 不能报名？如果补货 200 件会怎样？<br /><br />Agent: 当前库存 300，活动要求 >= 500；补货后可转为 DIRECT_READY。</div>
+            <div class="grid cols-2" style="margin-top: 10px;">
+              <div class="box mini">Tool Trace<br />getSkuHealthDetail<br />simulateActivity</div>
+              <div class="box mini">Linked Evidence<br />skuProfile: G003<br />rule: stock >= 500</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">
+          <h2>8. 报告页</h2>
+          <span class="tag">Activity Report</span>
+        </div>
+        <div class="content grid cols-2">
+          <div class="box tall">
+            <h3>Report Preview</h3>
+            <p>活动可报名 SKU：G001, G002...</p>
+            <p>可修复 SKU：G003, G004...</p>
+            <p>不建议报名：D001...</p>
+            <p>关键风险：库存不足 / 证书缺失 / 好评率不足</p>
+          </div>
+          <div class="box tall">
+            <h3>Report Actions</h3>
+            <div class="button-row">
+              <span class="btn primary">生成活动报告</span>
+              <span class="btn">复制摘要</span>
+              <span class="btn">导出 PDF (P2)</span>
+            </div>
+            <div class="box mini" style="margin-top: 12px;">Evidence / Rule / Simulation Run 关联</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
