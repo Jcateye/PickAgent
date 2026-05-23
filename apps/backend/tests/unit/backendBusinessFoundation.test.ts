@@ -53,6 +53,21 @@ test("backend business foundation supports ingest, projection, simulation, revie
   assert.equal(tools.length, 5);
   const toolResult = runtime.agentToolRegistry.execute("getSkuSummary", { skuProfileId: ingestResult.summaries[0]?.skuProfileId });
   assert.equal(toolResult.status, "SUCCEEDED");
+
+  const agentRun = runtime.fakeAgentLoopAdapter.startMission({
+    objective: "复核第一个 SKU 的活动准入风险",
+    skuProfileId: ingestResult.summaries[0]?.skuProfileId,
+  });
+  assert.equal(agentRun.run.provider, "fake");
+  assert.equal(agentRun.eventContractVersion, "agent-run-events.v1");
+  assert.equal(agentRun.run.status, "PAUSED");
+  assert.equal(agentRun.reviewGates[0]?.status, "PENDING");
+  assert.ok(agentRun.toolTrace.some((item) => item.toolName === "getSkuSummary" && item.status === "succeeded"));
+  assert.deepEqual([...runtime.fakeAgentLoopAdapter.disabledRuntimeTools], ["coding", "file", "bash"]);
+
+  const continuedRun = runtime.fakeAgentLoopAdapter.continueMission(agentRun, { decision: "approve" });
+  assert.equal(continuedRun.run.status, "DONE");
+  assert.equal(continuedRun.reviewGates[0]?.status, "APPROVED");
 });
 
 test("douyin fxg captured stock records map into ingest payload and business chance rules", () => {
