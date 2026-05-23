@@ -23,6 +23,7 @@ import {
   assertValidIngestPayload,
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
+import { FakeAgentLoopAdapter } from "../agent/AgentLoopAdapters";
 
 type SkuProfileRecord = {
   skuProfileId: string;
@@ -519,6 +520,7 @@ export function createBusinessFoundationRuntime(): {
   reviewService: ReviewService;
   reportService: ReportService;
   agentToolRegistry: AgentToolRegistry;
+  fakeAgentLoopAdapter: FakeAgentLoopAdapter;
 } {
   const store = new BusinessFoundationStore();
   const skuQueryService = new SkuQueryService(store);
@@ -528,5 +530,6 @@ export function createBusinessFoundationRuntime(): {
   const reportService = new ReportService(store, skuQueryService);
   const ingestService = new IngestService(store);
   const agentToolRegistry = new AgentToolRegistry(skuQueryService, activityRuleService, activitySimulationService, reviewService, reportService);
-  return { store, ingestService, skuQueryService, activityRuleService, activitySimulationService, reviewService, reportService, agentToolRegistry };
+  const fakeAgentLoopAdapter = new FakeAgentLoopAdapter(agentToolRegistry);
+  return { store, ingestService, skuQueryService, activityRuleService, activitySimulationService, reviewService, reportService, agentToolRegistry, fakeAgentLoopAdapter };
 }

@@ -22,6 +22,13 @@
 | Review/报告真实接口 | 已解锁 | 现有 ReviewService/ReportService 可消费 simulation/evidence。 |
 | Agent tools | 已解锁 | 工具仍通过 application service 边界执行。 |
 
+## Layer 3 Agent Copilot 处理记录
+
+- `agent-copilot-workbench` 已新增 fake runtime adapter 接线：adapter 消费真实 `AgentToolRegistry`，并通过 application service 执行业务工具。
+- fake runtime adapter 继续输出既有 Mission / Run / Event / Gate contract，前端工作台结构无需为真实接入改版。
+- 业务 Agent 显式禁用 `coding`、`file`、`bash` 通用工具；当前只暴露 `getSkuSummary`、`parseActivityRules`、`runSimulation`、`createReviewItems`、`generateReportPreview` 五个注册业务工具。
+- 本轮不声明生产 Pi/Hermes runtime 联调完成；生产 runtime 仍需在后续环境中接同一 adapter contract。
+
 ## 遗留 TODO / 依赖项
 
 ### staff-workbench-review-reporting Layer 3 处理记录
@@ -89,7 +96,8 @@
 
 11. **Pi/Hermes runtime 联调**
     - AgentToolRegistry/application service 边界已解锁。
-    - 真实 Pi/Hermes runtime adapter 与业务工具调用仍需 Layer 3/4 联调。
+    - Layer 3 已完成 fake runtime adapter 到真实 AgentToolRegistry/application service 的业务工具接线。
+    - 真实生产 Pi/Hermes runtime 进程联调仍需后续环境验证，但不得改变当前 Mission / Run / Event / Gate contract。
 
 12. **截图/录屏证据**
     - iab 当前不可用，本轮用 HTTP smoke 替代。

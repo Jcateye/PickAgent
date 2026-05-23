@@ -16,7 +16,7 @@
 ## 4. Final runtime and tool integration
 
 - [x] 4.1 接入最小后端协议并校验前后端 contract 一致性
-- [ ] 4.2 在模块最后接入真实 Pi/Hermes runtime adapter 与业务工具
+- [x] 4.2 在模块最后接入真实 Pi/Hermes runtime adapter 与业务工具
 
 ## 5. Module readiness gate
 
@@ -24,4 +24,4 @@
 - [x] 5.2 校验 fake run provider 与真实 runtime adapter 使用同一 Mission / Run / Event / Gate contract
 - [x] 5.3 标记真实工具接入依赖：仅当 `backend-business-foundation` 的 AgentToolRegistry 与对应业务 service 完成后，4.2 才能进入“已完成，不阻塞”
 
-备注：Layer 1 已完成 mock contract / fake run 闭环。4.2 保持未完成，因为真实 Pi/Hermes runtime adapter 与业务工具接入依赖 `backend-business-foundation` 的 AgentToolRegistry 和对应 application service。
+备注：Layer 3 已接入 `AgentToolRegistry` 与 application service 边界，并通过 fake runtime adapter 输出同一 Mission / Run / Event / Gate contract；不接生产 Pi/Hermes runtime，不开放 coding/file/bash 给业务 Agent。
