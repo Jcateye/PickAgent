@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
@@ -416,6 +417,19 @@ export function ActivitiesPage() {
 
   return (
     <div className="pageStack activityWorkbench">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/activities',
+          pageTitle: '活动规则与准入模拟',
+          selectedEntity: {
+            entityType: 'simulationRun',
+            entityId: selectedResult?.id ?? 'activity-simulation',
+            label: selectedResult?.skuTitle ?? '活动模拟',
+          },
+          visibleFilters: { adapterState, selectedEligibility: selectedResult?.eligibilityStatus ?? 'UNKNOWN' },
+          visibleColumns: ['rule', 'eligibility', 'failedRules', 'evidence', 'repairSuggestions'],
+        }}
+      />
       <PageHeader
         title="活动规则与准入模拟"
         description={`Layer 4B 通过真实 parse / simulation API 收口；当前状态：${adapterState === 'ready' ? '真实 API' : adapterState === 'loading' ? '加载中' : adapterState === 'empty' ? '等待 ingest 数据' : 'deterministic fallback'}`}

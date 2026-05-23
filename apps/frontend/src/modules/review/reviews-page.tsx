@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
@@ -138,6 +139,17 @@ export function ReviewsPage() {
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/reviews',
+          pageTitle: 'Review 工作台',
+          selectedEntity: selectedReview
+            ? { entityType: 'reviewItem', entityId: selectedReview.id, label: selectedReview.targetLabel }
+            : { entityType: 'reviewItem', entityId: 'review-empty', label: 'Review Queue' },
+          visibleFilters: { status: filters.status, sourceType: filters.sourceType },
+          visibleColumns: ['target', 'status', 'sourceType', 'riskLevel', 'updatedAt'],
+        }}
+      />
       <PageHeader
         title="Review 工作台"
         description={`默认消费 /api/reviews 与 /api/reviews/:id/decision 的持久化 Review DTO；当前状态：${apiState === 'ready' ? 'API ready' : apiState === 'loading' ? '加载 API snapshot' : 'fixture fallback'}`}

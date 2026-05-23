@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
@@ -50,6 +51,19 @@ export function ReportsPage() {
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/reports',
+          pageTitle: '报告页',
+          selectedEntity: {
+            entityType: 'report',
+            entityId: preview.id,
+            label: preview.title,
+          },
+          visibleFilters: { reportType: preview.type, outputStatus },
+          visibleColumns: ['section', 'summary', 'evidence', 'unresolvedRisk'],
+        }}
+      />
       <PageHeader
         title="报告页"
         description={`默认通过 POST /api/reports 消费 Report DTO，首屏使用确定性 fixture 防止 hydration 漂移；当前状态：${apiState === 'ready' ? 'API ready' : apiState === 'loading' ? '加载 API snapshot' : 'fixture fallback'}`}
