@@ -1,0 +1,1606 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SKU Ready Agent — Web 主控台</title>
+<style>
+  :root{
+    --bg: oklch(97.6% 0.004 250);
+    --surface: oklch(100% 0 0);
+    --surface-2: oklch(98.8% 0.003 250);
+    --surface-3: oklch(96.8% 0.006 250);
+    --fg: oklch(20% 0.014 250);
+    --muted: oklch(52% 0.012 250);
+    --muted-2: oklch(67% 0.01 250);
+    --line: oklch(90% 0.006 250);
+    --line-2: oklch(84% 0.008 250);
+    --accent: oklch(58% 0.18 255);
+    --accent-soft: color-mix(in oklab, var(--accent) 10%, white);
+    --accent-ink: color-mix(in oklab, var(--accent) 84%, black);
+    --ready: oklch(62% 0.16 145);
+    --ready-soft: color-mix(in oklab, var(--ready) 10%, white);
+    --repair: oklch(64% 0.13 220);
+    --repair-soft: color-mix(in oklab, var(--repair) 10%, white);
+    --review: oklch(78% 0.14 88);
+    --review-soft: color-mix(in oklab, var(--review) 16%, white);
+    --risky: oklch(72% 0.16 60);
+    --risky-soft: color-mix(in oklab, var(--risky) 15%, white);
+    --blocked: oklch(62% 0.21 28);
+    --blocked-soft: color-mix(in oklab, var(--blocked) 10%, white);
+    --navy:#16202c;
+    --navy-2:#1d2938;
+    --shadow-sm:0 1px 2px rgba(16,24,40,.05),0 1px 1px rgba(16,24,40,.03);
+    --shadow-md:0 10px 26px rgba(16,24,40,.07),0 2px 8px rgba(16,24,40,.04);
+    --shadow-lg:0 30px 60px rgba(16,24,40,.12),0 10px 24px rgba(16,24,40,.08);
+    --radius-xs:8px;
+    --radius-sm:12px;
+    --radius-md:16px;
+    --radius-lg:20px;
+    --radius-xl:24px;
+    --space-1:4px;
+    --space-2:8px;
+    --space-3:12px;
+    --space-4:16px;
+    --space-5:20px;
+    --space-6:24px;
+    --space-7:32px;
+    --space-8:40px;
+    --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    --font-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    --font-mono:ui-monospace,"SFMono-Regular","JetBrains Mono","IBM Plex Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:var(--font-body)}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  a{text-decoration:none;color:inherit}
+  .app{
+    height:100vh;
+    display:grid;
+    grid-template-columns:260px 1fr;
+    overflow:hidden;
+  }
+  .sidebar{
+    background:linear-gradient(180deg,var(--navy),var(--navy-2));
+    color:#f5f8fc;
+    border-right:1px solid rgba(255,255,255,.06);
+    display:flex;
+    flex-direction:column;
+    padding:18px 16px 14px;
+    gap:16px;
+  }
+  .brand{
+    display:flex;align-items:center;gap:12px;
+    padding:8px 6px 6px;
+  }
+  .logo{
+    width:38px;height:38px;border-radius:12px;
+    background:linear-gradient(135deg,#2f82ff,#1459d6);
+    display:grid;place-items:center;
+    font-weight:800;color:white;box-shadow:inset 0 1px 0 rgba(255,255,255,.24);
+  }
+  .brand h1{margin:0;font-size:15px;line-height:1.2}
+  .brand p{margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.62)}
+  .workspace{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:8px;padding:12px;border-radius:14px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.06);
+  }
+  .workspace .meta b{font-size:13px;display:block}
+  .workspace .meta span{font-size:11px;color:rgba(255,255,255,.64)}
+  .nav-section{display:grid;gap:4px}
+  .nav-label{
+    color:rgba(255,255,255,.48);
+    font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    padding:0 10px;margin-top:4px;
+  }
+  .nav-item{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:11px 12px;border-radius:12px;font-size:14px;
+    color:rgba(255,255,255,.82);
+    border:1px solid transparent;
+    transition:.18s ease;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.06)}
+  .nav-item.active{
+    background:rgba(255,255,255,.09);
+    border-color:rgba(255,255,255,.08);
+    color:white;
+  }
+  .nav-item .left{display:flex;align-items:center;gap:10px}
+  .nav-item .count{
+    min-width:22px;height:22px;border-radius:999px;padding:0 7px;
+    display:grid;place-items:center;font-size:11px;
+    background:rgba(255,255,255,.08);color:rgba(255,255,255,.8);
+  }
+  .side-footer{
+    margin-top:auto;
+    display:grid;gap:10px;
+  }
+  .hint-card{
+    padding:12px;border-radius:14px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.07);
+  }
+  .hint-card h4{margin:0 0 6px;font-size:12px}
+  .hint-card p{margin:0;font-size:11px;line-height:1.6;color:rgba(255,255,255,.64)}
+  .main{
+    display:grid;
+    grid-template-rows:72px 1fr;
+    min-width:0;
+  }
+  .topbar{
+    background:rgba(255,255,255,.74);
+    backdrop-filter: blur(10px);
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:14px 22px;
+  }
+  .searchline{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+  .search{
+    flex:1;min-width:280px;
+    height:44px;border-radius:14px;border:1px solid var(--line);
+    background:var(--surface);
+    display:flex;align-items:center;gap:10px;padding:0 14px;
+    box-shadow:var(--shadow-sm);
+  }
+  .search input{
+    border:none;outline:none;background:transparent;flex:1;color:var(--fg)
+  }
+  .top-filters{display:flex;gap:10px;flex-wrap:wrap}
+  .filter{
+    height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--surface);color:var(--muted);
+    display:flex;align-items:center;gap:8px;font-size:13px;
+  }
+  .top-actions{display:flex;gap:10px}
+  .btn{
+    height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line);
+    background:var(--surface);color:var(--fg);font-size:13px;font-weight:700;
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    box-shadow:var(--shadow-sm);
+  }
+  .btn.primary{
+    background:var(--accent);border-color:transparent;color:white;
+    box-shadow:0 8px 18px color-mix(in oklab,var(--accent) 24%, transparent);
+  }
+  .btn.dark{
+    background:var(--navy);border-color:transparent;color:white;
+  }
+  .content-wrap{
+    overflow:auto;
+    padding:24px 24px 34px;
+  }
+  .page-view{display:none}
+  .page-view.active{display:block}
+  .page-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:18px;
+    margin-bottom:18px;
+  }
+  .page-head h2{
+    margin:0;font-family:var(--font-display);font-size:28px;line-height:1.05;letter-spacing:-.03em;
+  }
+  .page-head p{margin:8px 0 0;color:var(--muted);font-size:14px;line-height:1.6;max-width:860px}
+  .page-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .kpi-row{
+    display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;
+    margin-bottom:18px;
+  }
+  .kpi{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:16px;
+    box-shadow:var(--shadow-sm);
+  }
+  .kpi .label{
+    color:var(--muted);
+    font-size:12px;
+    display:flex;justify-content:space-between;gap:8px;
+  }
+  .kpi .value{
+    margin-top:10px;font-size:28px;font-weight:800;letter-spacing:-.03em;
+  }
+  .kpi .sub{
+    margin-top:6px;font-size:12px;color:var(--muted)
+  }
+  .grid-2{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+  .stack{display:grid;gap:18px}
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:20px;
+    box-shadow:var(--shadow-sm);
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:16px 18px;border-bottom:1px solid var(--line);
+    background:#fcfdff;
+  }
+  .panel-title{
+    display:flex;align-items:center;gap:10px;
+  }
+  .panel-title h3{margin:0;font-size:16px}
+  .panel-title p{margin:4px 0 0;color:var(--muted);font-size:12px}
+  .panel-body{padding:18px}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    height:28px;padding:0 10px;border-radius:999px;
+    font-size:12px;font-weight:700;border:1px solid transparent;white-space:nowrap;
+  }
+  .ready{background:var(--ready-soft);color:color-mix(in oklab,var(--ready) 88%, black);border-color:color-mix(in oklab,var(--ready) 22%, white)}
+  .repair{background:var(--repair-soft);color:color-mix(in oklab,var(--repair) 88%, black);border-color:color-mix(in oklab,var(--repair) 22%, white)}
+  .review{background:var(--review-soft);color:color-mix(in oklab,var(--review) 76%, black);border-color:color-mix(in oklab,var(--review) 22%, white)}
+  .risky{background:var(--risky-soft);color:color-mix(in oklab,var(--risky) 84%, black);border-color:color-mix(in oklab,var(--risky) 18%, white)}
+  .blocked{background:var(--blocked-soft);color:color-mix(in oklab,var(--blocked) 84%, black);border-color:color-mix(in oklab,var(--blocked) 18%, white)}
+  .muted-badge{background:var(--surface-2);color:var(--muted);border-color:var(--line)}
+  .tiny{
+    font-size:11px;color:var(--muted)
+  }
+  .legend{display:flex;gap:8px;flex-wrap:wrap}
+  .legend .item{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 9px;border:1px solid var(--line);border-radius:999px;font-size:11px;color:var(--muted)
+  }
+  .dot{
+    width:8px;height:8px;border-radius:999px;background:var(--accent)
+  }
+  .dot.ready{background:var(--ready)}
+  .dot.repair{background:var(--repair)}
+  .dot.review{background:var(--review)}
+  .dot.risky{background:var(--risky)}
+  .dot.blocked{background:var(--blocked)}
+  .chart-bars{display:grid;gap:12px}
+  .bar-row{display:grid;grid-template-columns:120px 1fr 48px;gap:12px;align-items:center}
+  .bar-row span{font-size:13px}
+  .bar{
+    height:12px;background:var(--surface-3);border-radius:999px;overflow:hidden
+  }
+  .bar > i{display:block;height:100%;border-radius:999px;background:var(--accent)}
+  .list{display:grid;gap:10px}
+  .item{
+    border:1px solid var(--line);
+    border-radius:14px;padding:13px 14px;background:var(--surface-2)
+  }
+  .item-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .item-title{font-size:14px;font-weight:700}
+  .item p{margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}
+  .item-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:5px 8px;border-radius:999px;border:1px solid var(--line);
+    background:white;font-size:11px;color:var(--muted)
+  }
+
+  /* table */
+  .toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-bottom:14px;flex-wrap:wrap;
+  }
+  .filters{display:flex;gap:10px;flex-wrap:wrap}
+  .filter.pill{height:36px;padding:0 11px;font-size:12px}
+  table{
+    width:100%;border-collapse:separate;border-spacing:0;
+    font-size:13px;
+  }
+  th,td{
+    text-align:left;padding:13px 14px;border-bottom:1px solid var(--line);
+    vertical-align:middle;
+  }
+  th{
+    position:sticky;top:0;background:#fcfdff;z-index:1;font-size:12px;color:var(--muted);font-weight:700;
+  }
+  tbody tr:hover{background:#fafcff}
+  .table-wrap{
+    border:1px solid var(--line);border-radius:16px;overflow:auto;background:var(--surface)
+  }
+  .sku-link{font-family:var(--font-mono);font-size:12px;color:var(--accent-ink)}
+  .score{
+    display:inline-flex;align-items:center;gap:8px
+  }
+  .scorebar{width:56px;height:8px;background:var(--surface-3);border-radius:999px;overflow:hidden}
+  .scorebar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+  .split{
+    display:grid;grid-template-columns:1.08fr .92fr;gap:18px;
+  }
+  .detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .meta-card{
+    border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--surface-2)
+  }
+  .meta-card .k{font-size:11px;color:var(--muted)}
+  .meta-card .v{margin-top:6px;font-size:14px;font-weight:700}
+  .timeline{display:grid;gap:12px;position:relative;padding-left:24px}
+  .timeline:before{
+    content:"";position:absolute;left:8px;top:4px;bottom:4px;width:2px;background:#dbe5f2;border-radius:999px
+  }
+  .t-item{
+    position:relative;border:1px solid var(--line);border-radius:14px;padding:12px 12px 12px 14px;background:var(--surface)
+  }
+  .t-item:before{
+    content:"";position:absolute;left:-21px;top:15px;width:10px;height:10px;border-radius:999px;background:var(--accent);
+    box-shadow:0 0 0 4px #eef4ff
+  }
+  .t-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .t-title{font-size:13px;font-weight:700}
+  .t-item p{margin:6px 0 0;font-size:12px;color:var(--muted);line-height:1.6}
+  .collapsed{
+    border-top:1px solid var(--line)
+  }
+  .collapsed summary{
+    list-style:none;cursor:pointer;padding:14px 18px;font-size:13px;font-weight:700;background:#fcfdff;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+  }
+  .collapsed summary::-webkit-details-marker{display:none}
+  .collapsed .inside{padding:0 18px 18px}
+
+  /* simulation */
+  .dual-editor{
+    display:grid;grid-template-columns:1fr 1fr;gap:18px
+  }
+  .editor, .dsl{
+    border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden
+  }
+  .editor-head{
+    padding:12px 14px;border-bottom:1px solid var(--line);background:#fcfdff;font-size:13px;font-weight:700
+  }
+  .editor textarea{
+    width:100%;height:220px;border:none;resize:none;outline:none;padding:14px;background:transparent;color:var(--fg);line-height:1.7;font-size:13px
+  }
+  pre.dsl-code{
+    margin:0;padding:14px;height:220px;overflow:auto;
+    font-size:12px;line-height:1.7;background:#fbfcff;color:#24344a;font-family:var(--font-mono)
+  }
+  .summary-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .summary-card{
+    border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--surface)
+  }
+  .summary-card b{display:block;font-size:12px;color:var(--muted)}
+  .summary-card strong{display:block;margin-top:10px;font-size:28px;letter-spacing:-.03em}
+  .summary-card span{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+  .inline-note{
+    padding:12px 14px;border-radius:14px;border:1px solid #d8e5ff;background:#f5f9ff;color:#36527a;font-size:13px;line-height:1.6
+  }
+
+  /* reviews */
+  .queue-layout{
+    display:grid;grid-template-columns:360px 1fr;gap:18px
+  }
+  .queue-list{display:grid;gap:10px}
+  .queue-item{
+    border:1px solid var(--line);border-radius:16px;padding:14px;background:var(--surface);
+    box-shadow:var(--shadow-sm);cursor:pointer
+  }
+  .queue-item.active{border-color:#cfe0ff;background:#f8fbff}
+  .queue-item h4{margin:0;font-size:14px}
+  .queue-item p{margin:6px 0 0;font-size:12px;line-height:1.6;color:var(--muted)}
+  .decision-bar{
+    display:flex;gap:10px;flex-wrap:wrap;margin-top:16px
+  }
+  .button-green{background:var(--ready);border:none;color:white}
+  .button-red{background:var(--blocked);border:none;color:white}
+  .button-amber{background:#8c6a06;border:none;color:white}
+  .detail-box{
+    border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--surface-2)
+  }
+  .detail-box h4{margin:0 0 8px;font-size:13px}
+  .detail-box p,.detail-box li{margin:0;font-size:13px;line-height:1.7;color:var(--muted)}
+  .detail-box ul{padding-left:18px;margin:0}
+
+  /* chat */
+  .chat-layout{
+    display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px
+  }
+  .conversation{
+    display:grid;gap:12px;
+  }
+  .msg{
+    max-width:78%;
+    padding:14px 16px;border-radius:18px;border:1px solid var(--line);background:var(--surface)
+  }
+  .msg.user{margin-left:auto;background:#f5f9ff;border-color:#dbe7ff}
+  .msg.agent{background:#fff}
+  .msg .who{font-size:11px;color:var(--muted);margin-bottom:6px}
+  .msg p{margin:0;font-size:14px;line-height:1.75}
+  .composer{
+    display:flex;gap:10px;margin-top:14px
+  }
+  .composer input{
+    flex:1;height:48px;border-radius:14px;border:1px solid var(--line);padding:0 14px;background:var(--surface)
+  }
+
+  /* report */
+  .report-layout{
+    display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px
+  }
+  .report-paper{
+    background:white;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-md);
+    padding:28px 30px;
+  }
+  .report-paper h1{margin:0;font-size:28px;letter-spacing:-.03em}
+  .report-paper h2{margin:28px 0 12px;font-size:18px}
+  .report-paper p,.report-paper li{font-size:14px;line-height:1.8;color:#334155}
+  .report-paper ul{padding-left:20px}
+  .quote{
+    border-left:3px solid var(--accent);padding-left:14px;color:#35527b;background:#f8fbff;border-radius:0 12px 12px 0
+  }
+  .side-actions{
+    display:grid;gap:14px;align-content:start
+  }
+
+  /* overlay */
+  .drawer{
+    position:fixed;top:0;right:-460px;width:460px;height:100vh;background:var(--surface);
+    border-left:1px solid var(--line);box-shadow:var(--shadow-lg);
+    transition:right .24s ease;z-index:40;display:flex;flex-direction:column;
+  }
+  .drawer.open{right:0}
+  .drawer-head{
+    padding:18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px
+  }
+  .drawer-head h3{margin:0;font-size:18px}
+  .drawer-head p{margin:6px 0 0;font-size:12px;color:var(--muted);line-height:1.6}
+  .drawer-body{padding:18px;overflow:auto;display:grid;gap:16px}
+  .drawer-close,.modal-close{
+    width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface)
+  }
+  .backdrop{
+    position:fixed;inset:0;background:rgba(10,17,28,.22);backdrop-filter: blur(2px);z-index:35;
+    opacity:0;pointer-events:none;transition:.2s ease
+  }
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .modal{
+    position:fixed;inset:0;display:grid;place-items:center;z-index:50;
+    opacity:0;pointer-events:none;transition:.2s ease;
+  }
+  .modal.show{opacity:1;pointer-events:auto}
+  .modal-card{
+    width:min(760px,calc(100vw - 32px));max-height:84vh;overflow:auto;
+    background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-lg)
+  }
+  .modal-head{
+    padding:18px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;justify-content:space-between;gap:12px
+  }
+  .modal-body{padding:18px;display:grid;gap:14px}
+  .help-tip{
+    padding:12px 14px;border-radius:14px;border:1px dashed #cddcf4;background:#f8fbff;font-size:12px;color:#4e6687;line-height:1.6
+  }
+
+  @media (max-width: 1320px){
+    .kpi-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid-2,.split,.dual-editor,.queue-layout,.chat-layout,.report-layout{grid-template-columns:1fr}
+    .summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width: 1100px){
+    .app{grid-template-columns:86px 1fr}
+    .sidebar .brand h1,.sidebar .brand p,.workspace .meta,.nav-label,.nav-item span.label,.nav-item .count,.hint-card{display:none}
+    .nav-item{justify-content:center}
+    .nav-item .left{justify-content:center}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">SR</div>
+      <div>
+        <h1>SKU Ready Agent</h1>
+        <p>电商运营准入与健康诊断控制台</p>
+      </div>
+    </div>
+
+    <div class="workspace">
+      <div class="meta">
+        <b>618 大促作战台</b>
+        <span>天猫 · 3 店铺 · 6,248 SKU</span>
+      </div>
+      <div class="badge review">进行中</div>
+    </div>
+
+    <nav class="nav-section">
+      <div class="nav-label">主导航</div>
+
+      <a class="nav-item active" data-view-target="dashboard">
+        <span class="left">◫ <span class="label">Dashboard</span></span>
+      </a>
+      <a class="nav-item" data-view-target="connectors">
+        <span class="left">⌁ <span class="label">Connectors</span></span>
+      </a>
+      <a class="nav-item" data-view-target="sku-health">
+        <span class="left">▦ <span class="label">SKU 健康</span></span>
+        <span class="count">48</span>
+      </a>
+      <a class="nav-item" data-view-target="activities">
+        <span class="left">⎘ <span class="label">Activities</span></span>
+      </a>
+      <a class="nav-item" data-view-target="reviews">
+        <span class="left">✓ <span class="label">Reviews</span></span>
+        <span class="count">9</span>
+      </a>
+      <a class="nav-item" data-view-target="reports">
+        <span class="left">☰ <span class="label">Reports</span></span>
+      </a>
+
+      <div class="nav-label">扩展能力</div>
+
+      <a class="nav-item" data-view-target="agent-chat">
+        <span class="left">✦ <span class="label">Agent Chat</span></span>
+      </a>
+      <a class="nav-item" data-view-target="workflows">
+        <span class="left">↻ <span class="label">Workflows</span></span>
+      </a>
+    </nav>
+
+    <div class="side-footer">
+      <div class="hint-card">
+        <h4>设计策略</h4>
+        <p>主界面只保留当前任务最重要的信息。证据链、规则解释、审批详情、导出等次要内容通过右侧抽屉、弹窗、折叠区按需出现。</p>
+      </div>
+    </div>
+  </aside>
+
+  <section class="main">
+    <header class="topbar">
+      <div class="searchline">
+        <div class="search">
+          <span>⌕</span>
+          <input value="搜索 SKU / 商品 / 活动，例如：G003、厨房清洁、618 报名" />
+        </div>
+        <div class="top-filters">
+          <div class="filter">Platform · 天猫</div>
+          <div class="filter">Store · 全部店铺</div>
+          <div class="filter">Category · 家清</div>
+          <div class="filter">Latest Run · 最近 24h</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn" onclick="openDrawer()">证据链侧栏</button>
+        <button class="btn primary" onclick="openModal('report')">生成活动报告</button>
+      </div>
+    </header>
+
+    <main class="content-wrap">
+
+      <section class="page-view active" id="dashboard">
+        <div class="page-head">
+          <div>
+            <h2>Dashboard 总览</h2>
+            <p>总览页只回答三个问题：<b>当前风险在哪里</b>、<b>本轮活动是否可推进</b>、<b>哪些事项必须人工介入</b>。更细的证据、规则与运行明细通过抽屉和折叠层按需查看，不在首屏平铺。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">查看最近 Run</button>
+            <button class="btn" onclick="openModal('signals')">外部 Agent 信号</button>
+            <button class="btn dark">进入活动模拟</button>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="label"><span>监控 SKU</span><span>较昨日 +124</span></div>
+            <div class="value">6,248</div>
+            <div class="sub">当前纳入 618 准入监控范围</div>
+          </div>
+          <div class="kpi">
+            <div class="label"><span>Ready</span><span class="badge ready">可报名</span></div>
+            <div class="value" style="color:var(--ready)">3,912</div>
+            <div class="sub">占比 62.6%</div>
+          </div>
+          <div class="kpi">
+            <div class="label"><span>Repairable</span><span class="badge repair">可修复</span></div>
+            <div class="value" style="color:var(--repair)">1,486</div>
+            <div class="sub">价格 / 库存 / 证书口径为主</div>
+          </div>
+          <div class="kpi">
+            <div class="label"><span>Risky</span><span class="badge risky">风险</span></div>
+            <div class="value" style="color:var(--risky)">531</div>
+            <div class="sub">需关注报名后履约与价格争议</div>
+          </div>
+          <div class="kpi">
+            <div class="label"><span>Blocked</span><span class="badge blocked">阻断</span></div>
+            <div class="value" style="color:var(--blocked)">119</div>
+            <div class="sub">命中硬性准入规则</div>
+          </div>
+          <div class="kpi">
+            <div class="label"><span>数据质量</span><span>DQ</span></div>
+            <div class="value">84</div>
+            <div class="sub">中位分，核心字段完整率 91%</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>风险分布</h3>
+                    <p>按当前活动口径汇总，不在此页展开全部异常列表。</p>
+                  </div>
+                </div>
+                <div class="legend">
+                  <span class="item"><i class="dot ready"></i>Ready</span>
+                  <span class="item"><i class="dot repair"></i>Repairable</span>
+                  <span class="item"><i class="dot risky"></i>Risky</span>
+                  <span class="item"><i class="dot blocked"></i>Blocked</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="chart-bars">
+                  <div class="bar-row">
+                    <span>价格口径异常</span>
+                    <div class="bar"><i style="width:68%;background:var(--risky)"></i></div>
+                    <span>412</span>
+                  </div>
+                  <div class="bar-row">
+                    <span>库存不足</span>
+                    <div class="bar"><i style="width:54%;background:var(--repair)"></i></div>
+                    <span>326</span>
+                  </div>
+                  <div class="bar-row">
+                    <span>证书缺失 / 过期</span>
+                    <div class="bar"><i style="width:39%;background:var(--blocked)"></i></div>
+                    <span>238</span>
+                  </div>
+                  <div class="bar-row">
+                    <span>类目规则冲突</span>
+                    <div class="bar"><i style="width:31%;background:#7c8aa3"></i></div>
+                    <span>177</span>
+                  </div>
+                  <div class="bar-row">
+                    <span>评论风险上升</span>
+                    <div class="bar"><i style="width:23%;background:var(--review)"></i></div>
+                    <span>104</span>
+                  </div>
+                </div>
+                <details class="collapsed" style="margin:18px -18px -18px;">
+                  <summary>
+                    <span>展开原因明细与规则命中摘要</span>
+                    <span class="tiny">按需查看</span>
+                  </summary>
+                  <div class="inside">
+                    <div class="help-tip">这里承接“为什么这类风险上升”的解释、命中规则编号、近三次 run 对比与店铺差异；默认收起，避免首屏被长说明占满。</div>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>最近采集 / 最近模拟</h3>
+                    <p>保留关键 run，不平铺所有历史记录。</p>
+                  </div>
+                </div>
+                <button class="btn" onclick="openModal('runs')">查看全部 Run</button>
+              </div>
+              <div class="panel-body">
+                <div class="list">
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">RUN-2026-06-18-1432 · 天猫家清 618 列表采集</div>
+                      <span class="badge repair">进行中</span>
+                    </div>
+                    <p>已完成 12 / 18 页，当前正在采集 SKU G003 的价格、库存与评论风险摘要。</p>
+                    <div class="item-meta">
+                      <span class="chip">来源：插件采集</span>
+                      <span class="chip">已采 3,214 SKU</span>
+                      <span class="chip">异常 18</span>
+                    </div>
+                  </div>
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">SIM-2026-06-18-1208 · 618 报名规则模拟</div>
+                      <span class="badge review">需 Review</span>
+                    </div>
+                    <p>模拟结果显示 412 个 SKU 价格口径可能存在争议，建议先完成人工抽检后再推活动名单。</p>
+                    <div class="item-meta">
+                      <span class="chip">规则版本：TM-618-v4</span>
+                      <span class="chip">直接 Ready 3,122</span>
+                      <span class="chip">Manual Review 91</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>Pending Reviews</h3>
+                    <p>人工审批门，不暗示自动执行高风险动作。</p>
+                  </div>
+                </div>
+                <button class="btn" data-view-jump="reviews">进入 Review</button>
+              </div>
+              <div class="panel-body">
+                <div class="list">
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">证书版本确认 · G003</div>
+                      <span class="badge review">Manual Review</span>
+                    </div>
+                    <p>附件文件名匹配不到最新模板，系统建议人工确认，不自动视为合规。</p>
+                  </div>
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">价格口径争议抽检 · 91 SKU</div>
+                      <span class="badge risky">需判断</span>
+                    </div>
+                    <p>历史成交价口径与本次活动价解释不一致，需要运营与类目侧共同判断。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>快捷入口</h3>
+                    <p>集中在动作，而不是更多卡片。</p>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="grid-3">
+                  <button class="btn" data-view-jump="sku-health">查看高风险 SKU</button>
+                  <button class="btn" data-view-jump="activities">发起准入模拟</button>
+                  <button class="btn" data-view-jump="reports">查看报告草稿</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>Workflow Runs</h3>
+                    <p>只显示状态摘要，详细步骤走侧栏。</p>
+                  </div>
+                </div>
+                <button class="btn" data-view-jump="workflows">查看工作流</button>
+              </div>
+              <div class="panel-body">
+                <div class="list">
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">插件采集 → 诊断 → Review 入队</div>
+                      <span class="badge ready">稳定</span>
+                    </div>
+                    <p>最近 24h 成功率 98.2%，平均每页解析耗时 14 秒。</p>
+                  </div>
+                  <div class="item">
+                    <div class="item-top">
+                      <div class="item-title">活动规则解析 → 准入模拟</div>
+                      <span class="badge repair">可优化</span>
+                    </div>
+                    <p>少数类目规则需补充字段映射后才可进入自动模拟。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="connectors">
+        <div class="page-head">
+          <div>
+            <h2>Connectors</h2>
+            <p>展示平台连接、插件采集入口、数据同步健康度。详细授权说明与字段清单使用折叠区处理，避免把连接页做成文档页。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">新增连接</button>
+            <button class="btn" onclick="openModal('security')">安全边界说明</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title"><div><h3>平台连接概览</h3><p>当前纳入诊断的数据接入面。</p></div></div></div>
+            <div class="panel-body">
+              <div class="list">
+                <div class="item">
+                  <div class="item-top"><div class="item-title">天猫商家后台</div><span class="badge ready">在线</span></div>
+                  <p>最近插件上报 2 分钟前，3 个店铺处于活跃采集状态。</p>
+                </div>
+                <div class="item">
+                  <div class="item-top"><div class="item-title">京东商智</div><span class="badge review">待配置</span></div>
+                  <p>已完成组织接入，待补充活动字段标准化映射。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title"><div><h3>插件采集安全说明</h3><p>默认显示摘要，避免长文案占满版面。</p></div></div></div>
+            <div class="panel-body">
+              <div class="inline-note">浏览器插件仅采集当前授权页面的 DOM 可见字段，不读取 Cookie、Token 或站外敏感凭证；所有上传动作均带 run 编号和字段来源说明。</div>
+              <details class="collapsed" style="margin:16px -18px -18px;">
+                <summary><span>展开字段边界与上传规则</span><span class="tiny">按需查看</span></summary>
+                <div class="inside">
+                  <div class="help-tip">这里可挂载详细字段列表、采样规则、脱敏逻辑与异常处理说明，作为二层信息存在。</div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="sku-health">
+        <div class="page-head">
+          <div>
+            <h2>SKU 健康</h2>
+            <p>该页采用<strong>左侧列表 + 右侧详情</strong>的任务型布局，而不是一屏卡片平铺。默认只暴露最关键的筛选和字段；诊断历史、证据链、快照对比放在折叠与侧栏里。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">批量导出当前筛选</button>
+            <button class="btn primary" onclick="openDrawer('evidence')">查看所选 SKU 证据链</button>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div>
+                  <h3>SKU 列表</h3>
+                  <p>支持 platform / store / category / healthStatus / dataQuality / keyword</p>
+                </div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="toolbar">
+                <div class="filters">
+                  <div class="filter pill">Platform · 天猫</div>
+                  <div class="filter pill">Store · 北川家清旗舰店</div>
+                  <div class="filter pill">Health · 全部</div>
+                  <div class="filter pill">DQ · ≥ 80</div>
+                </div>
+                <button class="btn" onclick="openModal('advanced-filter')">高级筛选</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>商品名</th>
+                      <th>类目</th>
+                      <th>健康状态</th>
+                      <th>Health Score</th>
+                      <th>DQ Score</th>
+                      <th>Top Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><a class="sku-link" href="javascript:void(0)">G003</a></td>
+                      <td>炫白净渍洗衣液 500ml</td>
+                      <td>家清 / 洗护</td>
+                      <td><span class="badge repair">Repairable</span></td>
+                      <td><span class="score"><span>78</span><span class="scorebar"><i style="width:78%"></i></span></span></td>
+                      <td><span class="score"><span>86</span><span class="scorebar"><i style="width:86%;background:var(--ready)"></i></span></span></td>
+                      <td>活动价口径冲突</td>
+                    </tr>
+                    <tr>
+                      <td><a class="sku-link" href="javascript:void(0)">G014</a></td>
+                      <td>厨房去油喷雾 2L</td>
+                      <td>家清 / 厨房清洁</td>
+                      <td><span class="badge ready">Ready</span></td>
+                      <td><span class="score"><span>94</span><span class="scorebar"><i style="width:94%;background:var(--ready)"></i></span></span></td>
+                      <td><span class="score"><span>92</span><span class="scorebar"><i style="width:92%;background:var(--ready)"></i></span></span></td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td><a class="sku-link" href="javascript:void(0)">G021</a></td>
+                      <td>除菌湿巾家庭装 80 抽</td>
+                      <td>家清 / 湿巾</td>
+                      <td><span class="badge risky">Risky</span></td>
+                      <td><span class="score"><span>62</span><span class="scorebar"><i style="width:62%;background:var(--risky)"></i></span></span></td>
+                      <td><span class="score"><span>80</span><span class="scorebar"><i style="width:80%"></i></span></span></td>
+                      <td>库存不足 + 差评上升</td>
+                    </tr>
+                    <tr>
+                      <td><a class="sku-link" href="javascript:void(0)">G031</a></td>
+                      <td>婴童净护洗衣凝珠</td>
+                      <td>婴童 / 洗护</td>
+                      <td><span class="badge blocked">Blocked</span></td>
+                      <td><span class="score"><span>44</span><span class="scorebar"><i style="width:44%;background:var(--blocked)"></i></span></span></td>
+                      <td><span class="score"><span>69</span><span class="scorebar"><i style="width:69%;background:#8c98ab"></i></span></span></td>
+                      <td>证书已过期</td>
+                    </tr>
+                    <tr>
+                      <td><a class="sku-link" href="javascript:void(0)">G052</a></td>
+                      <td>玻璃清洁剂补充装</td>
+                      <td>家清 / 玻璃清洁</td>
+                      <td><span class="badge review">Manual Review</span></td>
+                      <td><span class="score"><span>71</span><span class="scorebar"><i style="width:71%;background:var(--review)"></i></span></span></td>
+                      <td><span class="score"><span>88</span><span class="scorebar"><i style="width:88%"></i></span></span></td>
+                      <td>类目属性需人工确认</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title">
+                  <div>
+                    <h3>SKU 详情 · G003</h3>
+                    <p>先展示结论与下一步，再按需看长历史。</p>
+                  </div>
+                </div>
+                <span class="badge repair">Repairable</span>
+              </div>
+              <div class="panel-body">
+                <div class="detail-grid">
+                  <div class="meta-card">
+                    <div class="k">商品名称</div>
+                    <div class="v">炫白净渍洗衣液 500ml</div>
+                  </div>
+                  <div class="meta-card">
+                    <div class="k">类目</div>
+                    <div class="v">家清 / 洗护</div>
+                  </div>
+                  <div class="meta-card">
+                    <div class="k">当前健康分</div>
+                    <div class="v">78 / 100</div>
+                  </div>
+                  <div class="meta-card">
+                    <div class="k">数据质量分</div>
+                    <div class="v">86 / 100</div>
+                  </div>
+                </div>
+
+                <div class="detail-box" style="margin-top:14px">
+                  <h4>Issues / Next Actions</h4>
+                  <ul>
+                    <li>活动价 59 元与近 30 天最低成交口径 56 元存在偏差，建议复核促销口径。</li>
+                    <li>库存 43，低于活动建议阈值 80，建议补货 +40 后再模拟一次。</li>
+                    <li>质检报告附件版本需人工确认，不自动判定为合规。</li>
+                  </ul>
+                </div>
+
+                <details class="collapsed" open style="margin:16px -18px -18px;">
+                  <summary>
+                    <span>Evidence Timeline</span>
+                    <span class="tiny">默认展开当前最关键时间线</span>
+                  </summary>
+                  <div class="inside">
+                    <div class="timeline">
+                      <div class="t-item">
+                        <div class="t-top">
+                          <div class="t-title">14:32 · 插件采集页面快照</div>
+                          <span class="badge repair">来源</span>
+                        </div>
+                        <p>采集到活动价、可售库存、质检报告附件入口，写入 run：RUN-2026-06-18-1432。</p>
+                      </div>
+                      <div class="t-item">
+                        <div class="t-top">
+                          <div class="t-title">14:34 · 规则 PR-218 命中</div>
+                          <span class="badge risky">规则</span>
+                        </div>
+                        <p>活动价口径与近 30 天最低成交口径存在偏差，建议进入人工复核名单。</p>
+                      </div>
+                      <div class="t-item">
+                        <div class="t-top">
+                          <div class="t-title">14:36 · Agent 给出修复建议</div>
+                          <span class="badge review">建议</span>
+                        </div>
+                        <p>优先修复价格口径与库存，再判断是否进入活动报名池。高风险动作需人工确认。</p>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <details class="collapsed">
+                  <summary><span>Snapshot History / Diagnosis History / Related Simulation</span><span class="tiny">折叠</span></summary>
+                  <div class="inside">
+                    <div class="help-tip">这部分信息量大但非首要，因此默认收起。实际实现中可拆分为 tab 或右侧抽屉，而不是在主屏中继续堆叠更多卡片。</div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="activities">
+        <div class="page-head">
+          <div>
+            <h2>活动规则与准入模拟</h2>
+            <p>核心强调“规则解析结果可审查，不是黑盒”。上半区固定左右结构：左侧活动规则输入，右侧 Rule DSL 解析。模拟明细默认以结果表为主，复杂解释通过弹窗查看。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn" onclick="openModal('dsl-help')">DSL 说明</button>
+            <button class="btn primary">运行模拟</button>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="dual-editor">
+            <div class="editor">
+              <div class="editor-head">活动规则输入框</div>
+              <textarea>618 大促报名口径：
+1. 活动价不得高于近 30 天最低成交价的 105%
+2. 可售库存不得低于 80
+3. 类目为婴童清洁时，必须存在有效期内质检报告
+4. 近 7 天差评率高于 4% 的 SKU 进入人工 Review
+5. 高风险商品不得直接报名，只允许建议人工排查</textarea>
+            </div>
+            <div class="dsl">
+              <div class="editor-head">解析后的结构化 Rule DSL</div>
+<pre class="dsl-code">activity "618-presale-v4" {
+  when price.activity &lt;= price.last30d_lowest * 1.05
+  when stock.available &gt;= 80
+  when category in ["婴童清洁"] -&gt; cert.qc.valid == true
+  when review.bad_rate_7d &gt; 0.04 -&gt; status = "manual_review"
+  when risk.level == "high" -&gt; status != "direct_ready"
+}</pre>
+            </div>
+          </div>
+
+          <div class="inline-note">规则解析结果可人工审查，可在提交模拟前修改；系统不把自然语言直接当成不可解释的黑盒判断。</div>
+
+          <div class="summary-cards">
+            <div class="summary-card">
+              <b>Direct Ready</b>
+              <strong style="color:var(--ready)">3,122</strong>
+              <span>满足当前规则，可直接进入报名池</span>
+            </div>
+            <div class="summary-card">
+              <b>Repairable</b>
+              <strong style="color:var(--repair)">1,418</strong>
+              <span>修复价格 / 库存 / 证书后可复跑</span>
+            </div>
+            <div class="summary-card">
+              <b>Manual Review</b>
+              <strong style="color:var(--review)">91</strong>
+              <span>证据不足或高风险，需人工判断</span>
+            </div>
+            <div class="summary-card">
+              <b>Blocked</b>
+              <strong style="color:var(--blocked)">137</strong>
+              <span>命中硬性禁报或准入阻断项</span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div>
+                  <h3>模拟结果表</h3>
+                  <p>默认只展示关键列； repairPlan / evidence 细节通过行内弹层查看。</p>
+                </div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>eligibilityStatus</th>
+                      <th>failedRules</th>
+                      <th>repairPlan</th>
+                      <th>priority</th>
+                      <th>evidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="sku-link">G003</td>
+                      <td><span class="badge repair">Repairable</span></td>
+                      <td>PR-218, ST-080</td>
+                      <td><button class="btn" onclick="openModal('repair-plan')">查看修复建议</button></td>
+                      <td>高</td>
+                      <td><button class="btn" onclick="openDrawer('evidence')">查看证据</button></td>
+                    </tr>
+                    <tr>
+                      <td class="sku-link">G021</td>
+                      <td><span class="badge review">Manual Review</span></td>
+                      <td>RV-004</td>
+                      <td>人工判断是否纳入活动</td>
+                      <td>中</td>
+                      <td><button class="btn" onclick="openDrawer('evidence')">查看证据</button></td>
+                    </tr>
+                    <tr>
+                      <td class="sku-link">G031</td>
+                      <td><span class="badge blocked">Blocked</span></td>
+                      <td>CERT-211</td>
+                      <td>补齐有效质检报告</td>
+                      <td>高</td>
+                      <td><button class="btn" onclick="openDrawer('evidence')">查看证据</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <details class="collapsed" style="margin:16px -18px -18px;">
+                <summary><span>展开规则版本对比与边界说明</span><span class="tiny">按需查看</span></summary>
+                <div class="inside">
+                  <div class="help-tip">这里可放规则 diff、解析失败原因、字段缺失率、模拟覆盖率等二层信息，而不是把大量说明卡片直接堆在主页面。</div>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="reviews">
+        <div class="page-head">
+          <div>
+            <h2>Review 工作台</h2>
+            <p>左侧 Review Queue，右侧 Review Detail。这个页面明确表达：这里是 <b>Human Approval Gate</b>，系统只能给建议与证据，不能自动执行高风险动作。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">批量分配</button>
+            <button class="btn" onclick="openModal('review-policy')">审批策略</button>
+          </div>
+        </div>
+
+        <div class="queue-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div>
+                  <h3>Review Queue</h3>
+                  <p>按 status / reviewType / assigneeRole / source 筛选</p>
+                </div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="filters" style="margin-bottom:14px">
+                <div class="filter pill">status · 待处理</div>
+                <div class="filter pill">reviewType · 价格</div>
+                <div class="filter pill">source · 模拟结果</div>
+              </div>
+              <div class="queue-list">
+                <div class="queue-item active">
+                  <h4>G003 · 活动价口径争议</h4>
+                  <p>系统建议修复价格口径后再报名，但需人工确认历史最低成交价的解释口径。</p>
+                </div>
+                <div class="queue-item">
+                  <h4>G052 · 类目属性人工确认</h4>
+                  <p>页面属性文本与标准类目字段存在一处不一致，建议人工校验后再入池。</p>
+                </div>
+                <div class="queue-item">
+                  <h4>G031 · 证书有效期复核</h4>
+                  <p>附件日期 OCR 置信度偏低，系统不自动阻断，待人工判定。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div>
+                  <h3>Review Detail</h3>
+                  <p>问题、建议、忽略风险与证据分层展示。</p>
+                </div>
+              </div>
+              <span class="badge review">待审批</span>
+            </div>
+            <div class="panel-body stack">
+              <div class="detail-box">
+                <h4>Question</h4>
+                <p>G003 的活动价 59 元是否符合本次 618 活动的历史最低价约束？是否允许在现有解释口径下报名？</p>
+              </div>
+              <div class="detail-box">
+                <h4>Recommendation</h4>
+                <p>建议先补充价格口径依据；如无特殊策略支持，则调整活动价或从本轮报名名单中移出。</p>
+              </div>
+              <div class="detail-box">
+                <h4>Risk If Ignored</h4>
+                <p>若直接报名，可能在活动审核或售后环节触发价格争议，影响活动通过率与后续平台信任分。</p>
+              </div>
+              <div class="detail-box">
+                <h4>Evidence</h4>
+                <ul>
+                  <li>插件采集 run：RUN-2026-06-18-1432</li>
+                  <li>规则命中：PR-218</li>
+                  <li>历史成交价摘要：最近 30 天最低 56 元</li>
+                  <li>当前活动价：59 元</li>
+                </ul>
+              </div>
+              <div class="decision-bar">
+                <button class="btn button-green">Approve</button>
+                <button class="btn button-red">Reject</button>
+                <button class="btn button-amber">Modify</button>
+                <button class="btn" onclick="openDrawer('evidence')">打开完整证据链</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="agent-chat">
+        <div class="page-head">
+          <div>
+            <h2>Agent Chat</h2>
+            <p>这不是客服聊天，而是自然语言控制台。主区域聚焦对话；Tool Trace、Linked Evidence、Linked Entities 放在右侧窄栏，不让聊天界面抢走整个平台的重心。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn" onclick="openModal('prompt-examples')">查看示例提问</button>
+          </div>
+        </div>
+
+        <div class="chat-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">
+                <div>
+                  <h3>Conversation</h3>
+                  <p>用户可询问原因、模拟变化、生成报告。</p>
+                </div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="conversation">
+                <div class="msg user">
+                  <div class="who">你</div>
+                  <p>为什么 G003 不能报名？</p>
+                </div>
+                <div class="msg agent">
+                  <div class="who">SKU Ready Agent</div>
+                  <p>G003 当前不建议直接报名，主要原因有两点：一是活动价 59 元与近 30 天最低成交口径 56 元存在偏差，命中规则 PR-218；二是可售库存 43 低于建议阈值 80。价格问题可修复，库存问题也可通过补货改善，但证书附件版本仍建议人工确认。</p>
+                </div>
+                <div class="msg user">
+                  <div class="who">你</div>
+                  <p>如果补货 200 件会怎样？</p>
+                </div>
+                <div class="msg agent">
+                  <div class="who">SKU Ready Agent</div>
+                  <p>若补货 200 件，库存风险可从 Repairable 中移除，G003 的主要问题将只剩价格口径与附件版本确认。若价格解释成立，则可进入 Manual Review 后再决定是否报名。</p>
+                </div>
+              </div>
+              <div class="composer">
+                <input value="例如：生成本次活动报名建议报告" />
+                <button class="btn primary">发送</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title"><div><h3>Tool Trace</h3><p>执行过什么工具动作</p></div></div></div>
+              <div class="panel-body">
+                <div class="list">
+                  <div class="item">
+                    <div class="item-title">read.run_snapshot()</div>
+                    <p>读取插件采集快照 RUN-2026-06-18-1432</p>
+                  </div>
+                  <div class="item">
+                    <div class="item-title">eval.rule(PR-218)</div>
+                    <p>检查活动价与历史最低成交价口径差异</p>
+                  </div>
+                  <div class="item">
+                    <div class="item-title">simulate.stock(+200)</div>
+                    <p>模拟补货后准入状态变化</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title"><div><h3>Linked Evidence</h3><p>对话引用证据</p></div></div></div>
+              <div class="panel-body">
+                <div class="item-meta">
+                  <span class="chip">RUN-2026-06-18-1432</span>
+                  <span class="chip">规则 PR-218</span>
+                  <span class="chip">SKU G003</span>
+                  <span class="chip">库存字段</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title"><div><h3>Linked Entities</h3><p>当前会话命中的对象</p></div></div></div>
+              <div class="panel-body">
+                <div class="list">
+                  <div class="item"><div class="item-title">SKU · G003</div></div>
+                  <div class="item"><div class="item-title">活动 · 618 预热报名</div></div>
+                  <div class="item"><div class="item-title">店铺 · 北川家清旗舰店</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="reports">
+        <div class="page-head">
+          <div>
+            <h2>报告页</h2>
+            <p>左侧是报告预览，右侧是操作与证据关联。导出能力保留但弱化，不让“导出 PDF/Excel”成为主操作焦点。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn">复制摘要</button>
+            <button class="btn primary">生成活动报告</button>
+          </div>
+        </div>
+
+        <div class="report-layout">
+          <div class="report-paper">
+            <div class="tiny">活动报告草稿 · 2026-06-18</div>
+            <h1>618 活动 SKU 报名建议报告</h1>
+            <p>适用范围：天猫 · 北川家清旗舰店 · 618 预热报名池。本报告基于最近一次插件采集 run、规则模拟结果、Review 工作台待决事项与 Agent 证据链生成。</p>
+
+            <h2>一、可报名 SKU</h2>
+            <p>当前共识别 <b>3,122</b> 个 Direct Ready SKU，已满足价格、库存、资质与类目规则要求，可优先进入本轮报名池。</p>
+
+            <h2>二、可修复 SKU</h2>
+            <p>共有 <b>1,418</b> 个 SKU 处于可修复状态，主要问题集中在库存补齐、价格口径调整、附件补传等低至中风险项。</p>
+            <ul>
+              <li>价格口径冲突：412</li>
+              <li>库存不足：326</li>
+              <li>附件缺失或版本需确认：238</li>
+            </ul>
+
+            <h2>三、不建议报名 SKU</h2>
+            <p>共有 <b>137</b> 个 SKU 命中硬性阻断规则，不建议进入本轮活动报名。主要包括证书失效、禁报类目命中、关键字段缺失无法判定等。</p>
+
+            <h2>四、关键风险</h2>
+            <p class="quote">本轮最大风险不是“系统无法判断”，而是价格口径解释与人工 Review 队列的处理速度。若未先清理这两个环节，即使 Ready 数量较多，也可能在后续活动审核中出现集中回退。</p>
+
+            <h2>五、证据与规则引用</h2>
+            <ul>
+              <li>插件采集 Run：RUN-2026-06-18-1432</li>
+              <li>规则版本：TM-618-v4</li>
+              <li>重点规则：PR-218 / ST-080 / CERT-211 / RV-004</li>
+              <li>待决 Review：9 项</li>
+            </ul>
+          </div>
+
+          <div class="side-actions">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title"><div><h3>报告操作</h3><p>操作区独立，避免打断阅读</p></div></div></div>
+              <div class="panel-body stack">
+                <button class="btn primary">生成活动报告</button>
+                <button class="btn">复制摘要</button>
+                <button class="btn">导出 PDF</button>
+                <button class="btn">导出 Excel</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title"><div><h3>证据关联</h3><p>默认显示摘要</p></div></div></div>
+              <div class="panel-body">
+                <div class="item-meta">
+                  <span class="chip">RUN-2026-06-18-1432</span>
+                  <span class="chip">规则 TM-618-v4</span>
+                  <span class="chip">Review 9 项</span>
+                </div>
+                <div style="margin-top:12px">
+                  <button class="btn" onclick="openDrawer('evidence')">打开完整证据链</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page-view" id="workflows">
+        <div class="page-head">
+          <div>
+            <h2>Workflows</h2>
+            <p>工作流页偏运行视角：插件采集、诊断、模拟、Review 入队与报告生成形成闭环。详情步骤适合右侧抽屉，不在主屏平铺每个节点。</p>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div class="panel-title"><div><h3>当前工作流</h3><p>主任务链路概览</p></div></div></div>
+          <div class="panel-body">
+            <div class="timeline">
+              <div class="t-item"><div class="t-top"><div class="t-title">插件采集</div><span class="badge ready">稳定</span></div><p>按页解析 SKU 列表，采集价格、库存、评论、资质与页面字段来源。</p></div>
+              <div class="t-item"><div class="t-top"><div class="t-title">健康诊断</div><span class="badge repair">进行中</span></div><p>生成 Health Score、DQ Score、Top Issue 与建议动作。</p></div>
+              <div class="t-item"><div class="t-top"><div class="t-title">活动模拟</div><span class="badge review">待触发</span></div><p>基于最新规则 DSL 运行准入模拟，输出 Ready / Repairable / Review / Blocked。</p></div>
+              <div class="t-item"><div class="t-top"><div class="t-title">Review 入队</div><span class="badge review">待处理</span></div><p>高风险和证据不足项进入人工审批门。</p></div>
+              <div class="t-item"><div class="t-top"><div class="t-title">报告生成</div><span class="badge muted-badge">后续</span></div><p>汇总报名建议、关键风险与证据引用，生成对内报告草稿。</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </section>
+</div>
+
+<div class="backdrop" id="backdrop" onclick="closeOverlays()"></div>
+
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h3>证据链侧栏</h3>
+      <p>用于承接不适合常驻主页面的长证据、规则命中、run 详情与字段来源。</p>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <div class="detail-box">
+      <h4>当前对象</h4>
+      <p>SKU G003 · 炫白净渍洗衣液 500ml</p>
+    </div>
+    <div class="detail-box">
+      <h4>Evidence</h4>
+      <ul>
+        <li>插件采集 run：RUN-2026-06-18-1432</li>
+        <li>字段来源：活动价 / 可售库存 / 附件入口</li>
+        <li>规则命中：PR-218、ST-080</li>
+        <li>Review Gate：附件版本需人工确认</li>
+      </ul>
+    </div>
+    <div class="detail-box">
+      <h4>最近 Tool Trace</h4>
+      <ul>
+        <li>parse.page_snapshot()</li>
+        <li>eval.rule(PR-218)</li>
+        <li>calc.stock_threshold()</li>
+      </ul>
+    </div>
+    <div class="help-tip">这个侧栏就是“二层信息容器”：把所有证据链、规则正文、采集字段原始值、运行 trace 放在这里，而不是打散成更多卡片堆到主界面。</div>
+  </div>
+</aside>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="modalTitle" style="margin:0;font-size:20px">弹窗</h3>
+        <p id="modalDesc" style="margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.6"></p>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+  const navItems = document.querySelectorAll('.nav-item[data-view-target]');
+  const views = document.querySelectorAll('.page-view');
+  navItems.forEach(item=>{
+    item.addEventListener('click', ()=>{
+      navItems.forEach(i=>i.classList.remove('active'));
+      item.classList.add('active');
+      const target = item.getAttribute('data-view-target');
+      views.forEach(v=>v.classList.toggle('active', v.id === target));
+    });
+  });
+
+  document.querySelectorAll('[data-view-jump]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = btn.getAttribute('data-view-jump');
+      document.querySelector(`.nav-item[data-view-target="${target}"]`)?.click();
+    });
+  });
+
+  const backdrop = document.getElementById('backdrop');
+  const drawer = document.getElementById('drawer');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalDesc = document.getElementById('modalDesc');
+  const modalBody = document.getElementById('modalBody');
+
+  function openDrawer(mode){
+    drawer.classList.add('open');
+    backdrop.classList.add('show');
+  }
+  function closeDrawer(){
+    drawer.classList.remove('open');
+    if(!modal.classList.contains('show')) backdrop.classList.remove('show');
+  }
+  function openModal(kind){
+    const content = {
+      report: {
+        title: '生成活动报告',
+        desc: '报告生成前，确认范围、规则版本与是否包含待审批项。',
+        body: `
+          <div class="detail-box"><h4>报告范围</h4><p>平台：天猫 · 店铺：全部 · 活动：618 预热报名 · 数据时间：最近 24h</p></div>
+          <div class="detail-box"><h4>是否包含 Manual Review 项</h4><p>建议默认包含，但单独标记为“待人工确认”，避免在报告中误导为已通过。</p></div>
+          <div class="decision-bar"><button class="btn primary">确认生成</button><button class="btn" onclick="closeModal()">取消</button></div>
+        `
+      },
+      signals: {
+        title: '外部 Agent 信号',
+        desc: '外部信号是辅助判断，不应挤占 Dashboard 主任务区。',
+        body: `
+          <div class="list">
+            <div class="item"><div class="item-top"><div class="item-title">差评风险波动</div><span class="badge review">提醒</span></div><p>厨房清洁类目近 7 天差评率略有上升，建议重点关注评论风险字段。</p></div>
+            <div class="item"><div class="item-top"><div class="item-title">竞品活动价变化</div><span class="badge repair">参考</span></div><p>3 个核心竞品在过去 48h 下调活动价，可能影响价格策略判断。</p></div>
+          </div>
+        `
+      },
+      runs: {
+        title: '全部 Run 列表',
+        desc: 'Run 历史用弹窗承接，而不是塞在 Dashboard 主屏。',
+        body: `
+          <div class="list">
+            <div class="item"><div class="item-top"><div class="item-title">RUN-2026-06-18-1432</div><span class="badge repair">进行中</span></div><p>天猫家清 618 列表采集</p></div>
+            <div class="item"><div class="item-top"><div class="item-title">SIM-2026-06-18-1208</div><span class="badge review">需 Review</span></div><p>618 报名规则模拟</p></div>
+            <div class="item"><div class="item-top"><div class="item-title">RUN-2026-06-18-0903</div><span class="badge ready">完成</span></div><p>插件侧商品页抽样采集</p></div>
+          </div>
+        `
+      },
+      security: {
+        title: '安全边界说明',
+        desc: '用于解释插件与控制台的数据采集和上传边界。',
+        body: `
+          <div class="detail-box"><h4>插件采集范围</h4><ul><li>仅当前授权页面 DOM 字段</li><li>不读取 Cookie / Token</li><li>不发起站外抓取</li></ul></div>
+          <div class="detail-box"><h4>上传内容</h4><p>仅上传字段值、字段来源、run 编号和必要页面上下文，用于诊断与准入模拟。</p></div>
+        `
+      },
+      "advanced-filter": {
+        title: '高级筛选',
+        desc: '复杂筛选放进弹窗，保持列表页主视图干净。',
+        body: `
+          <div class="grid-3">
+            <div class="detail-box"><h4>店铺</h4><p>北川家清旗舰店 / 北川家居专营店 / 北川婴童店</p></div>
+            <div class="detail-box"><h4>健康分区间</h4><p>0-60 / 60-80 / 80-100</p></div>
+            <div class="detail-box"><h4>异常类型</h4><p>价格 / 库存 / 证书 / 评论 / 类目</p></div>
+          </div>
+          <div class="decision-bar"><button class="btn primary">应用筛选</button></div>
+        `
+      },
+      "dsl-help": {
+        title: 'Rule DSL 说明',
+        desc: '帮助业务理解 DSL 的结构化表达。',
+        body: `
+          <div class="detail-box"><h4>为什么需要 DSL</h4><p>为了让自然语言规则变成可审查、可复用、可追踪的结构化表达，而不是让系统直接黑盒判断。</p></div>
+          <div class="detail-box"><h4>字段来源</h4><p>DSL 中使用的字段都应能回溯到插件采集、平台字段映射或人工录入来源。</p></div>
+        `
+      },
+      "repair-plan": {
+        title: 'Repair Plan · G003',
+        desc: '修复建议是可执行清单，不是宽泛建议。',
+        body: `
+          <div class="detail-box"><h4>建议 1</h4><p>复核活动价与近 30 天最低成交价解释口径，必要时将活动价调整至 58 元以内。</p></div>
+          <div class="detail-box"><h4>建议 2</h4><p>补货 +40，满足活动库存阈值 80。</p></div>
+          <div class="detail-box"><h4>建议 3</h4><p>重新上传或确认质检报告模板版本，再复跑模拟。</p></div>
+        `
+      },
+      "review-policy": {
+        title: '审批策略',
+        desc: '明确高风险动作必须人工确认。',
+        body: `
+          <div class="detail-box"><h4>审批原则</h4><ul><li>系统只能推荐，不自动执行</li><li>价格口径争议必须人工判断</li><li>证书与类目冲突需保留证据链</li></ul></div>
+        `
+      },
+      "prompt-examples": {
+        title: '示例提问',
+        desc: '面向运营的自然语言控制台提问方式。',
+        body: `
+          <div class="detail-box"><ul>
+            <li>为什么 G003 不能报名？</li>
+            <li>如果补货 200 件会怎样？</li>
+            <li>列出本次活动中最值得优先修复的 20 个 SKU</li>
+            <li>生成本次活动报名建议报告</li>
+          </ul></div>
+        `
+      }
+    };
+    const data = content[kind];
+    if(!data) return;
+    modalTitle.textContent = data.title;
+    modalDesc.textContent = data.desc;
+    modalBody.innerHTML = data.body;
+    modal.classList.add('show');
+    backdrop.classList.add('show');
+  }
+  function closeModal(){
+    modal.classList.remove('show');
+    if(!drawer.classList.contains('open')) backdrop.classList.remove('show');
+  }
+  function closeOverlays(){
+    closeModal();
+    closeDrawer();
+  }
+</script>
+</body>
+</html>
