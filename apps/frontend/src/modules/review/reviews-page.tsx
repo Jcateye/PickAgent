@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
@@ -112,6 +113,17 @@ export function ReviewsPage() {
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/reviews',
+          pageTitle: 'Review 工作台',
+          selectedEntity: selectedReview
+            ? { entityType: 'reviewItem', entityId: selectedReview.id, label: selectedReview.targetLabel }
+            : { entityType: 'reviewItem', entityId: 'review-empty', label: 'Review Queue' },
+          visibleFilters: { status: filters.status, sourceType: filters.sourceType },
+          visibleColumns: ['target', 'status', 'sourceType', 'riskLevel', 'updatedAt'],
+        }}
+      />
       <PageHeader
         title="Review 工作台"
         description={`消费 ReviewService 输出和来源对象 DTO，完成列表筛选、详情检查、证据摘要与人工决策闭环。当前数据源：${provider.mode === 'service' ? 'ReviewService' : 'mock fallback'}`}

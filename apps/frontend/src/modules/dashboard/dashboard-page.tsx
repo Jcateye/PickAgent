@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { getDashboardSummary } from '@/modules/staff-health-console/data'
 import { workflowRunTone } from '@/modules/staff-health-console/contracts'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -11,6 +12,15 @@ export async function DashboardPage() {
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/dashboard',
+          pageTitle: 'Dashboard 总览',
+          selectedEntity: { entityType: 'dashboard', entityId: 'dashboard', label: 'Dashboard 总览' },
+          visibleFilters: { scope: 'all-platforms', health: 'summary' },
+          visibleColumns: ['risk', 'count', 'nextAction', 'latestRun'],
+        }}
+      />
       <PageHeader
         title="Dashboard 总览"
         description="总览页展示监控范围、健康状态分布、数据质量摘要和最近运行入口；页面只消费 summary DTO，不展开活动模拟或审批细节。"

@@ -1635,6 +1635,127 @@ h4 {
   font-size: 15px;
 }
 
+.agentCopilotBubble {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 40;
+  min-width: 108px;
+  height: 44px;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: var(--shadow-md);
+  font-weight: 800;
+}
+
+.agentCopilotSidecar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 50;
+  width: min(560px, 100vw);
+  height: 100vh;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  transform: translateX(104%);
+  transition: transform 0.18s ease;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.agentCopilotSidecar--open {
+  transform: translateX(0);
+}
+
+.agentCopilotSidecarHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfdff;
+}
+
+.agentCopilotSidecarHeader strong {
+  display: block;
+  font-size: 16px;
+}
+
+.agentCopilotSidecarHeader p {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.agentCopilotSidecarBody {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.agentCopilotStack,
+.agentCopilotSidecarGrid,
+.agentGateLinks {
+  display: grid;
+  gap: 12px;
+}
+
+.agentCopilotStack--compact .panelHeader,
+.agentCopilotStack--compact .panelBody {
+  padding: 14px;
+}
+
+.agentCopilotPromptBox {
+  grid-template-columns: 1fr;
+}
+
+.agentGateLinks {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.agentGateLinks a {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.eventReplayBox {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.eventReplayBox span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.eventReplayBox strong {
+  font-size: 28px;
+}
+
+.eventReplayBox p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
@@ -1761,5 +1882,18 @@ h4 {
   .sourceObjectBar,
   .contractList div {
     flex-direction: column;
+  }
+
+  .agentCopilotBubble {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .agentCopilotSidecar {
+    width: 100vw;
+  }
+
+  .agentGateLinks {
+    grid-template-columns: 1fr;
   }
 }

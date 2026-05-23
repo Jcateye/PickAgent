@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { healthStatusTone } from '@/modules/staff-health-console/contracts'
 import { getSkuDetail, getSkuList } from '@/modules/staff-health-console/data'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -12,6 +13,19 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: selectedSku.projection.targetHref ?? '/sku-health',
+          pageTitle: 'SKU 健康',
+          selectedEntity: {
+            entityType: 'sku',
+            entityId: selectedSku.projection.skuProfileId,
+            label: selectedSku.projection.productName,
+          },
+          visibleFilters: { platform: selectedSku.projection.platform, healthStatus: selectedSku.projection.healthStatus },
+          visibleColumns: ['sku', 'platform', 'health', 'quality', 'nextAction'],
+        }}
+      />
       <PageHeader
         title="SKU 健康"
         description="SKU 列表和详情只展示 CurrentSkuProjection 与 SKU detail DTO，状态、分数、问题和下一步动作均不在前端重新计算。"

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
@@ -28,6 +29,19 @@ export function ReportsPage() {
 
   return (
     <div className="pageStack">
+      <WorkbenchContextRegistration
+        context={{
+          route: '/reports',
+          pageTitle: '报告页',
+          selectedEntity: {
+            entityType: 'report',
+            entityId: preview.id,
+            label: preview.title,
+          },
+          visibleFilters: { reportType: preview.type, outputStatus },
+          visibleColumns: ['section', 'summary', 'evidence', 'unresolvedRisk'],
+        }}
+      />
       <PageHeader
         title="报告页"
         description={`消费 ReportService DTO 展示报告章节、摘要、输出状态、evidence summary 和未解决风险。当前数据源：${mode === 'service' ? 'ReportService' : 'mock fallback'}`}
