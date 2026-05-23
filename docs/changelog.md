@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-23] 记录远程数据库运维连接方式
+
+- 模块：docs / deployment / database
+- 类型：文档
+- 摘要：在运维文档中补充远程 PostgreSQL 通过 Cloudflare Access TCP 转发访问的步骤、`POSTGRES_ENV_FILE` 使用方式、`scripts/migrate --tcp` 命令和共享环境注意事项，并在数据库规范中增加指针。
+- 影响范围：`docs/deployment-guidelines.md`、`docs/db-guidelines.md`
+- 是否影响 contracts：否
+- 是否影响数据结构：否
+- 兼容性说明：仅记录运维操作方式，不提交任何数据库密钥。
+- 关联任务 / 决策：远程数据库 migration 运维约定
+
+---
+
 ### [2026-05-23] 生成 Agent 工作台数据表与 CRUD 模板
 
 - 模块：backend / prisma / contracts

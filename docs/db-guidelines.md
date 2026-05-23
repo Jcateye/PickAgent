@@ -9,6 +9,7 @@
 - 高频查询字段做结构化列，不把可筛选条件长期塞进 JSON
 - 活动上下文结果不能覆盖日常健康结论
 - migration 必须可追踪、可审查、可回滚
+- 远程数据库连接与 migration 操作按 `docs/deployment-guidelines.md` 的 Cloudflare Access TCP 方式执行，不在仓库内保存数据库密钥。
 
 ## 2. 当前建议的核心实体
 

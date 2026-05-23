@@ -35,6 +35,7 @@
 ### 2.4 数据库
 
 - PostgreSQL
+- 当前远程数据库不直接暴露公网连接，开发与 migration 通过 Cloudflare Access TCP 转发访问。
 
 ## 3. 当前建议的 demo 拓扑
 
@@ -66,6 +67,38 @@ Browser
 - 不得硬编码密钥到仓库
 - 插件与总控制台的 API 地址必须可配置
 - demo 环境配置与 local 配置分离
+- 远程数据库密钥只放在本机或密钥系统，不提交到仓库；当前本机约定通过 `POSTGRES_ENV_FILE` 指向外部 env 文件。
+
+### 4.1 远程数据库连接方式
+
+远程 PostgreSQL 通过 Cloudflare Access TCP 暴露给本机端口，不能直接把远程地址写进 `DATABASE_URL` 后访问。需要先在单独终端启动 TCP 转发：
+
+```bash
+cloudflared access tcp \
+  --hostname postgres.justpyq.com \
+  --url 127.0.0.1:15432
+```
+
+然后在另一个终端执行 migration 或数据库维护命令。当前项目统一使用 `scripts/migrate --tcp`：
+
+```bash
+POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
+  scripts/migrate --tcp
+```
+
+默认约定：
+
+- 本机转发地址：`127.0.0.1:15432`
+- 目标数据库：`pickagent`
+- 密钥来源：`POSTGRES_ENV_FILE`
+- TCP 模式需要 `POSTGRES_USER`、`POSTGRES_PASSWORD`，可选 `POSTGRES_DB`、`POSTGRES_MAINTENANCE_DB`、`POSTGRES_LOCAL_HOST`、`POSTGRES_LOCAL_PORT`
+
+注意事项：
+
+- `cloudflared access tcp` 进程必须保持运行，migration 完成后再关闭。
+- 不要把 `/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env` 或其中内容提交到仓库。
+- 如果只需要应用最新 SQL 文件，可显式传入 `MIGRATION_FILE=...`；默认 migration 文件以 `scripts/migrate` 内部配置为准，新增 migration 后要确认目标文件。
+- 远程数据库属于共享环境时，执行 migration 前先确认当前分支、migration 范围和回滚思路。
 
 ## 5. 当前构建与发布原则
 
