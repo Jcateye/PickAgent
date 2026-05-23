@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-23] 补充 macmini 本机运维兜底连接
+
+- 模块：docs / deployment / database
+- 类型：文档
+- 摘要：在运维文档中补充当前基础设施运行在 `macmini` 时的本机直连兜底方案，用于 Cloudflare Access TCP、外部网络或转发链路异常时区分访问链路故障和数据库服务故障。
+- 影响范围：`docs/deployment-guidelines.md`
+- 是否影响 contracts：否
+- 是否影响数据结构：否
+- 兼容性说明：仅补充运维排障说明，不提交任何数据库密钥。
+- 关联任务 / 决策：macmini 基础设施本机兜底连接
+
+---
+
 ### [2026-05-23] 记录远程数据库运维连接方式
 
 - 模块：docs / deployment / database

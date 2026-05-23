@@ -100,6 +100,23 @@ POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
 - 默认会按目录名顺序应用 `apps/backend/prisma/migrations/*/migration.sql`；如果只需要应用单个 SQL 文件，可显式传入 `MIGRATION_FILE=...`。
 - 远程数据库属于共享环境时，执行 migration 前先确认当前分支、migration 范围和回滚思路。
 
+#### 4.1.1 macmini 本机兜底连接
+
+当前基础设施运行在 `macmini` 上。如果按常规运维方式无法通过 Cloudflare Access TCP 转发连上数据库，可以登录到 `macmini` 后尝试直接本地连接。
+
+适用场景：
+
+- Cloudflare Access、外部网络、DNS 或本机转发端口异常，但 `macmini` 上的数据库服务仍在运行。
+- 需要确认问题是远程访问链路故障，还是数据库服务本身故障。
+
+操作原则：
+
+- 只在确认当前目标机器就是承载基础设施的 `macmini` 时使用本地直连。
+- 优先复用 `POSTGRES_ENV_FILE` 中的账号、库名和维护库配置，不把密钥复制进仓库文档。
+- 本地直连通常使用 `127.0.0.1` 或数据库容器 / 服务在 `macmini` 上暴露的内网地址；端口以 `macmini` 实际服务监听为准。
+- 如果本地直连可用而 Cloudflare Access TCP 不可用，优先排查 Cloudflare Access、网络代理、DNS、端口转发进程和客户端登录状态。
+- 如果本地直连也不可用，按数据库服务故障处理，不要继续重复执行 migration。
+
 ## 5. 当前构建与发布原则
 
 - 每次 demo 部署都应能追溯到具体代码版本
