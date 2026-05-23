@@ -1,8 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TODO: 为当前项目实现 scripts/deploy。
-# 请保持脚本名称稳定，并在这里代理到实际工具链。
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
 
-echo "scripts/deploy 尚未实现。"
-exit 1
+usage() {
+  usage_for "deploy"
+  cat <<EOF
+
+Environment:
+  DEPLOY_TARGET   demo or dry-run, default: dry-run
+
+The dry-run target builds and typechecks deployable units without publishing.
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+module="$(normalize_module "${1:-repo}")"
+shift || true
+DEPLOY_TARGET="${DEPLOY_TARGET:-dry-run}"
+
+case "$DEPLOY_TARGET" in
+  dry-run)
+    "$ROOT_DIR/scripts/build" "$module" "$@"
+    ;;
+  demo)
+    "$ROOT_DIR/scripts/build" "$module" "$@"
+    printf '%s\n' "Demo publish command is not configured yet. Build completed; publish manually with the approved hosting provider."
+    exit 1
+    ;;
+  *)
+    printf 'Unknown DEPLOY_TARGET: %s\n' "$DEPLOY_TARGET" >&2
+    exit 2
+    ;;
+esac

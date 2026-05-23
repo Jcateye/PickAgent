@@ -1,4 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pnpm --dir "apps/frontend" build
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage_for "build"
+  exit 0
+fi
+
+module="$(normalize_module "${1:-repo}")"
+shift || true
+
+case "$module" in
+  frontend)
+    run_package_script "$ROOT_DIR/apps/frontend" build "$@"
+    ;;
+  extension)
+    run_package_script "$ROOT_DIR/apps/extension" build "$@"
+    ;;
+  backend)
+    run_backend_typecheck
+    ;;
+  agent-workbench)
+    run_backend_typecheck
+    run_package_script "$ROOT_DIR/apps/frontend" build "$@"
+    ;;
+  repo)
+    run_backend_typecheck
+    run_package_script "$ROOT_DIR/apps/frontend" build "$@"
+    run_package_script "$ROOT_DIR/apps/extension" build "$@"
+    ;;
+esac

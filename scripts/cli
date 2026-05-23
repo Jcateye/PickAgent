@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+usage() {
+  cat <<EOF
+Usage:
+  ./scripts/cli <action> <module> [args...]
+
+Actions:
+  bootstrap
+  dev
+  build
+  lint
+  typecheck
+  test
+  migrate
+  deploy
+
+Examples:
+  ./scripts/cli dev frontend
+  ./scripts/cli dev extension
+  ./scripts/cli build repo
+  ./scripts/cli typecheck backend
+  ./scripts/cli test agent-workbench
+  ./scripts/cli migrate backend --tcp
+  ./scripts/cli deploy repo
+EOF
+}
+
+if (($# < 1)) || [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+action="$1"
+shift
+
+case "$action" in
+  bootstrap|dev|build|lint|typecheck|test|deploy)
+    "$ROOT_DIR/scripts/$action" "$@"
+    ;;
+  migrate)
+    if [[ "${1:-}" =~ ^(backend|repo|all)$ ]]; then
+      shift
+    fi
+    "$ROOT_DIR/scripts/migrate" "$@"
+    ;;
+  *)
+    printf 'Unknown action: %s\n' "$action" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

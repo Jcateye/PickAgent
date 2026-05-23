@@ -97,7 +97,7 @@ POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
 
 - `cloudflared access tcp` 进程必须保持运行，migration 完成后再关闭。
 - 不要把 `/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env` 或其中内容提交到仓库。
-- 如果只需要应用最新 SQL 文件，可显式传入 `MIGRATION_FILE=...`；默认 migration 文件以 `scripts/migrate` 内部配置为准，新增 migration 后要确认目标文件。
+- 默认会按目录名顺序应用 `apps/backend/prisma/migrations/*/migration.sql`；如果只需要应用单个 SQL 文件，可显式传入 `MIGRATION_FILE=...`。
 - 远程数据库属于共享环境时，执行 migration 前先确认当前分支、migration 范围和回滚思路。
 
 ## 5. 当前构建与发布原则
@@ -109,24 +109,57 @@ POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
 
 ## 6. 统一脚本入口
 
-继续沿用根目录 `scripts/`：
+继续沿用根目录 `scripts/`，统一格式为：
 
-- `scripts/bootstrap`
-- `scripts/dev`
-- `scripts/test`
-- `scripts/lint`
-- `scripts/typecheck`
-- `scripts/build`
-- `scripts/migrate`
-- `scripts/deploy`
+```bash
+./scripts/cli <action> <module> [args...]
+```
 
-当前项目含义：
+也可以直接调用动作脚本：
 
-- `bootstrap`：安装依赖、初始化本地环境变量说明
-- `dev`：同时或分别启动 frontend / backend / extension 开发模式
-- `build`：构建总控制台与插件
-- `migrate`：执行 Prisma migration
-- `deploy`：发布 demo 环境
+```bash
+./scripts/dev frontend
+./scripts/build repo
+./scripts/typecheck backend
+```
+
+当前动作：
+
+- `bootstrap`：安装模块依赖
+- `dev`：启动本地开发进程
+- `build`：构建总控制台与插件，或执行后端可构建性检查
+- `lint`：运行当前可用静态检查
+- `typecheck`：执行 TypeScript / Prisma schema 检查
+- `test`：运行当前可用测试；测试脚本未落地时执行 smoke typecheck
+- `migrate`：执行数据库 migration
+- `deploy`：执行发布前构建；默认 `DEPLOY_TARGET=dry-run`
+
+当前模块：
+
+- `repo`：仓库聚合目标
+- `frontend`：员工工作台与 Agent Copilot UI，落在 `apps/frontend`
+- `backend`：服务端骨架、Prisma schema、application services，落在 `apps/backend`
+- `extension`：浏览器插件、页面数据解析与采集入口，落在 `apps/extension`
+- `agent-workbench`：Agent Copilot / Hermes 工作台相关前端与后端校验
+
+常用命令：
+
+```bash
+./scripts/cli bootstrap repo
+./scripts/cli dev frontend
+./scripts/cli dev extension
+./scripts/cli build repo
+./scripts/cli typecheck backend
+./scripts/cli test agent-workbench
+./scripts/cli migrate backend --tcp
+DEPLOY_TARGET=dry-run ./scripts/cli deploy repo
+```
+
+说明：
+
+- `backend` 当前没有独立 HTTP dev server 和 package manifest，脚本会执行 Prisma validate 与 TypeScript smoke typecheck。
+- `agent-workbench` 当前不是独立部署单元，脚本会组合校验 `frontend` 和 `backend` 的 Agent Copilot 相关承载面。
+- `scripts/deploy` 默认不发布，只做 dry-run 构建；demo 发布命令需要在 hosting provider 明确后再接入。
 
 ## 7. migration 与发布顺序
 

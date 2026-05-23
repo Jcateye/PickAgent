@@ -11,7 +11,7 @@ usage() {
   printf '%s\n' ""
   printf '%s\n' "Environment:"
   printf '%s\n' "  MIGRATE_TARGET           docker or tcp, default: docker"
-  printf '%s\n' "  MIGRATION_FILE           SQL migration file path"
+  printf '%s\n' "  MIGRATION_FILE           Optional single SQL migration file path"
   printf '%s\n' "  POSTGRES_DB              Target database, default: pickagent"
   printf '%s\n' "  POSTGRES_ENV_FILE        Optional env file for TCP mode"
   printf '%s\n' ""
@@ -66,7 +66,7 @@ if [[ -n "$POSTGRES_ENV_FILE" ]]; then
   set +a
 fi
 
-MIGRATION_FILE="${MIGRATION_FILE:-$ROOT_DIR/apps/backend/prisma/migrations/20260523162500_init/migration.sql}"
+MIGRATION_DIR="$ROOT_DIR/apps/backend/prisma/migrations"
 POSTGRES_DB="${POSTGRES_DB:-pickagent}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-shared-postgres}"
 POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-admin}"
@@ -102,8 +102,24 @@ require_container_name() {
   fi
 }
 
-if [[ ! -f "$MIGRATION_FILE" ]]; then
-  printf 'Migration file not found: %s\n' "$MIGRATION_FILE" >&2
+MIGRATION_FILES=()
+if [[ -n "${MIGRATION_FILE:-}" ]]; then
+  if [[ ! -f "$MIGRATION_FILE" ]]; then
+    printf 'Migration file not found: %s\n' "$MIGRATION_FILE" >&2
+    exit 1
+  fi
+  MIGRATION_FILES=("$MIGRATION_FILE")
+elif [[ -d "$MIGRATION_DIR" ]]; then
+  while IFS= read -r file; do
+    MIGRATION_FILES+=("$file")
+  done < <(find "$MIGRATION_DIR" -mindepth 2 -maxdepth 2 -name migration.sql | sort)
+else
+  printf 'Migration directory not found: %s\n' "$MIGRATION_DIR" >&2
+  exit 1
+fi
+
+if ((${#MIGRATION_FILES[@]} == 0)); then
+  printf 'No migration files found in: %s\n' "$MIGRATION_DIR" >&2
   exit 1
 fi
 
@@ -142,9 +158,12 @@ run_docker_migration() {
     fi
   fi
 
-  cat "$MIGRATION_FILE" | "${docker_cmd[@]}" exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_MIGRATION_USER" -d "$POSTGRES_DB"
+  for migration_file in "${MIGRATION_FILES[@]}"; do
+    cat "$migration_file" | "${docker_cmd[@]}" exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_MIGRATION_USER" -d "$POSTGRES_DB"
+    printf 'Migration applied: %s -> %s/%s\n' "$migration_file" "$POSTGRES_CONTAINER" "$POSTGRES_DB"
+  done
 
-  printf 'Migration applied: %s -> %s/%s\n' "$MIGRATION_FILE" "$POSTGRES_CONTAINER" "$POSTGRES_DB"
+  printf 'Migration batch completed: %s file(s)\n' "${#MIGRATION_FILES[@]}"
 }
 
 run_tcp_migration() {
@@ -164,9 +183,12 @@ run_tcp_migration() {
     fi
   fi
 
-  PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_LOCAL_HOST" -p "$POSTGRES_LOCAL_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$MIGRATION_FILE"
+  for migration_file in "${MIGRATION_FILES[@]}"; do
+    PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_LOCAL_HOST" -p "$POSTGRES_LOCAL_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f "$migration_file"
+    printf 'Migration applied: %s -> %s:%s/%s\n' "$migration_file" "$POSTGRES_LOCAL_HOST" "$POSTGRES_LOCAL_PORT" "$POSTGRES_DB"
+  done
 
-  printf 'Migration applied: %s -> %s:%s/%s\n' "$MIGRATION_FILE" "$POSTGRES_LOCAL_HOST" "$POSTGRES_LOCAL_PORT" "$POSTGRES_DB"
+  printf 'Migration batch completed: %s file(s)\n' "${#MIGRATION_FILES[@]}"
 }
 
 case "$MIGRATE_TARGET" in

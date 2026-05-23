@@ -1,8 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# TODO: 为当前项目实现 scripts/test。
-# 请保持脚本名称稳定，并在这里代理到实际工具链。
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
 
-echo "scripts/test 尚未实现。"
-exit 1
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage_for "test"
+  exit 0
+fi
+
+module="$(normalize_module "${1:-repo}")"
+shift || true
+
+case "$module" in
+  frontend)
+    if require_package_script "$ROOT_DIR/apps/frontend" test; then
+      run_package_script "$ROOT_DIR/apps/frontend" test "$@"
+    else
+      printf '%s\n' "Frontend has no test script; running typecheck as the current smoke check."
+      run_package_script "$ROOT_DIR/apps/frontend" typecheck "$@"
+    fi
+    ;;
+  extension)
+    if require_package_script "$ROOT_DIR/apps/extension" test; then
+      run_package_script "$ROOT_DIR/apps/extension" test "$@"
+    else
+      printf '%s\n' "Extension has no test script; running typecheck as the current smoke check."
+      run_package_script "$ROOT_DIR/apps/extension" typecheck "$@"
+    fi
+    ;;
+  backend)
+    run_backend_typecheck
+    ;;
+  agent-workbench)
+    run_backend_typecheck
+    run_package_script "$ROOT_DIR/apps/frontend" typecheck "$@"
+    ;;
+  repo)
+    run_backend_typecheck
+    run_package_script "$ROOT_DIR/apps/frontend" typecheck "$@"
+    run_package_script "$ROOT_DIR/apps/extension" typecheck "$@"
+    ;;
+esac

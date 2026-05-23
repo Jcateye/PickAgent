@@ -1,4 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pnpm install --dir "apps/frontend"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage_for "bootstrap"
+  exit 0
+fi
+
+module="$(normalize_module "${1:-repo}")"
+shift || true
+
+case "$module" in
+  frontend)
+    pnpm install --dir "$ROOT_DIR/apps/frontend" "$@"
+    ;;
+  extension)
+    (cd "$ROOT_DIR/apps/extension" && npm install "$@")
+    ;;
+  backend)
+    printf '%s\n' "Backend has no package manifest yet; no dependency bootstrap is required."
+    ;;
+  agent-workbench)
+    pnpm install --dir "$ROOT_DIR/apps/frontend" "$@"
+    ;;
+  repo)
+    pnpm install --dir "$ROOT_DIR/apps/frontend" "$@"
+    (cd "$ROOT_DIR/apps/extension" && npm install "$@")
+    ;;
+esac

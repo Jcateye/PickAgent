@@ -1,48 +1,82 @@
 # Scripts
 
-根目录 `scripts/` 是 PickAgent 的统一门面入口目录。
+根目录 `scripts/` 是 PickAgent 的统一运维入口。外部文档、CI、agent 自动化和人工操作都优先调用这里的门面脚本，不直接写死底层 `pnpm`、`npm`、`plasmo`、`tsc` 或 `prisma` 命令。
 
-## 当前目标
+## Usage
 
-对外暴露一组稳定脚本入口，统一驱动：
+```bash
+./scripts/cli <action> <module> [args...]
+```
 
-- 总控制台开发与构建
-- 浏览器插件开发与构建
-- 服务端类型检查、测试、迁移
-- demo 部署
+也可以直接调用具体脚本：
 
-## 当前建议脚本集合
+```bash
+./scripts/dev frontend
+./scripts/build repo
+./scripts/typecheck backend
+```
 
-- `bootstrap`
-- `dev`
-- `test`
-- `lint`
-- `typecheck`
-- `build`
-- `migrate`
-- `deploy`
+## Actions
 
-## 当前项目语义
+| Action | 作用 |
+|---|---|
+| `bootstrap` | 安装模块依赖 |
+| `dev` | 启动本地开发进程 |
+| `build` | 构建可部署或可加载制品 |
+| `lint` | 运行当前可用静态检查 |
+| `typecheck` | 运行 TypeScript / Prisma schema 检查 |
+| `test` | 运行当前可用自动化测试；测试脚本未落地时执行 smoke typecheck |
+| `migrate` | 执行数据库 migration |
+| `deploy` | 执行发布前构建；默认 `DEPLOY_TARGET=dry-run` |
 
-| 脚本 | 作用 | 对应项目语义 |
-|---|---|---|
-| `bootstrap` | 初始化项目 | 安装依赖、准备 `.env`、初始化本地数据库说明 |
-| `dev` | 启动开发环境 | 启动 `apps/frontend`、`apps/backend`、`apps/extension` 的本地开发模式 |
-| `test` | 运行测试 | 执行后端规则测试、前端关键测试、插件最小验证 |
-| `lint` | 静态检查 | 前端 / 后端 / 插件 lint |
-| `typecheck` | 类型检查 | TypeScript typecheck、contracts 一致性检查 |
-| `build` | 构建制品 | 构建总控制台与插件，必要时构建后端服务 |
-| `migrate` | 数据库迁移 | 执行 Prisma migration |
-| `deploy` | 执行部署 | 发布 demo 环境并执行最小验证清单 |
+## Modules
 
-## 当前约束
+| Module | 对应范围 |
+|---|---|
+| `repo` | 当前仓库聚合目标 |
+| `frontend` | `apps/frontend`，员工工作台 + Agent Copilot UI |
+| `backend` | `apps/backend`，服务端骨架、Prisma schema、application services |
+| `extension` | `apps/extension`，浏览器插件与页面数据采集入口 |
+| `agent-workbench` | Agent Copilot 工作台相关前端 + 后端校验 |
 
-- 外部文档、CI、agent 自动化优先调用门面入口，不直接绑定底层工具命令
-- 插件、前端、后端若内部命令不同，应在脚本内部做统一封装
-- 若某脚本暂未实现，应在对应子目录 README 中说明计划行为
+常用别名：
 
-## 当前状态
+| Alias | Module |
+|---|---|
+| `all` | `repo` |
+| `plugin`, `browser-extension` | `extension` |
+| `employee-workbench`, `admin` | `frontend` |
+| `agent`, `hermes` | `agent-workbench` |
 
-- 目录结构已预留
-- 具体脚本实现尚未正式初始化
-- 下一步应在工程骨架启动时统一补全这些脚本
+## Examples
+
+```bash
+./scripts/cli bootstrap repo
+./scripts/cli dev frontend
+./scripts/cli dev extension
+./scripts/cli build repo
+./scripts/cli build extension
+./scripts/cli lint repo
+./scripts/cli typecheck backend
+./scripts/cli test agent-workbench
+./scripts/cli migrate backend --tcp
+./scripts/cli deploy repo
+```
+
+## 当前模块行为
+
+- `frontend`：通过 `pnpm --dir apps/frontend` 运行 `dev/build/lint/typecheck`。
+- `extension`：通过 `npm run` 运行 Plasmo 的 `dev/build/typecheck`。
+- `backend`：当前没有独立 `package.json` 和 HTTP dev server，门面脚本会执行 Prisma schema validate 和后端 TypeScript smoke typecheck。
+- `agent-workbench`：当前 Hermes / Agent Copilot 工程落在 `frontend` UI 与 `backend` Agent 数据结构 / service 骨架中，门面脚本会组合执行两侧检查。
+- `repo`：聚合执行 backend、frontend、extension 当前可用的检查或构建。
+
+## 部署约束
+
+`scripts/deploy` 默认是 dry-run，不会真实发布：
+
+```bash
+DEPLOY_TARGET=dry-run ./scripts/deploy repo
+```
+
+`DEPLOY_TARGET=demo` 目前会先执行构建，然后明确停止在发布步骤，因为 demo hosting provider 和发布命令尚未在 ADR 中确认。确认后只需要在 `scripts/deploy` 内部接入发布命令，外部调用方式保持不变。
