@@ -15,7 +15,6 @@ import {
   recognizeCommentPage,
   recognizeProductPage,
   resetTaskState,
-  submitCommentIngestToRealApi,
   submitToRealIngestApi,
   syntheticDoudianCommentPages,
   syntheticDoudianPages,
@@ -97,21 +96,17 @@ export function SidePanelApp() {
       assertNoSensitivePayloadKeys(productPayload)
       assertNoSensitivePayloadKeys(commentPayload)
       setRunState((state) => ({ ...state, status: "submitting", lastEvent: "SUBMIT" }))
-      const receipts: SubmitReceipt[] = []
-      if (productPayload.rows.length > 0) {
-        receipts.push(await submitToRealIngestApi(productPayload))
+      if (productPayload.rows.length === 0) {
+        throw new Error("没有可提交的商品采集记录；请先完成库存页采集。")
       }
-      if (commentPayload.rows.length > 0) {
-        receipts.push(await submitCommentIngestToRealApi(commentPayload))
-      }
-      const acceptedRows = receipts.reduce((sum, receipt) => sum + receipt.acceptedRows, 0)
+      const receipt = await submitToRealIngestApi(productPayload)
       setRunState((state) =>
         attachTaskSubmitReceipt(state, {
           ok: true,
-          submitId: receipts.map((receipt) => receipt.submitId).join(" + ") || `REAL-EMPTY-${state.runId}`,
-          acceptedRows,
+          submitId: receipt.submitId,
+          acceptedRows: receipt.acceptedRows,
           adapter: "real-api",
-          message: "真实 ingest API 已接收商品/评论 payload；后端负责诊断与评论统计投影。"
+          message: "真实 POST /api/ingest 已接收商品 payload；后端负责归一化、诊断和 SKU 健康投影。"
         })
       )
     } catch (error) {
@@ -419,15 +414,20 @@ export function SidePanelApp() {
 
           <ModuleCard title="提交通路" right={<span className="muted-text">contract-first</span>}>
             <div className="submit-panel">
-              <p className="muted-text">商品提交到 /api/ingest，评论提交到 /api/ingest/comments；后端统一负责归一化、诊断输入和统计投影。</p>
+              <p className="muted-text">生产默认路径：商品采集提交到真实 POST /api/ingest；评论 payload 当前只做预览和后续扩展输入。mock submit 仅保留为开发与断网 fallback。</p>
               <div className="dependency-note">{realIngestAdapterDependency.note}</div>
+              {runState.lastError ? <div className="inline-warning">失败原因：{runState.lastError}</div> : null}
               {runState.submitReceipt ? (
                 <div className="submit-receipt">
                   <strong>{runState.submitReceipt.submitId}</strong>
                   <span>{runState.submitReceipt.message}</span>
                   <span>接收记录：{runState.submitReceipt.acceptedRows}</span>
+                  <span>通路：{runState.submitReceipt.adapter === "real-api" ? "真实 /api/ingest" : "mock fallback"}</span>
                 </div>
               ) : null}
+              <a className="console-link" href="/sku-health" target="_blank" rel="noreferrer">
+                打开员工工作台 SKU 健康页
+              </a>
             </div>
           </ModuleCard>
         </div>
