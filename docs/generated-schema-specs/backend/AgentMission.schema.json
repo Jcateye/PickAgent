@@ -1,0 +1,187 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentMission",
+  "resource": {
+    "name": "agentMission",
+    "plural": "agentMissions",
+    "tag": "Agent Mission"
+  },
+  "table": {
+    "name": "agent_missions",
+    "comment": "Agent Mission 表，保存 Agent Copilot 的业务目标、约束、计划与状态"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-missions"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "session_id",
+      "dbType": "uuid",
+      "comment": "Agent 会话 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "mission_type",
+      "dbType": "varchar(96)",
+      "comment": "任务类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "objective",
+      "dbType": "text",
+      "comment": "用户给出的任务目标",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "autonomy_level",
+      "dbType": "varchar(64)",
+      "comment": "自治等级",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "L2_REVIEW_GATED_AGENT"
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "Mission 状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "DRAFT"
+    },
+    {
+      "name": "source_surface",
+      "dbType": "varchar(64)",
+      "comment": "来源入口",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "agent_copilot"
+    },
+    {
+      "name": "subject_type",
+      "dbType": "varchar(96)",
+      "comment": "业务主体类型",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "subject_id",
+      "dbType": "varchar(128)",
+      "comment": "业务主体 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "constraints_json",
+      "dbType": "jsonb",
+      "comment": "任务约束 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "workbench_context_json",
+      "dbType": "jsonb",
+      "comment": "创建 Mission 时的工作台上下文 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "plan_json",
+      "dbType": "jsonb",
+      "comment": "当前计划 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "next_actions_json",
+      "dbType": "jsonb",
+      "comment": "下一步建议 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "canceled_at",
+      "dbType": "timestamptz",
+      "comment": "取消时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

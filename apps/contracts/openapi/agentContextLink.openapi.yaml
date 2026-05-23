@@ -1,0 +1,336 @@
+openapi: 3.0.3
+info:
+  title: "Agent Context Link API"
+  version: "1.0.0"
+  description: "Agent 上下文关联表，把消息、工具、Review Gate 与工作台对象关联以支持高亮、跳转和对照"
+tags:
+  - name: "Agent Context Link"
+    description: "Agent 上下文关联表，把消息、工具、Review Gate 与工作台对象关联以支持高亮、跳转和对照"
+paths:
+  /api/v1/agent-context-links:
+    get:
+      tags: ["Agent Context Link"]
+      summary: "查询Agent Context Link列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: missionId
+          schema:
+            type: string
+          description: "Agent Mission ID"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: sourceType
+          schema:
+            type: string
+          description: "来源类型"
+        - in: query
+          name: sourceId
+          schema:
+            type: string
+          description: "来源 ID"
+        - in: query
+          name: entityType
+          schema:
+            type: string
+          description: "关联实体类型"
+        - in: query
+          name: entityId
+          schema:
+            type: string
+          description: "关联实体 ID"
+        - in: query
+          name: label
+          schema:
+            type: string
+          description: "关联对象显示名称"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - missionId
+              - runId
+              - sourceType
+              - sourceId
+              - entityType
+              - entityId
+              - label
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Context Link"]
+      summary: "创建Agent Context Link"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentContextLinkRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextLinkResponse'
+  /api/v1/agent-context-links/{id}:
+    get:
+      tags: ["Agent Context Link"]
+      summary: "查询Agent Context Link详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextLinkResponse'
+    patch:
+      tags: ["Agent Context Link"]
+      summary: "更新Agent Context Link"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentContextLinkRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextLinkResponse'
+    delete:
+      tags: ["Agent Context Link"]
+      summary: "删除Agent Context Link"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentContextLinkRequest:
+      type: object
+      properties:
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          nullable: true
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        sourceType:
+          type: string
+          description: "来源类型"
+          example: "sample_source_type"
+        sourceId:
+          type: string
+          description: "来源 ID"
+          nullable: true
+          example: "sample_source_id"
+        entityType:
+          type: string
+          description: "关联实体类型"
+          example: "sample_entity_type"
+        entityId:
+          type: string
+          description: "关联实体 ID"
+          example: "sample_entity_id"
+        label:
+          type: string
+          description: "关联对象显示名称"
+          nullable: true
+          example: "sample_label"
+        reason:
+          type: string
+          description: "关联原因"
+          nullable: true
+          example: "sample_reason"
+        highlightJson:
+          type: object
+          description: "前端高亮信息 JSON"
+          example: "{'key': 'value'}"
+      required:
+        - entityId
+        - entityType
+        - sourceType
+    UpdateAgentContextLinkRequest:
+      type: object
+      properties:
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          nullable: true
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        sourceType:
+          type: string
+          description: "来源类型"
+          example: "sample_source_type"
+        sourceId:
+          type: string
+          description: "来源 ID"
+          nullable: true
+          example: "sample_source_id"
+        entityType:
+          type: string
+          description: "关联实体类型"
+          example: "sample_entity_type"
+        entityId:
+          type: string
+          description: "关联实体 ID"
+          example: "sample_entity_id"
+        label:
+          type: string
+          description: "关联对象显示名称"
+          nullable: true
+          example: "sample_label"
+        reason:
+          type: string
+          description: "关联原因"
+          nullable: true
+          example: "sample_reason"
+        highlightJson:
+          type: object
+          description: "前端高亮信息 JSON"
+          example: "{'key': 'value'}"
+    AgentContextLinkResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          nullable: true
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        sourceType:
+          type: string
+          description: "来源类型"
+          example: "sample_source_type"
+        sourceId:
+          type: string
+          description: "来源 ID"
+          nullable: true
+          example: "sample_source_id"
+        entityType:
+          type: string
+          description: "关联实体类型"
+          example: "sample_entity_type"
+        entityId:
+          type: string
+          description: "关联实体 ID"
+          example: "sample_entity_id"
+        label:
+          type: string
+          description: "关联对象显示名称"
+          nullable: true
+          example: "sample_label"
+        reason:
+          type: string
+          description: "关联原因"
+          nullable: true
+          example: "sample_reason"
+        highlightJson:
+          type: object
+          description: "前端高亮信息 JSON"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - entityId
+        - entityType
+        - highlightJson
+        - id
+        - sourceType
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentContextLinkResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

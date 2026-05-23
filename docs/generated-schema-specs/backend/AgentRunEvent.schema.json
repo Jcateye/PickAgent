@@ -1,0 +1,87 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentRunEvent",
+  "resource": {
+    "name": "agentRunEvent",
+    "plural": "agentRunEvents",
+    "tag": "Agent Run Event"
+  },
+  "table": {
+    "name": "agent_run_events",
+    "comment": "Agent 运行事件表，保存 Pi lifecycle、assistant delta、tool event 与 review gate 事件以支持 SSE 重放"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-run-events"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "sequence",
+      "dbType": "int",
+      "comment": "Run 内递增事件序号",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "event_type",
+      "dbType": "varchar(64)",
+      "comment": "事件类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "event_phase",
+      "dbType": "varchar(64)",
+      "comment": "事件阶段",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "payload_json",
+      "dbType": "jsonb",
+      "comment": "事件载荷 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: "Agent Session API"
+  version: "1.0.0"
+  description: "Agent 会话表，保存用户或工作台上下文下的长期 Agent 会话并映射 Pi session"
+tags:
+  - name: "Agent Session"
+    description: "Agent 会话表，保存用户或工作台上下文下的长期 Agent 会话并映射 Pi session"
+paths:
+  /api/v1/agent-sessions:
+    get:
+      tags: ["Agent Session"]
+      summary: "查询Agent Session列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: sessionKey
+          schema:
+            type: string
+          description: "前端或渠道侧会话键"
+        - in: query
+          name: userId
+          schema:
+            type: string
+          description: "用户 ID"
+        - in: query
+          name: surface
+          schema:
+            type: string
+          description: "来源界面"
+        - in: query
+          name: piSessionKey
+          schema:
+            type: string
+          description: "Pi 内部 session key"
+        - in: query
+          name: title
+          schema:
+            type: string
+          description: "会话标题"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "会话状态"
+        - in: query
+          name: lastActiveAt
+          schema:
+            type: string
+            format: date-time
+          description: "最近活跃时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - sessionKey
+              - userId
+              - surface
+              - piSessionKey
+              - title
+              - status
+              - lastActiveAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Session"]
+      summary: "创建Agent Session"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentSessionRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSessionResponse'
+  /api/v1/agent-sessions/{id}:
+    get:
+      tags: ["Agent Session"]
+      summary: "查询Agent Session详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSessionResponse'
+    patch:
+      tags: ["Agent Session"]
+      summary: "更新Agent Session"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentSessionRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSessionResponse'
+    delete:
+      tags: ["Agent Session"]
+      summary: "删除Agent Session"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentSessionRequest:
+      type: object
+      properties:
+        sessionKey:
+          type: string
+          description: "前端或渠道侧会话键"
+          example: "sample_session_key"
+        userId:
+          type: string
+          description: "用户 ID"
+          nullable: true
+          example: "sample_user_id"
+        surface:
+          type: string
+          description: "来源界面"
+          example: "console"
+        piSessionKey:
+          type: string
+          description: "Pi 内部 session key"
+          nullable: true
+          example: "sample_pi_session_key"
+        piSessionRef:
+          type: string
+          description: "Pi session 持久化引用"
+          nullable: true
+          example: "sample_pi_session_ref"
+        title:
+          type: string
+          description: "会话标题"
+          nullable: true
+          example: "sample_title"
+        status:
+          type: string
+          description: "会话状态"
+          example: "ACTIVE"
+        configJson:
+          type: object
+          description: "会话级配置 JSON"
+          example: "{'key': 'value'}"
+        lastActiveAt:
+          type: string
+          format: date-time
+          description: "最近活跃时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - sessionKey
+    UpdateAgentSessionRequest:
+      type: object
+      properties:
+        sessionKey:
+          type: string
+          description: "前端或渠道侧会话键"
+          example: "sample_session_key"
+        userId:
+          type: string
+          description: "用户 ID"
+          nullable: true
+          example: "sample_user_id"
+        surface:
+          type: string
+          description: "来源界面"
+          example: "console"
+        piSessionKey:
+          type: string
+          description: "Pi 内部 session key"
+          nullable: true
+          example: "sample_pi_session_key"
+        piSessionRef:
+          type: string
+          description: "Pi session 持久化引用"
+          nullable: true
+          example: "sample_pi_session_ref"
+        title:
+          type: string
+          description: "会话标题"
+          nullable: true
+          example: "sample_title"
+        status:
+          type: string
+          description: "会话状态"
+          example: "ACTIVE"
+        configJson:
+          type: object
+          description: "会话级配置 JSON"
+          example: "{'key': 'value'}"
+        lastActiveAt:
+          type: string
+          format: date-time
+          description: "最近活跃时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    AgentSessionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        sessionKey:
+          type: string
+          description: "前端或渠道侧会话键"
+          example: "sample_session_key"
+        userId:
+          type: string
+          description: "用户 ID"
+          nullable: true
+          example: "sample_user_id"
+        surface:
+          type: string
+          description: "来源界面"
+          example: "console"
+        piSessionKey:
+          type: string
+          description: "Pi 内部 session key"
+          nullable: true
+          example: "sample_pi_session_key"
+        piSessionRef:
+          type: string
+          description: "Pi session 持久化引用"
+          nullable: true
+          example: "sample_pi_session_ref"
+        title:
+          type: string
+          description: "会话标题"
+          nullable: true
+          example: "sample_title"
+        status:
+          type: string
+          description: "会话状态"
+          example: "ACTIVE"
+        configJson:
+          type: object
+          description: "会话级配置 JSON"
+          example: "{'key': 'value'}"
+        lastActiveAt:
+          type: string
+          format: date-time
+          description: "最近活跃时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - configJson
+        - createdAt
+        - id
+        - sessionKey
+        - status
+        - surface
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSessionResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

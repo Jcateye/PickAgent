@@ -1,0 +1,91 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentContextSnapshot",
+  "resource": {
+    "name": "agentContextSnapshot",
+    "plural": "agentContextSnapshots",
+    "tag": "Agent Context Snapshot"
+  },
+  "table": {
+    "name": "agent_context_snapshots",
+    "comment": "Agent 上下文快照表，保存一次 run 中 Agent 当时可见的工作台上下文、系统上下文和证据摘要"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-context-snapshots"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "workbench_context_json",
+      "dbType": "jsonb",
+      "comment": "工作台上下文 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "stable_context_json",
+      "dbType": "jsonb",
+      "comment": "稳定系统上下文 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "mission_context_json",
+      "dbType": "jsonb",
+      "comment": "Mission 上下文 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_summary_json",
+      "dbType": "jsonb",
+      "comment": "证据摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "token_estimate",
+      "dbType": "int",
+      "comment": "上下文 token 估算",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

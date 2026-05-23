@@ -21,6 +21,69 @@
     "spec": "docs/generated-schema-specs/backend/ActivitySimulationRun.schema.json"
   },
   {
+    "model": "AgentContextLink",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_context_links",
+    "spec": "docs/generated-schema-specs/backend/AgentContextLink.schema.json"
+  },
+  {
+    "model": "AgentContextSnapshot",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_context_snapshots",
+    "spec": "docs/generated-schema-specs/backend/AgentContextSnapshot.schema.json"
+  },
+  {
+    "model": "AgentMessage",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_messages",
+    "spec": "docs/generated-schema-specs/backend/AgentMessage.schema.json"
+  },
+  {
+    "model": "AgentMission",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_missions",
+    "spec": "docs/generated-schema-specs/backend/AgentMission.schema.json"
+  },
+  {
+    "model": "AgentReviewGate",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_review_gates",
+    "spec": "docs/generated-schema-specs/backend/AgentReviewGate.schema.json"
+  },
+  {
+    "model": "AgentRun",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_runs",
+    "spec": "docs/generated-schema-specs/backend/AgentRun.schema.json"
+  },
+  {
+    "model": "AgentRunEvent",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_run_events",
+    "spec": "docs/generated-schema-specs/backend/AgentRunEvent.schema.json"
+  },
+  {
+    "model": "AgentSession",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_sessions",
+    "spec": "docs/generated-schema-specs/backend/AgentSession.schema.json"
+  },
+  {
+    "model": "AgentToolCall",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "agent_tool_calls",
+    "spec": "docs/generated-schema-specs/backend/AgentToolCall.schema.json"
+  },
+  {
     "model": "Connector",
     "module": "backend",
     "modulePath": "apps/backend",

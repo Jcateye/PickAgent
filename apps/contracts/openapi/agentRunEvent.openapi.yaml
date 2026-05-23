@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: "Agent Run Event API"
+  version: "1.0.0"
+  description: "Agent 运行事件表，保存 Pi lifecycle、assistant delta、tool event 与 review gate 事件以支持 SSE 重放"
+tags:
+  - name: "Agent Run Event"
+    description: "Agent 运行事件表，保存 Pi lifecycle、assistant delta、tool event 与 review gate 事件以支持 SSE 重放"
+paths:
+  /api/v1/agent-run-events:
+    get:
+      tags: ["Agent Run Event"]
+      summary: "查询Agent Run Event列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: sequence
+          schema:
+            type: integer
+            format: int32
+          description: "Run 内递增事件序号"
+        - in: query
+          name: eventType
+          schema:
+            type: string
+          description: "事件类型"
+        - in: query
+          name: eventPhase
+          schema:
+            type: string
+          description: "事件阶段"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - runId
+              - sequence
+              - eventType
+              - eventPhase
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Run Event"]
+      summary: "创建Agent Run Event"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRunEventRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunEventResponse'
+  /api/v1/agent-run-events/{id}:
+    get:
+      tags: ["Agent Run Event"]
+      summary: "查询Agent Run Event详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunEventResponse'
+    patch:
+      tags: ["Agent Run Event"]
+      summary: "更新Agent Run Event"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRunEventRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunEventResponse'
+    delete:
+      tags: ["Agent Run Event"]
+      summary: "删除Agent Run Event"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentRunEventRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        sequence:
+          type: integer
+          format: int32
+          description: "Run 内递增事件序号"
+          example: 1
+        eventType:
+          type: string
+          description: "事件类型"
+          example: "sample_event_type"
+        eventPhase:
+          type: string
+          description: "事件阶段"
+          nullable: true
+          example: "sample_event_phase"
+        payloadJson:
+          type: object
+          description: "事件载荷 JSON"
+          example: "{'key': 'value'}"
+      required:
+        - eventType
+        - runId
+        - sequence
+    UpdateAgentRunEventRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        sequence:
+          type: integer
+          format: int32
+          description: "Run 内递增事件序号"
+          example: 1
+        eventType:
+          type: string
+          description: "事件类型"
+          example: "sample_event_type"
+        eventPhase:
+          type: string
+          description: "事件阶段"
+          nullable: true
+          example: "sample_event_phase"
+        payloadJson:
+          type: object
+          description: "事件载荷 JSON"
+          example: "{'key': 'value'}"
+    AgentRunEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        sequence:
+          type: integer
+          format: int32
+          description: "Run 内递增事件序号"
+          example: 1
+        eventType:
+          type: string
+          description: "事件类型"
+          example: "sample_event_type"
+        eventPhase:
+          type: string
+          description: "事件阶段"
+          nullable: true
+          example: "sample_event_phase"
+        payloadJson:
+          type: object
+          description: "事件载荷 JSON"
+          example: "{'key': 'value'}"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - eventType
+        - id
+        - payloadJson
+        - runId
+        - sequence
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentRunEventResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

@@ -1,0 +1,176 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentToolCall",
+  "resource": {
+    "name": "agentToolCall",
+    "plural": "agentToolCalls",
+    "tag": "Agent Tool Call"
+  },
+  "table": {
+    "name": "agent_tool_calls",
+    "comment": "Agent 工具调用表，保存工具输入输出、状态、风险等级、Review 策略和证据引用"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-tool-calls"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "external_tool_call_id",
+      "dbType": "varchar(128)",
+      "comment": "Pi 或 SDK 侧工具调用 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "workflow_step_id",
+      "dbType": "uuid",
+      "comment": "关联 WorkflowStep ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "tool_name",
+      "dbType": "varchar(96)",
+      "comment": "工具名称",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "工具调用状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "PENDING"
+    },
+    {
+      "name": "risk_level",
+      "dbType": "varchar(16)",
+      "comment": "风险等级",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "L1"
+    },
+    {
+      "name": "review_policy",
+      "dbType": "varchar(64)",
+      "comment": "Review 策略",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "none"
+    },
+    {
+      "name": "input_json",
+      "dbType": "jsonb",
+      "comment": "工具输入 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "output_json",
+      "dbType": "jsonb",
+      "comment": "工具输出 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_refs_json",
+      "dbType": "jsonb",
+      "comment": "证据引用 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "error_message",
+      "dbType": "text",
+      "comment": "错误信息",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "blocked_reason",
+      "dbType": "text",
+      "comment": "阻断原因",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "started_at",
+      "dbType": "timestamptz",
+      "comment": "开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

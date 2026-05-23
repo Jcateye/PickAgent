@@ -1,0 +1,261 @@
+openapi: 3.0.3
+info:
+  title: "Agent Context Snapshot API"
+  version: "1.0.0"
+  description: "Agent 上下文快照表，保存一次 run 中 Agent 当时可见的工作台上下文、系统上下文和证据摘要"
+tags:
+  - name: "Agent Context Snapshot"
+    description: "Agent 上下文快照表，保存一次 run 中 Agent 当时可见的工作台上下文、系统上下文和证据摘要"
+paths:
+  /api/v1/agent-context-snapshots:
+    get:
+      tags: ["Agent Context Snapshot"]
+      summary: "查询Agent Context Snapshot列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: tokenEstimate
+          schema:
+            type: integer
+            format: int32
+          description: "上下文 token 估算"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - runId
+              - tokenEstimate
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Context Snapshot"]
+      summary: "创建Agent Context Snapshot"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentContextSnapshotRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextSnapshotResponse'
+  /api/v1/agent-context-snapshots/{id}:
+    get:
+      tags: ["Agent Context Snapshot"]
+      summary: "查询Agent Context Snapshot详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextSnapshotResponse'
+    patch:
+      tags: ["Agent Context Snapshot"]
+      summary: "更新Agent Context Snapshot"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentContextSnapshotRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentContextSnapshotResponse'
+    delete:
+      tags: ["Agent Context Snapshot"]
+      summary: "删除Agent Context Snapshot"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentContextSnapshotRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        workbenchContextJson:
+          type: object
+          description: "工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        stableContextJson:
+          type: object
+          description: "稳定系统上下文 JSON"
+          example: "{'key': 'value'}"
+        missionContextJson:
+          type: object
+          description: "Mission 上下文 JSON"
+          example: "{'key': 'value'}"
+        evidenceSummaryJson:
+          type: object
+          description: "证据摘要 JSON"
+          example: "{'key': 'value'}"
+        tokenEstimate:
+          type: integer
+          format: int32
+          description: "上下文 token 估算"
+          nullable: true
+          example: 1
+      required:
+        - runId
+    UpdateAgentContextSnapshotRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        workbenchContextJson:
+          type: object
+          description: "工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        stableContextJson:
+          type: object
+          description: "稳定系统上下文 JSON"
+          example: "{'key': 'value'}"
+        missionContextJson:
+          type: object
+          description: "Mission 上下文 JSON"
+          example: "{'key': 'value'}"
+        evidenceSummaryJson:
+          type: object
+          description: "证据摘要 JSON"
+          example: "{'key': 'value'}"
+        tokenEstimate:
+          type: integer
+          format: int32
+          description: "上下文 token 估算"
+          nullable: true
+          example: 1
+    AgentContextSnapshotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        workbenchContextJson:
+          type: object
+          description: "工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        stableContextJson:
+          type: object
+          description: "稳定系统上下文 JSON"
+          example: "{'key': 'value'}"
+        missionContextJson:
+          type: object
+          description: "Mission 上下文 JSON"
+          example: "{'key': 'value'}"
+        evidenceSummaryJson:
+          type: object
+          description: "证据摘要 JSON"
+          example: "{'key': 'value'}"
+        tokenEstimate:
+          type: integer
+          format: int32
+          description: "上下文 token 估算"
+          nullable: true
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - evidenceSummaryJson
+        - id
+        - missionContextJson
+        - runId
+        - stableContextJson
+        - workbenchContextJson
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentContextSnapshotResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

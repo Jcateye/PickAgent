@@ -1,0 +1,121 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentContextLink",
+  "resource": {
+    "name": "agentContextLink",
+    "plural": "agentContextLinks",
+    "tag": "Agent Context Link"
+  },
+  "table": {
+    "name": "agent_context_links",
+    "comment": "Agent 上下文关联表，把消息、工具、Review Gate 与工作台对象关联以支持高亮、跳转和对照"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-context-links"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "mission_id",
+      "dbType": "uuid",
+      "comment": "Agent Mission ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "source_type",
+      "dbType": "varchar(64)",
+      "comment": "来源类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "source_id",
+      "dbType": "varchar(128)",
+      "comment": "来源 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "entity_type",
+      "dbType": "varchar(96)",
+      "comment": "关联实体类型",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "entity_id",
+      "dbType": "varchar(128)",
+      "comment": "关联实体 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "label",
+      "dbType": "varchar(180)",
+      "comment": "关联对象显示名称",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "reason",
+      "dbType": "text",
+      "comment": "关联原因",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "highlight_json",
+      "dbType": "jsonb",
+      "comment": "前端高亮信息 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

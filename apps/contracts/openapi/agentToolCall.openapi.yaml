@@ -1,0 +1,429 @@
+openapi: 3.0.3
+info:
+  title: "Agent Tool Call API"
+  version: "1.0.0"
+  description: "Agent 工具调用表，保存工具输入输出、状态、风险等级、Review 策略和证据引用"
+tags:
+  - name: "Agent Tool Call"
+    description: "Agent 工具调用表，保存工具输入输出、状态、风险等级、Review 策略和证据引用"
+paths:
+  /api/v1/agent-tool-calls:
+    get:
+      tags: ["Agent Tool Call"]
+      summary: "查询Agent Tool Call列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: externalToolCallId
+          schema:
+            type: string
+          description: "Pi 或 SDK 侧工具调用 ID"
+        - in: query
+          name: workflowStepId
+          schema:
+            type: string
+          description: "关联 WorkflowStep ID"
+        - in: query
+          name: toolName
+          schema:
+            type: string
+          description: "工具名称"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "工具调用状态"
+        - in: query
+          name: riskLevel
+          schema:
+            type: string
+          description: "风险等级"
+        - in: query
+          name: reviewPolicy
+          schema:
+            type: string
+          description: "Review 策略"
+        - in: query
+          name: startedAt
+          schema:
+            type: string
+            format: date-time
+          description: "开始时间"
+        - in: query
+          name: completedAt
+          schema:
+            type: string
+            format: date-time
+          description: "完成时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - runId
+              - externalToolCallId
+              - workflowStepId
+              - toolName
+              - status
+              - riskLevel
+              - reviewPolicy
+              - startedAt
+              - completedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Tool Call"]
+      summary: "创建Agent Tool Call"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentToolCallRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentToolCallResponse'
+  /api/v1/agent-tool-calls/{id}:
+    get:
+      tags: ["Agent Tool Call"]
+      summary: "查询Agent Tool Call详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentToolCallResponse'
+    patch:
+      tags: ["Agent Tool Call"]
+      summary: "更新Agent Tool Call"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentToolCallRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentToolCallResponse'
+    delete:
+      tags: ["Agent Tool Call"]
+      summary: "删除Agent Tool Call"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentToolCallRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        externalToolCallId:
+          type: string
+          description: "Pi 或 SDK 侧工具调用 ID"
+          nullable: true
+          example: "sample_external_tool_call_id"
+        workflowStepId:
+          type: string
+          description: "关联 WorkflowStep ID"
+          nullable: true
+          example: "sample_workflow_step_id"
+        toolName:
+          type: string
+          description: "工具名称"
+          example: "demo"
+        status:
+          type: string
+          description: "工具调用状态"
+          example: "PENDING"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          example: "L1"
+        reviewPolicy:
+          type: string
+          description: "Review 策略"
+          example: "none"
+        inputJson:
+          type: object
+          description: "工具输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "工具输出 JSON"
+          example: "{'key': 'value'}"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        blockedReason:
+          type: string
+          description: "阻断原因"
+          nullable: true
+          example: "sample_blocked_reason"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - runId
+        - toolName
+    UpdateAgentToolCallRequest:
+      type: object
+      properties:
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        externalToolCallId:
+          type: string
+          description: "Pi 或 SDK 侧工具调用 ID"
+          nullable: true
+          example: "sample_external_tool_call_id"
+        workflowStepId:
+          type: string
+          description: "关联 WorkflowStep ID"
+          nullable: true
+          example: "sample_workflow_step_id"
+        toolName:
+          type: string
+          description: "工具名称"
+          example: "demo"
+        status:
+          type: string
+          description: "工具调用状态"
+          example: "PENDING"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          example: "L1"
+        reviewPolicy:
+          type: string
+          description: "Review 策略"
+          example: "none"
+        inputJson:
+          type: object
+          description: "工具输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "工具输出 JSON"
+          example: "{'key': 'value'}"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        blockedReason:
+          type: string
+          description: "阻断原因"
+          nullable: true
+          example: "sample_blocked_reason"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    AgentToolCallResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        externalToolCallId:
+          type: string
+          description: "Pi 或 SDK 侧工具调用 ID"
+          nullable: true
+          example: "sample_external_tool_call_id"
+        workflowStepId:
+          type: string
+          description: "关联 WorkflowStep ID"
+          nullable: true
+          example: "sample_workflow_step_id"
+        toolName:
+          type: string
+          description: "工具名称"
+          example: "demo"
+        status:
+          type: string
+          description: "工具调用状态"
+          example: "PENDING"
+        riskLevel:
+          type: string
+          description: "风险等级"
+          example: "L1"
+        reviewPolicy:
+          type: string
+          description: "Review 策略"
+          example: "none"
+        inputJson:
+          type: object
+          description: "工具输入 JSON"
+          example: "{'key': 'value'}"
+        outputJson:
+          type: object
+          description: "工具输出 JSON"
+          example: "{'key': 'value'}"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        errorMessage:
+          type: string
+          description: "错误信息"
+          nullable: true
+          example: "sample_error_message"
+        blockedReason:
+          type: string
+          description: "阻断原因"
+          nullable: true
+          example: "sample_blocked_reason"
+        startedAt:
+          type: string
+          format: date-time
+          description: "开始时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - evidenceRefsJson
+        - id
+        - inputJson
+        - outputJson
+        - reviewPolicy
+        - riskLevel
+        - runId
+        - status
+        - toolName
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentToolCallResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

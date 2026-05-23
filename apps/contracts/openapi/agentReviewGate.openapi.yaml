@@ -1,0 +1,446 @@
+openapi: 3.0.3
+info:
+  title: "Agent Review Gate API"
+  version: "1.0.0"
+  description: "Agent Review Gate 表，保存 Agent 运行时暂停点、人工确认问题、建议、风险和决策"
+tags:
+  - name: "Agent Review Gate"
+    description: "Agent Review Gate 表，保存 Agent 运行时暂停点、人工确认问题、建议、风险和决策"
+paths:
+  /api/v1/agent-review-gates:
+    get:
+      tags: ["Agent Review Gate"]
+      summary: "查询Agent Review Gate列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: missionId
+          schema:
+            type: string
+          description: "Agent Mission ID"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: toolCallId
+          schema:
+            type: string
+          description: "Agent ToolCall ID"
+        - in: query
+          name: reviewItemId
+          schema:
+            type: string
+          description: "关联 ReviewItem ID"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "Review Gate 状态"
+        - in: query
+          name: reasonCode
+          schema:
+            type: string
+          description: "Review Gate 原因编码"
+        - in: query
+          name: decision
+          schema:
+            type: string
+          description: "人工决策"
+        - in: query
+          name: decidedBy
+          schema:
+            type: string
+          description: "决策人"
+        - in: query
+          name: decidedAt
+          schema:
+            type: string
+            format: date-time
+          description: "决策时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - missionId
+              - runId
+              - toolCallId
+              - reviewItemId
+              - status
+              - reasonCode
+              - decision
+              - decidedBy
+              - decidedAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Review Gate"]
+      summary: "创建Agent Review Gate"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentReviewGateRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentReviewGateResponse'
+  /api/v1/agent-review-gates/{id}:
+    get:
+      tags: ["Agent Review Gate"]
+      summary: "查询Agent Review Gate详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentReviewGateResponse'
+    patch:
+      tags: ["Agent Review Gate"]
+      summary: "更新Agent Review Gate"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentReviewGateRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentReviewGateResponse'
+    delete:
+      tags: ["Agent Review Gate"]
+      summary: "删除Agent Review Gate"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentReviewGateRequest:
+      type: object
+      properties:
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        toolCallId:
+          type: string
+          description: "Agent ToolCall ID"
+          nullable: true
+          example: "sample_tool_call_id"
+        reviewItemId:
+          type: string
+          description: "关联 ReviewItem ID"
+          nullable: true
+          example: "sample_review_item_id"
+        status:
+          type: string
+          description: "Review Gate 状态"
+          example: "PENDING"
+        reasonCode:
+          type: string
+          description: "Review Gate 原因编码"
+          example: "sample_reason_code"
+        question:
+          type: string
+          description: "需要人工确认的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskIfApproved:
+          type: string
+          description: "批准后的风险说明"
+          nullable: true
+          example: "sample_risk_if_approved"
+        riskIfRejected:
+          type: string
+          description: "拒绝后的风险说明"
+          nullable: true
+          example: "sample_risk_if_rejected"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decidedBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decided_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - missionId
+        - question
+        - reasonCode
+        - runId
+    UpdateAgentReviewGateRequest:
+      type: object
+      properties:
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        toolCallId:
+          type: string
+          description: "Agent ToolCall ID"
+          nullable: true
+          example: "sample_tool_call_id"
+        reviewItemId:
+          type: string
+          description: "关联 ReviewItem ID"
+          nullable: true
+          example: "sample_review_item_id"
+        status:
+          type: string
+          description: "Review Gate 状态"
+          example: "PENDING"
+        reasonCode:
+          type: string
+          description: "Review Gate 原因编码"
+          example: "sample_reason_code"
+        question:
+          type: string
+          description: "需要人工确认的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskIfApproved:
+          type: string
+          description: "批准后的风险说明"
+          nullable: true
+          example: "sample_risk_if_approved"
+        riskIfRejected:
+          type: string
+          description: "拒绝后的风险说明"
+          nullable: true
+          example: "sample_risk_if_rejected"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decidedBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decided_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    AgentReviewGateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        missionId:
+          type: string
+          description: "Agent Mission ID"
+          example: "sample_mission_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          example: "sample_run_id"
+        toolCallId:
+          type: string
+          description: "Agent ToolCall ID"
+          nullable: true
+          example: "sample_tool_call_id"
+        reviewItemId:
+          type: string
+          description: "关联 ReviewItem ID"
+          nullable: true
+          example: "sample_review_item_id"
+        status:
+          type: string
+          description: "Review Gate 状态"
+          example: "PENDING"
+        reasonCode:
+          type: string
+          description: "Review Gate 原因编码"
+          example: "sample_reason_code"
+        question:
+          type: string
+          description: "需要人工确认的问题"
+          example: "sample_question"
+        agentRecommendation:
+          type: string
+          description: "Agent 建议"
+          nullable: true
+          example: "sample_agent_recommendation"
+        riskIfApproved:
+          type: string
+          description: "批准后的风险说明"
+          nullable: true
+          example: "sample_risk_if_approved"
+        riskIfRejected:
+          type: string
+          description: "拒绝后的风险说明"
+          nullable: true
+          example: "sample_risk_if_rejected"
+        evidenceRefsJson:
+          type: object
+          description: "证据引用 JSON"
+          example: "{'key': 'value'}"
+        decision:
+          type: string
+          description: "人工决策"
+          nullable: true
+          example: "sample_decision"
+        decisionComment:
+          type: string
+          description: "人工决策说明"
+          nullable: true
+          example: "sample_decision_comment"
+        decidedBy:
+          type: string
+          description: "决策人"
+          nullable: true
+          example: "sample_decided_by"
+        decidedAt:
+          type: string
+          format: date-time
+          description: "决策时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - createdAt
+        - evidenceRefsJson
+        - id
+        - missionId
+        - question
+        - reasonCode
+        - runId
+        - status
+        - updatedAt
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentReviewGateResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

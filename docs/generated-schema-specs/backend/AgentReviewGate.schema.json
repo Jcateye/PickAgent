@@ -1,0 +1,179 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentReviewGate",
+  "resource": {
+    "name": "agentReviewGate",
+    "plural": "agentReviewGates",
+    "tag": "Agent Review Gate"
+  },
+  "table": {
+    "name": "agent_review_gates",
+    "comment": "Agent Review Gate 表，保存 Agent 运行时暂停点、人工确认问题、建议、风险和决策"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-review-gates"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "mission_id",
+      "dbType": "uuid",
+      "comment": "Agent Mission ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "tool_call_id",
+      "dbType": "uuid",
+      "comment": "Agent ToolCall ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "review_item_id",
+      "dbType": "uuid",
+      "comment": "关联 ReviewItem ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "Review Gate 状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "PENDING"
+    },
+    {
+      "name": "reason_code",
+      "dbType": "varchar(96)",
+      "comment": "Review Gate 原因编码",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "question",
+      "dbType": "text",
+      "comment": "需要人工确认的问题",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "agent_recommendation",
+      "dbType": "text",
+      "comment": "Agent 建议",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "risk_if_approved",
+      "dbType": "text",
+      "comment": "批准后的风险说明",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "risk_if_rejected",
+      "dbType": "text",
+      "comment": "拒绝后的风险说明",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "evidence_refs_json",
+      "dbType": "jsonb",
+      "comment": "证据引用 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "decision",
+      "dbType": "varchar(64)",
+      "comment": "人工决策",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "decision_comment",
+      "dbType": "text",
+      "comment": "人工决策说明",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "decided_by",
+      "dbType": "varchar(128)",
+      "comment": "决策人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "decided_at",
+      "dbType": "timestamptz",
+      "comment": "决策时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

@@ -1,0 +1,447 @@
+openapi: 3.0.3
+info:
+  title: "Agent Mission API"
+  version: "1.0.0"
+  description: "Agent Mission 表，保存 Agent Copilot 的业务目标、约束、计划与状态"
+tags:
+  - name: "Agent Mission"
+    description: "Agent Mission 表，保存 Agent Copilot 的业务目标、约束、计划与状态"
+paths:
+  /api/v1/agent-missions:
+    get:
+      tags: ["Agent Mission"]
+      summary: "查询Agent Mission列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: sessionId
+          schema:
+            type: string
+          description: "Agent 会话 ID"
+        - in: query
+          name: missionType
+          schema:
+            type: string
+          description: "任务类型"
+        - in: query
+          name: autonomyLevel
+          schema:
+            type: string
+          description: "自治等级"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "Mission 状态"
+        - in: query
+          name: sourceSurface
+          schema:
+            type: string
+          description: "来源入口"
+        - in: query
+          name: subjectType
+          schema:
+            type: string
+          description: "业务主体类型"
+        - in: query
+          name: subjectId
+          schema:
+            type: string
+          description: "业务主体 ID"
+        - in: query
+          name: createdBy
+          schema:
+            type: string
+          description: "创建人"
+        - in: query
+          name: completedAt
+          schema:
+            type: string
+            format: date-time
+          description: "完成时间"
+        - in: query
+          name: canceledAt
+          schema:
+            type: string
+            format: date-time
+          description: "取消时间"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - sessionId
+              - missionType
+              - autonomyLevel
+              - status
+              - sourceSurface
+              - subjectType
+              - subjectId
+              - createdBy
+              - completedAt
+              - canceledAt
+              - createdAt
+              - updatedAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Mission"]
+      summary: "创建Agent Mission"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentMissionRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMissionResponse'
+  /api/v1/agent-missions/{id}:
+    get:
+      tags: ["Agent Mission"]
+      summary: "查询Agent Mission详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMissionResponse'
+    patch:
+      tags: ["Agent Mission"]
+      summary: "更新Agent Mission"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentMissionRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMissionResponse'
+    delete:
+      tags: ["Agent Mission"]
+      summary: "删除Agent Mission"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentMissionRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        missionType:
+          type: string
+          description: "任务类型"
+          example: "sample_mission_type"
+        objective:
+          type: string
+          description: "用户给出的任务目标"
+          example: "sample_objective"
+        autonomyLevel:
+          type: string
+          description: "自治等级"
+          example: "L2_REVIEW_GATED_AGENT"
+        status:
+          type: string
+          description: "Mission 状态"
+          example: "DRAFT"
+        sourceSurface:
+          type: string
+          description: "来源入口"
+          example: "agent_copilot"
+        subjectType:
+          type: string
+          description: "业务主体类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务主体 ID"
+          nullable: true
+          example: "sample_subject_id"
+        constraintsJson:
+          type: object
+          description: "任务约束 JSON"
+          example: "{'key': 'value'}"
+        workbenchContextJson:
+          type: object
+          description: "创建 Mission 时的工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        planJson:
+          type: object
+          description: "当前计划 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步建议 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        canceledAt:
+          type: string
+          format: date-time
+          description: "取消时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - missionType
+        - objective
+        - sessionId
+    UpdateAgentMissionRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        missionType:
+          type: string
+          description: "任务类型"
+          example: "sample_mission_type"
+        objective:
+          type: string
+          description: "用户给出的任务目标"
+          example: "sample_objective"
+        autonomyLevel:
+          type: string
+          description: "自治等级"
+          example: "L2_REVIEW_GATED_AGENT"
+        status:
+          type: string
+          description: "Mission 状态"
+          example: "DRAFT"
+        sourceSurface:
+          type: string
+          description: "来源入口"
+          example: "agent_copilot"
+        subjectType:
+          type: string
+          description: "业务主体类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务主体 ID"
+          nullable: true
+          example: "sample_subject_id"
+        constraintsJson:
+          type: object
+          description: "任务约束 JSON"
+          example: "{'key': 'value'}"
+        workbenchContextJson:
+          type: object
+          description: "创建 Mission 时的工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        planJson:
+          type: object
+          description: "当前计划 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步建议 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        canceledAt:
+          type: string
+          format: date-time
+          description: "取消时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+    AgentMissionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        missionType:
+          type: string
+          description: "任务类型"
+          example: "sample_mission_type"
+        objective:
+          type: string
+          description: "用户给出的任务目标"
+          example: "sample_objective"
+        autonomyLevel:
+          type: string
+          description: "自治等级"
+          example: "L2_REVIEW_GATED_AGENT"
+        status:
+          type: string
+          description: "Mission 状态"
+          example: "DRAFT"
+        sourceSurface:
+          type: string
+          description: "来源入口"
+          example: "agent_copilot"
+        subjectType:
+          type: string
+          description: "业务主体类型"
+          nullable: true
+          example: "sample_subject_type"
+        subjectId:
+          type: string
+          description: "业务主体 ID"
+          nullable: true
+          example: "sample_subject_id"
+        constraintsJson:
+          type: object
+          description: "任务约束 JSON"
+          example: "{'key': 'value'}"
+        workbenchContextJson:
+          type: object
+          description: "创建 Mission 时的工作台上下文 JSON"
+          example: "{'key': 'value'}"
+        planJson:
+          type: object
+          description: "当前计划 JSON"
+          example: "{'key': 'value'}"
+        nextActionsJson:
+          type: object
+          description: "下一步建议 JSON"
+          example: "{'key': 'value'}"
+        createdBy:
+          type: string
+          description: "创建人"
+          nullable: true
+          example: "sample_created_by"
+        completedAt:
+          type: string
+          format: date-time
+          description: "完成时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        canceledAt:
+          type: string
+          format: date-time
+          description: "取消时间"
+          nullable: true
+          example: "2026-03-16T10:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: "更新时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - autonomyLevel
+        - constraintsJson
+        - createdAt
+        - id
+        - missionType
+        - nextActionsJson
+        - objective
+        - planJson
+        - sessionId
+        - sourceSurface
+        - status
+        - updatedAt
+        - workbenchContextJson
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentMissionResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

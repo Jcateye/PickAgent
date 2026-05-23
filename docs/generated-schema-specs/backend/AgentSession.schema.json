@@ -1,0 +1,132 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentSession",
+  "resource": {
+    "name": "agentSession",
+    "plural": "agentSessions",
+    "tag": "Agent Session"
+  },
+  "table": {
+    "name": "agent_sessions",
+    "comment": "Agent 会话表，保存用户或工作台上下文下的长期 Agent 会话并映射 Pi session"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-sessions"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "session_key",
+      "dbType": "varchar(256)",
+      "comment": "前端或渠道侧会话键",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "user_id",
+      "dbType": "varchar(128)",
+      "comment": "用户 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "surface",
+      "dbType": "varchar(64)",
+      "comment": "来源界面",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "console"
+    },
+    {
+      "name": "pi_session_key",
+      "dbType": "varchar(256)",
+      "comment": "Pi 内部 session key",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "pi_session_ref",
+      "dbType": "text",
+      "comment": "Pi session 持久化引用",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "title",
+      "dbType": "varchar(180)",
+      "comment": "会话标题",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "会话状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "ACTIVE"
+    },
+    {
+      "name": "config_json",
+      "dbType": "jsonb",
+      "comment": "会话级配置 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "last_active_at",
+      "dbType": "timestamptz",
+      "comment": "最近活跃时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

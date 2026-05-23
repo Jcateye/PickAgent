@@ -1,0 +1,115 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentMessage",
+  "resource": {
+    "name": "agentMessage",
+    "plural": "agentMessages",
+    "tag": "Agent Message"
+  },
+  "table": {
+    "name": "agent_messages",
+    "comment": "Agent 消息表，保存 Copilot 会话消息并支持刷新恢复和历史回看"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-messages"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "session_id",
+      "dbType": "uuid",
+      "comment": "Agent 会话 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "run_id",
+      "dbType": "uuid",
+      "comment": "Agent Run ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "role",
+      "dbType": "varchar(32)",
+      "comment": "消息角色",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "USER"
+    },
+    {
+      "name": "order_index",
+      "dbType": "int",
+      "comment": "会话内消息序号",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "content_text",
+      "dbType": "text",
+      "comment": "消息文本内容",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "content_json",
+      "dbType": "jsonb",
+      "comment": "消息结构化内容 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "消息状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "completed"
+    },
+    {
+      "name": "parent_id",
+      "dbType": "uuid",
+      "comment": "父消息 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}

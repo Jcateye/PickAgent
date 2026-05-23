@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-23] 生成 Agent 工作台数据表与 CRUD 模板
+
+- 模块：backend / prisma / contracts
+- 类型：功能
+- 摘要：新增 AgentSession、AgentMission、AgentRun、AgentMessage、AgentRunEvent、AgentToolCall、AgentContextSnapshot、AgentContextLink、AgentReviewGate 的 Prisma schema、数据库迁移、基础 CRUD 模板、OpenAPI 合约和 schema-codegen 归档规格。
+- 影响范围：`apps/backend/prisma/schema.prisma`、`apps/backend/prisma/migrations/20260523174500_add_agent_copilot_tables/`、`apps/backend/src/**/Agent*.ts`、`apps/contracts/openapi/agent*.yaml`、`docs/generated-schema-specs/backend/Agent*.schema.json`
+- 是否影响 contracts：是
+- 是否影响数据结构：是
+- 兼容性说明：新增表和枚举，不修改既有业务表；Agent 与 Workflow / Review 的跨域引用先以 UUID 弱关联承接，后续服务层再补具体编排逻辑。
+- 关联任务 / 决策：Pi Agent Copilot 工作台数据落地
+
+---
+
 ### [2026-05-23] 将双工作台原则写入协作入口文档
 
 - 模块：docs / workflow

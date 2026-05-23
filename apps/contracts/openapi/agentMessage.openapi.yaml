@@ -1,0 +1,317 @@
+openapi: 3.0.3
+info:
+  title: "Agent Message API"
+  version: "1.0.0"
+  description: "Agent 消息表，保存 Copilot 会话消息并支持刷新恢复和历史回看"
+tags:
+  - name: "Agent Message"
+    description: "Agent 消息表，保存 Copilot 会话消息并支持刷新恢复和历史回看"
+paths:
+  /api/v1/agent-messages:
+    get:
+      tags: ["Agent Message"]
+      summary: "查询Agent Message列表"
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: "页码"
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+          description: "每页数量"
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: "主键"
+        - in: query
+          name: sessionId
+          schema:
+            type: string
+          description: "Agent 会话 ID"
+        - in: query
+          name: runId
+          schema:
+            type: string
+          description: "Agent Run ID"
+        - in: query
+          name: role
+          schema:
+            type: string
+          description: "消息角色"
+        - in: query
+          name: orderIndex
+          schema:
+            type: integer
+            format: int32
+          description: "会话内消息序号"
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: "消息状态"
+        - in: query
+          name: parentId
+          schema:
+            type: string
+          description: "父消息 ID"
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - id
+              - sessionId
+              - runId
+              - role
+              - orderIndex
+              - status
+              - parentId
+              - createdAt
+          description: "排序字段"
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: "排序方向"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+    post:
+      tags: ["Agent Message"]
+      summary: "创建Agent Message"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentMessageRequest'
+      responses:
+        '200':
+          description: "创建成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMessageResponse'
+  /api/v1/agent-messages/{id}:
+    get:
+      tags: ["Agent Message"]
+      summary: "查询Agent Message详情"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "查询成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMessageResponse'
+    patch:
+      tags: ["Agent Message"]
+      summary: "更新Agent Message"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentMessageRequest'
+      responses:
+        '200':
+          description: "更新成功"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentMessageResponse'
+    delete:
+      tags: ["Agent Message"]
+      summary: "删除Agent Message"
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: "主键"
+      responses:
+        '200':
+          description: "删除成功"
+components:
+  schemas:
+    CreateAgentMessageRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        role:
+          type: string
+          description: "消息角色"
+          example: "USER"
+        orderIndex:
+          type: integer
+          format: int32
+          description: "会话内消息序号"
+          example: 1
+        contentText:
+          type: string
+          description: "消息文本内容"
+          nullable: true
+          example: "sample_content_text"
+        contentJson:
+          type: object
+          description: "消息结构化内容 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "消息状态"
+          example: "completed"
+        parentId:
+          type: string
+          description: "父消息 ID"
+          nullable: true
+          example: "sample_parent_id"
+      required:
+        - orderIndex
+        - role
+        - sessionId
+    UpdateAgentMessageRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        role:
+          type: string
+          description: "消息角色"
+          example: "USER"
+        orderIndex:
+          type: integer
+          format: int32
+          description: "会话内消息序号"
+          example: 1
+        contentText:
+          type: string
+          description: "消息文本内容"
+          nullable: true
+          example: "sample_content_text"
+        contentJson:
+          type: object
+          description: "消息结构化内容 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "消息状态"
+          example: "completed"
+        parentId:
+          type: string
+          description: "父消息 ID"
+          nullable: true
+          example: "sample_parent_id"
+    AgentMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "主键"
+          example: "sample_id"
+        sessionId:
+          type: string
+          description: "Agent 会话 ID"
+          example: "sample_session_id"
+        runId:
+          type: string
+          description: "Agent Run ID"
+          nullable: true
+          example: "sample_run_id"
+        role:
+          type: string
+          description: "消息角色"
+          example: "USER"
+        orderIndex:
+          type: integer
+          format: int32
+          description: "会话内消息序号"
+          example: 1
+        contentText:
+          type: string
+          description: "消息文本内容"
+          nullable: true
+          example: "sample_content_text"
+        contentJson:
+          type: object
+          description: "消息结构化内容 JSON"
+          example: "{'key': 'value'}"
+        status:
+          type: string
+          description: "消息状态"
+          example: "completed"
+        parentId:
+          type: string
+          description: "父消息 ID"
+          nullable: true
+          example: "sample_parent_id"
+        createdAt:
+          type: string
+          format: date-time
+          description: "创建时间"
+          example: "2026-03-16T10:00:00Z"
+      required:
+        - contentJson
+        - createdAt
+        - id
+        - orderIndex
+        - role
+        - sessionId
+        - status
+    ListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentMessageResponse'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - page
+        - pageSize
+        - total

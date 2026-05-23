@@ -1,0 +1,192 @@
+{
+  "stack": "typescript-nestjs-prisma-redis",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "AgentRun",
+  "resource": {
+    "name": "agentRun",
+    "plural": "agentRuns",
+    "tag": "Agent Run"
+  },
+  "table": {
+    "name": "agent_runs",
+    "comment": "Agent Run 表，保存 Pi 单次运行、模型信息、状态和 WorkflowRun 关联"
+  },
+  "api": {
+    "basePath": "/api/v1/agent-runs"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "primaryKey": true,
+      "nullable": false,
+      "writable": false,
+      "filterable": true,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "mission_id",
+      "dbType": "uuid",
+      "comment": "Agent Mission ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "session_id",
+      "dbType": "uuid",
+      "comment": "Agent 会话 ID",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "pi_run_id",
+      "dbType": "varchar(128)",
+      "comment": "Pi 运行 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "workflow_run_id",
+      "dbType": "uuid",
+      "comment": "关联 WorkflowRun ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "Agent Run 状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true,
+      "example": "QUEUED"
+    },
+    {
+      "name": "model_provider",
+      "dbType": "varchar(64)",
+      "comment": "模型提供方",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "model_name",
+      "dbType": "varchar(128)",
+      "comment": "模型名称",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "input_json",
+      "dbType": "jsonb",
+      "comment": "输入摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "output_json",
+      "dbType": "jsonb",
+      "comment": "输出摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "error_message",
+      "dbType": "text",
+      "comment": "错误信息",
+      "nullable": true,
+      "writable": true
+    },
+    {
+      "name": "timeout_ms",
+      "dbType": "int",
+      "comment": "超时时间毫秒",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "cancel_requested",
+      "dbType": "boolean",
+      "comment": "取消请求标记",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "usage_json",
+      "dbType": "jsonb",
+      "comment": "模型用量 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "metadata_json",
+      "dbType": "jsonb",
+      "comment": "运行元数据 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "started_at",
+      "dbType": "timestamptz",
+      "comment": "开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "sortable": true,
+      "hasDefault": true
+    }
+  ]
+}
