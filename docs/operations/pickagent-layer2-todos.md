@@ -117,3 +117,44 @@
 - 已保留：真实查询不可用、未配置 base URL 或单个接口失败时，页面回退到同一 DTO contract 的 mock fixture，不改变 Dashboard、Connectors、SKU 列表和详情交互结构。
 - 已处理：价格字段缺口和类目名称缺口在 SKU detail fallback 中展示为“采集风险”，不在前端重算健康状态、数据质量分或活动准入结论。
 - 未处理且不属于本模块：插件从当前抖店页面上下文发起 `stock/manage/list` / `sku_stock_diagnose` 请求、真实数据库 repository/transaction 接线、真实外部生产接口调用策略、Pi/Hermes runtime 联调。
+
+---
+
+## Layer 3 收口状态（2026-05-23）
+
+Layer 3 已完成并合入 `main`。以下为各模块处理结果：
+
+| 模块 | 状态 | 说明 |
+|---|---:|---|
+| 浏览器插件真实 ingest | 已完成 | 已实现抖店真实采集 adapter、真实 fixture、`/api/ingest` 提交通路；保留 mock fallback。 |
+| 健康工作台真实查询 | 已完成 | 已接真实 query adapter；保留 mock fallback；价格/类目缺口以采集风险展示。 |
+| 活动模拟真实 parse/simulation | 已完成 | 已接 `ActivityRuleService` / `ActivitySimulationService`；商机线索作为 `manual_review` DSL。 |
+| Review/报告真实输出 | 已完成 | 已接 `ReviewService` / `ReportService`；展示 evidence summary 和未解决风险。 |
+| Agent Copilot 工具边界 | 已完成 | 已接 `AgentToolRegistry` / application service + fake runtime adapter；仍不开放 coding/file/bash。 |
+
+### Layer 3 后仍需保留到 Layer 4 / 生产化收尾的事项
+
+1. **真实页面操作验证**
+   - `/stock/manage/list` 最大 page size、筛选参数、排序参数仍需真实页面操作确认。
+   - `status`、`draft_status`、`check_status`、`stock_type`、`shipping_mode`、`has_stock_occupied` 业务字典仍需对照页面展示确认。
+   - `sku_stock_diagnose` 是否支持批量 SKU、调用频率限制仍需确认。
+
+2. **价格与类目名称来源**
+   - 库存管理接口仍缺 sale price。
+   - 类目名称仍需要类目字典或商品详情接口补齐。
+   - 当前前端将其作为采集风险/字段缺口展示，不阻塞 Layer 3。
+
+3. **生产化数据层**
+   - 数据库 repository / transaction / Prisma 真实落库未完成。
+   - 生产 API route 和鉴权未完成。
+   - 当前完成的是 application service 与前端/插件真实接入边界。
+
+4. **真实 Pi/Hermes runtime 联调**
+   - 当前完成 fake runtime adapter + AgentToolRegistry 边界。
+   - 真实 Pi/Hermes production runtime 仍留到后续联调。
+
+5. **最终验收证据**
+   - 本轮主线使用 typecheck/test/build + HTTP smoke。
+   - 最终 Layer 4 仍需截图/录屏或可视化演示证据。
+
+以上事项不阻塞进入 Layer 4，但必须在最终验收前逐项判断：已解决 / 非阻塞风险 / 阻塞。
