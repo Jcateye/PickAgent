@@ -5,6 +5,8 @@ import {
   type AgentToolName,
   BusinessFoundationSchemaNames,
   type CanonicalRuleDto,
+  type DataFreshnessDto,
+  type DecisionExplanationDto,
   type EvidenceLinkDto,
   type HealthDiagnosisDto,
   type HealthStatus,
@@ -233,6 +235,60 @@ export class SkuQueryService {
       ],
     };
   }
+
+  getLatestDiagnosis(skuProfileId: string): HealthDiagnosisDto | null {
+    return Array.from(this.store.diagnoses.values()).find((item) => item.skuProfileId === skuProfileId) ?? null;
+  }
+
+  checkDataFreshness(input: { skuProfileId: string; maxAgeHours?: number; now?: string }): DataFreshnessDto {
+    const detail = this.getSkuDetail(input.skuProfileId);
+    if (!detail?.latestSnapshot) {
+      return {
+        skuProfileId: input.skuProfileId,
+        snapshotId: null,
+        collectedAt: null,
+        checkedAt: input.now ?? new Date().toISOString(),
+        maxAgeHours: input.maxAgeHours ?? 24,
+        ageHours: null,
+        isFresh: false,
+        reason: "缺少最新采集快照",
+        evidence: [],
+      };
+    }
+    const checkedAt = input.now ?? new Date().toISOString();
+    const maxAgeHours = input.maxAgeHours ?? 24;
+    const ageHours = (Date.parse(checkedAt) - Date.parse(detail.latestSnapshot.collectedAt)) / 3_600_000;
+    const isFresh = Number.isFinite(ageHours) && ageHours <= maxAgeHours;
+    return {
+      skuProfileId: input.skuProfileId,
+      snapshotId: detail.latestSnapshot.snapshotId,
+      collectedAt: detail.latestSnapshot.collectedAt,
+      checkedAt,
+      maxAgeHours,
+      ageHours,
+      isFresh,
+      reason: isFresh ? "采集快照仍在时效窗口内" : "采集快照已超出时效窗口",
+      evidence: [evidence("snapshot", detail.latestSnapshot.snapshotId, "最新采集快照", "数据新鲜度基于最新采集时间计算")],
+    };
+  }
+
+  explainDecisionWithEvidence(input: { skuProfileId: string; simulationResultId?: string; question?: string }): DecisionExplanationDto {
+    const detail = this.getSkuDetail(input.skuProfileId);
+    if (!detail?.latestDiagnosis) {
+      throw new Error(`SKU detail not found: ${input.skuProfileId}`);
+    }
+    const simulation = input.simulationResultId ? this.store.simulations.get(input.simulationResultId) ?? null : null;
+    const healthSummary = detail.topIssues.length ? `当前主要问题：${detail.topIssues.join("；")}` : "当前未发现显著健康风险";
+    const simulationSummary = simulation ? `活动准入结果：${simulation.eligibility}` : "尚未绑定活动模拟结果";
+    const nextActions = [...detail.nextActions, ...(simulation?.repairSuggestions ?? [])].slice(0, 4);
+    return {
+      skuProfileId: input.skuProfileId,
+      summary: `${healthSummary}。${simulationSummary}。`,
+      recommendation: input.question ? `围绕“${input.question}”建议先核对 evidence 再做人工决策。` : "建议先核对 evidence，再决定是否进入 Review Gate。",
+      evidence: [...detail.evidence, ...(simulation?.evidence ?? [])],
+      nextActions,
+    };
+  }
 }
 
 export class ActivityRuleService {
@@ -346,6 +402,10 @@ export class ActivitySimulationService {
       return result;
     });
   }
+
+  simulateActivityReadiness(request: SimulationRequestDto): SimulationResultDto[] {
+    return this.runSimulation(request);
+  }
 }
 
 function evaluate(snapshot: NormalizedSkuSnapshotDto, rules: CanonicalRuleDto[]): { eligibility: SimulationEligibility; failedRules: CanonicalRuleDto[] } {
@@ -443,8 +503,12 @@ export class AgentToolRegistry {
   private readonly definitions: AgentToolDefinitionDto[] = [
     { name: "getSkuSummary", description: "读取 SKU 当前健康摘要", inputSchemaName: "SkuIdInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.skuDetail },
     { name: "parseActivityRules", description: "解析并校验活动规则 DSL", inputSchemaName: "ActivityRuleParseInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.ruleSet },
+    { name: "simulateActivityReadiness", description: "执行活动准入模拟或 what-if 模拟", inputSchemaName: "SimulationRequestZodSchema", outputSchemaName: BusinessFoundationSchemaNames.simulationResult },
     { name: "runSimulation", description: "执行活动准入模拟或 what-if 模拟", inputSchemaName: "SimulationRequestZodSchema", outputSchemaName: BusinessFoundationSchemaNames.simulationResult },
+    { name: "checkDataFreshness", description: "检查 SKU 采集数据是否仍在时效窗口内", inputSchemaName: "DataFreshnessInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.dataFreshness },
+    { name: "diagnoseSkuHealth", description: "返回 SKU 最新健康诊断", inputSchemaName: "SkuIdInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.skuDetail },
     { name: "createReviewItems", description: "创建结构化人工 Review 项", inputSchemaName: "ReviewCreateInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.reviewItem },
+    { name: "explainDecisionWithEvidence", description: "基于健康诊断和模拟结果输出决策解释", inputSchemaName: "DecisionExplanationInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.decisionExplanation },
     { name: "generateReportPreview", description: "生成健康或活动报告预览", inputSchemaName: "ReportPreviewInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.reportPreview },
   ];
 
@@ -487,8 +551,13 @@ export class AgentToolRegistry {
   private executeResult(toolName: AgentToolName, input: unknown): unknown {
     if (toolName === "getSkuSummary") return this.skuQueryService.getSkuDetail((input as { skuProfileId: string }).skuProfileId);
     if (toolName === "parseActivityRules") return this.activityRuleService.parseRules(input as { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] });
-    if (toolName === "runSimulation") return this.activitySimulationService.runSimulation(input as SimulationRequestDto);
+    if (toolName === "simulateActivityReadiness" || toolName === "runSimulation") return this.activitySimulationService.simulateActivityReadiness(input as SimulationRequestDto);
+    if (toolName === "checkDataFreshness") return this.skuQueryService.checkDataFreshness(input as { skuProfileId: string; maxAgeHours?: number; now?: string });
+    if (toolName === "diagnoseSkuHealth") return this.skuQueryService.getLatestDiagnosis((input as { skuProfileId: string }).skuProfileId);
     if (toolName === "createReviewItems") return this.reviewService.createReviewItems((input as { items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">> }).items);
+    if (toolName === "explainDecisionWithEvidence") {
+      return this.skuQueryService.explainDecisionWithEvidence(input as { skuProfileId: string; simulationResultId?: string; question?: string });
+    }
     if (toolName === "generateReportPreview") return this.reportService.generatePreview(input as { type: "HEALTH" | "ACTIVITY"; skuProfileIds: string[]; simulationResultIds?: string[] });
     throw new Error(`Unknown agent tool: ${toolName}`);
   }

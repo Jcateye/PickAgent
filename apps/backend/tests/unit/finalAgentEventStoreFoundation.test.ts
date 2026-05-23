@@ -4,6 +4,26 @@ import { createFinalAgentEventStoreRuntime } from "../../src/application/foundat
 
 function seededRun() {
   const runtime = createFinalAgentEventStoreRuntime();
+  runtime.businessRuntime.ingestService.ingest({
+    connectorId: "pi_test_seed",
+    collectedAt: "2026-05-23T10:00:00.000Z",
+    rows: [
+      {
+        platform: "tmall",
+        storeId: "store_demo",
+        externalSkuId: "sku_001",
+        productName: "Pi 测试 SKU",
+        sales30d: 120,
+        positiveRate: 0.98,
+        stock: 88,
+        originalPrice: 79,
+        lowestPrice30d: 69,
+        campaignPrice: 59,
+        certificateStatus: "valid",
+        raw: { title: "Pi 测试 SKU" },
+      },
+    ],
+  });
   const { mission } = runtime.agentService.createMission({ sessionKey: "session-final-agent", objective: "检查活动准入风险" });
   const run = runtime.agentService.startRun(mission.id, { modelProvider: "test", modelName: "foundation-test", inputJson: { objective: mission.objective } });
   return { runtime, mission, run };
@@ -42,17 +62,30 @@ test("agent repository creates session mission run tool call review gate and con
   assert.equal(decision.event.eventType, "run.continuation_started");
 });
 
-test("agent tool executor records policy output and denies unsafe or unregistered tools", () => {
+test("pi adapter only exposes three low-risk tools and executes through real business services", () => {
   const { runtime, run } = seededRun();
-  const allowed = runtime.agentService.executeTool({ runId: run.id, toolName: "sku_health_summary", inputJson: { skuProfileIds: ["sku_1"] } });
+  assert.deepEqual([...runtime.piAdapter.availableTools], ["parseActivityRules", "simulateActivityReadiness", "explainDecisionWithEvidence"]);
+
+  const ruleSet = runtime.agentService.executeTool({
+    runId: run.id,
+    toolName: "parseActivityRules",
+    inputJson: { name: "Pi 测试规则", sourceText: "活动库存不少于 20，好评率不少于 92%，证书状态必须有效。" },
+  });
+  const ruleSetId = (ruleSet.toolCall.outputJson.result as { ruleSetId: string }).ruleSetId;
+  const allowed = runtime.agentService.executeTool({
+    runId: run.id,
+    toolName: "runSimulation",
+    inputJson: { ruleSetId, skuProfileIds: [Array.from(runtime.businessRuntime.store.projections.keys())[0]] },
+  });
 
   assert.equal(allowed.permission, "ALLOW");
+  assert.equal(allowed.toolCall.toolName, "simulateActivityReadiness");
   assert.equal(allowed.riskLevel, "L1");
   assert.equal(allowed.reviewPolicy, "AUTO_ALLOW");
-  assert.ok(allowed.evidenceRefs.length > 0);
+  assert.ok(allowed.evidenceRefs.length > 1);
   assert.equal(runtime.state.toolCalls.get(allowed.toolCall.id)?.status, "SUCCEEDED");
 
-  for (const toolName of ["unknown_tool", "coding", "file.read", "bash", "direct SQL", "credential access", "cookie_reader", "token_vault"]) {
+  for (const toolName of ["unknown_tool", "coding", "file.read", "bash", "direct SQL", "credential access", "cookie_reader", "token_vault", "diagnoseSkuHealth"]) {
     const result = runtime.agentService.executeTool({ runId: run.id, toolName, inputJson: { request: "blocked" } });
     assert.equal(result.permission, "DENY", toolName);
     assert.equal(result.riskLevel, "L3", toolName);
@@ -60,6 +93,48 @@ test("agent tool executor records policy output and denies unsafe or unregistere
     assert.equal(result.toolCall.status, "BLOCKED", toolName);
     assert.match(result.toolCall.blockedReason ?? "", /outside AgentToolExecutor policy|not registered|toolName is required/);
   }
+});
+
+test("createReviewItems opens review gate before write and decision creates continuation replay chain", () => {
+  const { runtime, run } = seededRun();
+  const result = runtime.agentService.executeTool({
+    runId: run.id,
+    toolName: "createReviewItems",
+    inputJson: {
+      items: [
+        {
+          skuProfileId: Array.from(runtime.businessRuntime.store.projections.keys())[0],
+          sourceType: "agent",
+          sourceId: run.id,
+          question: "是否允许创建 Review item？",
+          recommendation: "先进入 Review Gate。",
+          riskLevel: "L2",
+          evidence: [],
+        },
+      ],
+    },
+  });
+
+  assert.equal(result.permission, "REVIEW_REQUIRED");
+  assert.equal(result.reviewPolicy, "REVIEW_GATE");
+  assert.equal(result.toolCall.status, "REVIEW_REQUIRED");
+  assert.ok(result.reviewGate);
+
+  const beforeDecision = runtime.agentService.listEvents(run.id);
+  assert.ok(beforeDecision.some((event) => event.eventType === "review_gate.opened"));
+  assert.ok(beforeDecision.some((event) => event.eventType === "tool.call_recorded" && event.eventPhase === "REVIEW_REQUIRED"));
+
+  const decision = runtime.agentService.decideReviewGate(result.reviewGate!.id, {
+    decision: "APPROVE",
+    decidedBy: "pi-smoke@test.local",
+    decisionComment: "允许继续进入 Review 工作台。",
+  });
+  const originalReplay = runtime.agentService.listEvents(run.id);
+  const continuationReplay = runtime.agentService.listEvents(decision.continuationRun.id);
+
+  assert.ok(originalReplay.some((event) => event.eventType === "review_gate.decided"));
+  assert.ok(continuationReplay.some((event) => event.eventType === "run.continuation_started"));
+  assert.equal(decision.continuationRun.inputJson.continuationOfRunId, run.id);
 });
 
 test("agent event store can mark status and link workflow step through append-only events", () => {

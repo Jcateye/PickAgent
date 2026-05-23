@@ -7,8 +7,12 @@ export type ReportType = "HEALTH" | "ACTIVITY";
 export type AgentToolName =
   | "getSkuSummary"
   | "parseActivityRules"
+  | "simulateActivityReadiness"
   | "runSimulation"
+  | "checkDataFreshness"
+  | "diagnoseSkuHealth"
   | "createReviewItems"
+  | "explainDecisionWithEvidence"
   | "generateReportPreview";
 
 export interface EvidenceLinkDto {
@@ -93,6 +97,26 @@ export interface HealthDiagnosisDto {
   nextActions: string[];
   evidence: EvidenceLinkDto[];
   diagnosedAt: string;
+}
+
+export interface DataFreshnessDto {
+  skuProfileId: string;
+  snapshotId: string | null;
+  collectedAt: string | null;
+  checkedAt: string;
+  maxAgeHours: number;
+  ageHours: number | null;
+  isFresh: boolean;
+  reason: string;
+  evidence: EvidenceLinkDto[];
+}
+
+export interface DecisionExplanationDto {
+  skuProfileId: string;
+  summary: string;
+  recommendation: string;
+  evidence: EvidenceLinkDto[];
+  nextActions: string[];
 }
 
 export type RuleOperator = "gte" | "lte" | "eq" | "neq";
@@ -191,6 +215,8 @@ export const BusinessFoundationSchemaNames = {
   skuDetail: "SkuDetailZodSchema",
   ruleSet: "ActivityRuleSetZodSchema",
   simulationResult: "SimulationResultZodSchema",
+  dataFreshness: "DataFreshnessZodSchema",
+  decisionExplanation: "DecisionExplanationZodSchema",
   reviewItem: "ReviewItemZodSchema",
   reportPreview: "ReportPreviewZodSchema",
   agentTool: "AgentToolZodSchema",

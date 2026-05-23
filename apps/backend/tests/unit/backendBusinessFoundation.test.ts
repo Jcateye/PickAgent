@@ -27,6 +27,32 @@ test("backend business foundation supports ingest, projection, simulation, revie
   });
   assert.equal(simulation.length, 2);
   assert.equal(simulation[0]?.eligibility, "DIRECT_READY");
+  assert.deepEqual(
+    runtime.activitySimulationService.simulateActivityReadiness({
+      ruleSetId: ruleSet.ruleSetId,
+      skuProfileIds: [ingestResult.summaries[0]?.skuProfileId ?? "missing"],
+    })[0]?.eligibility,
+    simulation[0]?.eligibility,
+  );
+
+  const freshness = runtime.skuQueryService.checkDataFreshness({
+    skuProfileId: ingestResult.summaries[0]?.skuProfileId ?? "missing",
+    now: "2026-05-23T18:00:00.000Z",
+    maxAgeHours: 24,
+  });
+  assert.equal(freshness.isFresh, true);
+  assert.equal(freshness.snapshotId !== null, true);
+
+  const diagnosis = runtime.skuQueryService.getLatestDiagnosis(ingestResult.summaries[0]?.skuProfileId ?? "missing");
+  assert.equal(diagnosis?.healthStatus, "READY");
+
+  const explanation = runtime.skuQueryService.explainDecisionWithEvidence({
+    skuProfileId: ingestResult.summaries[0]?.skuProfileId ?? "missing",
+    simulationResultId: simulation[0]?.simulationResultId,
+    question: "是否可以继续报名？",
+  });
+  assert.match(explanation.summary, /活动准入结果/);
+  assert.ok(explanation.evidence.length > 0);
 
   const reviews = runtime.reviewService.createReviewItems([
     {
@@ -52,9 +78,33 @@ test("backend business foundation supports ingest, projection, simulation, revie
   assert.ok(report.sections.some((section) => section.id === "unresolved_risks"));
 
   const tools = runtime.agentToolRegistry.listTools();
-  assert.equal(tools.length, 5);
+  assert.deepEqual(
+    tools.map((tool) => tool.name),
+    [
+      "getSkuSummary",
+      "parseActivityRules",
+      "simulateActivityReadiness",
+      "runSimulation",
+      "checkDataFreshness",
+      "diagnoseSkuHealth",
+      "createReviewItems",
+      "explainDecisionWithEvidence",
+      "generateReportPreview",
+    ],
+  );
   const toolResult = runtime.agentToolRegistry.execute("getSkuSummary", { skuProfileId: ingestResult.summaries[0]?.skuProfileId });
   assert.equal(toolResult.status, "SUCCEEDED");
+  assert.equal(runtime.agentToolRegistry.execute("runSimulation", { ruleSetId: ruleSet.ruleSetId, skuProfileIds: [ingestResult.summaries[0]?.skuProfileId] }).status, "SUCCEEDED");
+  assert.equal(runtime.agentToolRegistry.execute("simulateActivityReadiness", { ruleSetId: ruleSet.ruleSetId, skuProfileIds: [ingestResult.summaries[0]?.skuProfileId] }).status, "SUCCEEDED");
+  assert.equal(runtime.agentToolRegistry.execute("checkDataFreshness", { skuProfileId: ingestResult.summaries[0]?.skuProfileId }).status, "SUCCEEDED");
+  assert.equal(runtime.agentToolRegistry.execute("diagnoseSkuHealth", { skuProfileId: ingestResult.summaries[0]?.skuProfileId }).status, "SUCCEEDED");
+  assert.equal(
+    runtime.agentToolRegistry.execute("explainDecisionWithEvidence", {
+      skuProfileId: ingestResult.summaries[0]?.skuProfileId,
+      simulationResultId: simulation[0]?.simulationResultId,
+    }).status,
+    "SUCCEEDED",
+  );
 
   const agentRun = runtime.fakeAgentLoopAdapter.startMission({
     objective: "复核第一个 SKU 的活动准入风险",

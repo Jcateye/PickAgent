@@ -81,7 +81,7 @@ export function useAgentRunEvents(runId: string | null) {
         }
       }
       eventSource.onmessage = handleMessage
-      for (const eventType of ['run.started', 'run.status_changed', 'tool.call_recorded', 'review_gate.decided', 'run.continuation_started', 'run.workflow_step_linked']) {
+      for (const eventType of ['run.started', 'pi.adapter.started', 'run.status_changed', 'tool.call_recorded', 'review_gate.opened', 'review_gate.decided', 'run.continuation_started', 'run.workflow_step_linked']) {
         eventSource.addEventListener(eventType, handleMessage)
       }
       eventSource.onerror = () => {

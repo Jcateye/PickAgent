@@ -80,7 +80,17 @@ test("cross-module acceptance chain connects doudian ingest, health, activity, r
 
   assert.deepEqual(
     runtime.agentToolRegistry.listTools().map((tool) => tool.name),
-    ["getSkuSummary", "parseActivityRules", "runSimulation", "createReviewItems", "generateReportPreview"],
+    [
+      "getSkuSummary",
+      "parseActivityRules",
+      "simulateActivityReadiness",
+      "runSimulation",
+      "checkDataFreshness",
+      "diagnoseSkuHealth",
+      "createReviewItems",
+      "explainDecisionWithEvidence",
+      "generateReportPreview",
+    ],
   );
   const toolResult = runtime.agentToolRegistry.execute("getSkuSummary", { skuProfileId: firstSkuProfileId });
   assert.equal(toolResult.status, "SUCCEEDED");
