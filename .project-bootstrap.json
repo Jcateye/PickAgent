@@ -1,0 +1,14 @@
+{
+  "projectName": "PickAgent",
+  "stack": "typescript-nextjs-plasmo-prisma-zod-ai-sdk",
+  "docsOnly": false,
+  "pathLayout": {
+    "contracts_root": "apps/contracts",
+    "frontend_root": "apps/frontend",
+    "backend_root": "apps/backend",
+    "generated_schema_specs_root": "docs/generated-schema-specs"
+  },
+  "backendModules": [],
+  "frontendModules": [],
+  "appendHistory": []
+}

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# TODO: 为当前项目实现 scripts/test。
+# 请保持脚本名称稳定，并在这里代理到实际工具链。
+
+echo "scripts/test 尚未实现。"
+exit 1
