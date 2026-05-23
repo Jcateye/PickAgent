@@ -587,6 +587,262 @@ h4 {
   padding: 0 16px 16px;
 }
 
+.activityWorkbench {
+  align-content: start;
+}
+
+.activityAuthoringGrid,
+.activityResultGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.82fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.activityInputBody,
+.structuredRuleList,
+.simulationList,
+.simulationDetail,
+.whatIfBody {
+  display: grid;
+  gap: 14px;
+}
+
+.activityInputBody textarea {
+  width: 100%;
+  min-height: 270px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfdff;
+  color: var(--fg);
+  padding: 14px;
+  line-height: 1.7;
+  outline: none;
+}
+
+.activityContractNote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.activityContractNote code,
+.structuredRuleItem code,
+.simulationRow code,
+.detailTitleRow code,
+.detailBlock code {
+  font-family: var(--font-mono);
+  color: var(--primary-strong);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.structuredRuleItem {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.ruleItemTopline,
+.detailTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ruleItemTopline strong,
+.ruleItemTopline code,
+.detailTitleRow code {
+  display: block;
+}
+
+.ruleItemTopline code,
+.detailTitleRow code {
+  margin-top: 6px;
+}
+
+.ruleFieldGrid,
+.detailMetaGrid {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.ruleFieldGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.detailMetaGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.ruleFieldGrid div,
+.detailMetaGrid div {
+  min-width: 0;
+}
+
+.ruleFieldGrid dt,
+.detailMetaGrid dt,
+.whatIfCompare span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ruleFieldGrid dd,
+.detailMetaGrid dd {
+  margin: 6px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.evidenceLine {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.activityStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.statusSummaryTile {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-height: 116px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 14px;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+
+.statusSummaryTile span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.statusSummaryTile strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.simulationRow {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 14px;
+  text-align: left;
+}
+
+.simulationRow--active {
+  border-color: var(--primary);
+  background: #f5f9ff;
+}
+
+.simulationRow span,
+.simulationRow strong,
+.simulationRow code {
+  display: block;
+}
+
+.simulationRow code {
+  margin-top: 6px;
+}
+
+.detailTitleRow h3 {
+  font-size: 18px;
+}
+
+.detailBlock {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.detailBlock h4 {
+  font-size: 14px;
+}
+
+.detailBlock ul,
+.whatIfCompare ul {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.detailBlock li strong {
+  color: var(--fg);
+}
+
+.whatIfControls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.whatIfControls label {
+  display: grid;
+  gap: 8px;
+}
+
+.whatIfControls input,
+.whatIfControls select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfdff;
+  color: var(--fg);
+  padding: 0 12px;
+}
+
+.whatIfCompare {
+  display: grid;
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 0.6fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.whatIfCompare > div {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
 .agentMissionLayout {
   display: grid;
   grid-template-columns: minmax(0, 1.38fr) minmax(360px, 0.72fr);
@@ -1186,6 +1442,11 @@ h4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .activityAuthoringGrid,
+  .activityResultGrid {
+    grid-template-columns: 1fr;
+  }
+
   .twoColumnScaffold {
     grid-template-columns: 1fr;
   }
@@ -1235,7 +1496,15 @@ h4 {
   }
 
   .kpiGrid,
-  .summaryGrid {
+  .summaryGrid,
+  .activityStatusGrid,
+  .whatIfControls,
+  .whatIfCompare {
+    grid-template-columns: 1fr;
+  }
+
+  .ruleFieldGrid,
+  .detailMetaGrid {
     grid-template-columns: 1fr;
   }
 
