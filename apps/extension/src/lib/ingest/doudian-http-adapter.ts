@@ -130,13 +130,17 @@ export function mapDoudianStockListToPreview(
       ].filter(Boolean)
 
       rows.push({
+        sourceKind: "product",
         rowIndex: rows.length,
+        externalProductId: productId || null,
         externalSkuId: skuId || productId || `unknown_${productIndex}_${skuIndex}`,
         title,
         salePrice: null,
         availableStock,
         category,
         listingStatus: sku.status === undefined && product.status === undefined ? null : `product:${product.status ?? "unknown"};sku:${sku.status ?? "unknown"}`,
+        activityLabels: product.tags ?? [],
+        updatedAt: null,
         sourceUrl: input.sourceUrl,
         raw: {
           product,

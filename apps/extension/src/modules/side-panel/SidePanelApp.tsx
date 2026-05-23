@@ -1,100 +1,139 @@
 import { useMemo, useState } from "react"
 
 import {
-  attachMockSubmitReceipt,
-  buildIngestPayload,
-  collectThroughPage,
-  createInitialRunState,
-  extractDoudianCurrentPage,
+  assertNoSensitivePayloadKeys,
+  attachTaskSubmitReceipt,
+  buildCommentIngestPayload,
+  buildProductIngestPayload,
+  collectAllCommentPages,
+  collectAllProductPages,
+  collectCommentPage,
+  collectProductPage,
+  createInitialTaskState,
+  emptySyntheticDoudianCommentPage,
   realIngestAdapterDependency,
-  recognizeDoudianProductList,
-  scanCurrentPage,
+  recognizeCommentPage,
+  recognizeProductPage,
+  resetTaskState,
+  submitCommentIngestToRealApi,
   submitToRealIngestApi,
+  syntheticDoudianCommentPages,
   syntheticDoudianPages,
   unsupportedSyntheticPage
 } from "../../lib/ingest"
-import type { CollectionRunState, CollectablePageStatus, RunStatus } from "../../schemas/ingest"
+import type { CollectionTaskState, CollectablePageStatus, RunStatus, SourceKind, SubmitReceipt } from "../../schemas/ingest"
 import { CollapsibleSection } from "../../shared/ui/CollapsibleSection"
 import { ModuleCard } from "../../shared/ui/ModuleCard"
 import { SecurityNote } from "../../shared/ui/SecurityNote"
 import { StatusBadge } from "../../shared/ui/StatusBadge"
 
-function recognitionTone(status: CollectablePageStatus) {
-  if (status === "collectible") {
-    return "ready" as const
-  }
+type PreviewTab = "products" | "comments"
 
-  if (status === "needs-confirmation") {
-    return "review" as const
-  }
-
+function recognitionTone(status: CollectablePageStatus | undefined) {
+  if (status === "collectible") return "ready" as const
+  if (status === "needs-confirmation") return "review" as const
   return "blocked" as const
 }
 
 function runTone(status: RunStatus) {
-  if (status === "submitted") {
-    return "ready" as const
-  }
-
-  if (status === "failed") {
-    return "blocked" as const
-  }
-
-  if (status === "paused") {
-    return "review" as const
-  }
-
+  if (status === "submitted" || status === "ready") return "ready" as const
+  if (status === "failed") return "blocked" as const
+  if (status === "paused" || status === "pausing") return "review" as const
   return "repair" as const
 }
 
 function runStatusLabel(status: RunStatus) {
   const labels: Record<RunStatus, string> = {
     idle: "未开始",
-    scanned: "已扫描",
-    collecting: "采集中",
-    paused: "已中断",
+    recognizing: "识别中",
+    ready: "已就绪",
+    collecting_products: "商品采集中",
+    collecting_comments: "评论采集中",
+    pausing: "暂停中",
+    paused: "已暂停",
+    submitting: "提交中",
     submitted: "已提交",
-    failed: "不可采集"
+    failed: "失败",
+    resetting: "已复位"
   }
 
   return labels[status]
 }
 
-function buildSummary(runState: CollectionRunState) {
-  const rows = runState.currentPreview?.rows ?? []
-  const warningRows = rows.filter((row) => row.warnings.length > 0).length
+function sourceKindLabel(sourceKind?: SourceKind) {
+  return sourceKind === "comment" ? "评论" : "商品"
+}
 
-  return [
-    { label: "当前页记录", value: String(rows.length), tone: "repair" as const },
-    { label: "累计记录", value: String(runState.collectedRows.length), tone: "ready" as const },
-    { label: "异常字段行", value: String(warningRows), tone: warningRows > 0 ? ("review" as const) : ("ready" as const) },
-    { label: "当前页码", value: `${runState.currentPage}/${runState.totalPages}`, tone: "repair" as const }
-  ]
+function progressValue(runState: CollectionTaskState) {
+  if (runState.totalPages <= 0) return 0
+  return Math.min(100, Math.round((runState.currentPage / runState.totalPages) * 100))
+}
+
+function mockCombinedReceipt(runState: CollectionTaskState): SubmitReceipt {
+  return {
+    ok: true,
+    submitId: `MOCK-DUAL-${runState.runId}`,
+    acceptedRows: runState.collectedProductRows.length + runState.collectedCommentRows.length,
+    adapter: "mock",
+    message: "mock submit adapter 已接收商品和评论采集 payload；真实后端统计投影仍由 ingest service 更新。"
+  }
 }
 
 export function SidePanelApp() {
-  const [activePageIndex, setActivePageIndex] = useState(0)
+  const [activeProductPageIndex, setActiveProductPageIndex] = useState(0)
+  const [activeCommentPageIndex, setActiveCommentPageIndex] = useState(0)
   const [useUnsupportedPage, setUseUnsupportedPage] = useState(false)
-  const [runState, setRunState] = useState<CollectionRunState>(() => createInitialRunState(syntheticDoudianPages.length))
+  const [previewTab, setPreviewTab] = useState<PreviewTab>("products")
+  const [runState, setRunState] = useState<CollectionTaskState>(() => createInitialTaskState(Math.max(syntheticDoudianPages.length, syntheticDoudianCommentPages.length)))
 
-  const activePage = useUnsupportedPage ? unsupportedSyntheticPage : syntheticDoudianPages[activePageIndex]
-  const recognition = useMemo(() => recognizeDoudianProductList(activePage), [activePage])
-  const preview = runState.currentPreview ?? extractDoudianCurrentPage(activePage)
-  const payload = buildIngestPayload(runState)
-  const summary = buildSummary(runState)
-  const progressValue = Math.round((runState.currentPage / runState.totalPages) * 100)
-  const submitRealPayload = async () => {
+  const activeProductPage = useUnsupportedPage ? unsupportedSyntheticPage : syntheticDoudianPages[activeProductPageIndex]
+  const activeCommentPage = activeCommentPageIndex >= syntheticDoudianCommentPages.length ? emptySyntheticDoudianCommentPage : syntheticDoudianCommentPages[activeCommentPageIndex]
+  const activeRecognition = runState.lastRecognition
+  const productPayload = useMemo(() => buildProductIngestPayload(runState), [runState])
+  const commentPayload = useMemo(() => buildCommentIngestPayload(runState), [runState])
+
+  const submitRealPayloads = async () => {
     try {
-      const receipt = await submitToRealIngestApi(buildIngestPayload(runState))
-      setRunState((state) => ({ ...state, status: "submitted", submitReceipt: receipt }))
+      assertNoSensitivePayloadKeys(productPayload)
+      assertNoSensitivePayloadKeys(commentPayload)
+      setRunState((state) => ({ ...state, status: "submitting", lastEvent: "SUBMIT" }))
+      const receipts: SubmitReceipt[] = []
+      if (productPayload.rows.length > 0) {
+        receipts.push(await submitToRealIngestApi(productPayload))
+      }
+      if (commentPayload.rows.length > 0) {
+        receipts.push(await submitCommentIngestToRealApi(commentPayload))
+      }
+      const acceptedRows = receipts.reduce((sum, receipt) => sum + receipt.acceptedRows, 0)
+      setRunState((state) =>
+        attachTaskSubmitReceipt(state, {
+          ok: true,
+          submitId: receipts.map((receipt) => receipt.submitId).join(" + ") || `REAL-EMPTY-${state.runId}`,
+          acceptedRows,
+          adapter: "real-api",
+          message: "真实 ingest API 已接收商品/评论 payload；后端负责诊断与评论统计投影。"
+        })
+      )
     } catch (error) {
       setRunState((state) => ({
         ...state,
         status: "failed",
-        interruptionReason: error instanceof Error ? error.message : "真实 ingest API 提交失败。"
+        lastEvent: "FAIL",
+        lastError: error instanceof Error ? error.message : "真实 ingest API 提交失败。"
       }))
     }
   }
+
+  const summary = [
+    { label: "商品数", value: String(runState.statistics.productCount), tone: "ready" as const },
+    { label: "SKU 数", value: String(runState.statistics.skuCount), tone: "ready" as const },
+    { label: "评论数", value: String(runState.statistics.commentCount), tone: "repair" as const },
+    { label: "低分/差评", value: `${runState.statistics.lowRatingCount}/${runState.statistics.negativeCommentCount}`, tone: runState.statistics.negativeCommentCount > 0 ? ("review" as const) : ("ready" as const) },
+    { label: "未回复", value: String(runState.statistics.unrepliedCommentCount), tone: runState.statistics.unrepliedCommentCount > 0 ? ("review" as const) : ("ready" as const) },
+    { label: "异常字段行", value: String(runState.statistics.warningRowCount), tone: runState.statistics.warningRowCount > 0 ? ("review" as const) : ("ready" as const) },
+    { label: "已采页", value: String(runState.statistics.collectedPageCount), tone: "repair" as const },
+    { label: "失败页", value: String(runState.statistics.failedPageCount), tone: runState.statistics.failedPageCount > 0 ? ("blocked" as const) : ("ready" as const) }
+  ]
 
   return (
     <div className="plugin-root sidepanel-root">
@@ -105,7 +144,7 @@ export function SidePanelApp() {
               <div className="logo-badge">SR</div>
               <div>
                 <h1 className="sidepanel-shell__title">SKU Ready Agent</h1>
-                <p className="sidepanel-shell__subtitle">抖店商品列表采集 Layer 1</p>
+                <p className="sidepanel-shell__subtitle">抖店双页面采集任务执行器</p>
               </div>
             </div>
             <StatusBadge tone={runTone(runState.status)}>{runStatusLabel(runState.status)}</StatusBadge>
@@ -113,136 +152,162 @@ export function SidePanelApp() {
 
           <div className="sidepanel-hero">
             <div className="sidepanel-hero__card">
-              <div className="sidepanel-hero__eyebrow">当前页面识别</div>
+              <div className="sidepanel-hero__eyebrow">当前任务</div>
               <div className="sidepanel-hero__headline">
-                {recognition.platform} · {recognition.pageType}
+                {activeRecognition ? `${activeRecognition.platform} · ${activeRecognition.pageType}` : "等待页面识别"}
               </div>
               <div className="sidepanel-hero__detail">
-                {recognition.status === "unsupported"
-                  ? recognition.unsupportedReason
-                  : `第 ${recognition.pageIndex} / ${recognition.totalPages} 页，识别置信度 ${Math.round(recognition.confidence * 100)}%。`}
+                {activeRecognition
+                  ? `第 ${activeRecognition.pageIndex} / ${activeRecognition.totalPages} 页 · ${sourceKindLabel(activeRecognition.sourceKind)} · 置信度 ${Math.round(activeRecognition.confidence * 100)}%`
+                  : "支持商品列表页 /ffa/g/list 与评价管理页 /ffa/maftersale/comment。"}
               </div>
             </div>
             <div className="sidepanel-hero__metrics">
               <div className="hero-metric">
-                <div className="hero-metric__label">累计记录</div>
-                <div className="hero-metric__value">{runState.collectedRows.length}</div>
-                <div className="hero-metric__note">仅采集事实，不生成业务结论</div>
+                <div className="hero-metric__label">采集事实</div>
+                <div className="hero-metric__value">{runState.collectedProductRows.length + runState.collectedCommentRows.length}</div>
+                <div className="hero-metric__note">插件不生成业务结论</div>
               </div>
               <div className="hero-metric">
                 <div className="hero-metric__label">运行进度</div>
-                <div className="hero-metric__value">{progressValue}%</div>
-                <div className="hero-metric__note">受控分页循环</div>
+                <div className="hero-metric__value">{progressValue(runState)}%</div>
+                <div className="hero-metric__note">可暂停、恢复、复位</div>
               </div>
             </div>
           </div>
         </header>
 
         <div className="sidepanel-shell__body">
-          <ModuleCard title="页面识别结果" right={<StatusBadge tone={recognitionTone(recognition.status)}>{recognition.status === "collectible" ? "可采集页面" : "不可采集"}</StatusBadge>}>
+          <ModuleCard
+            title="页面识别与安全边界"
+            right={<StatusBadge tone={recognitionTone(activeRecognition?.status)}>{activeRecognition?.status === "collectible" ? "可采集页面" : "待识别"}</StatusBadge>}
+          >
             <div className="recognition-layout">
               <div>
                 <h2 className="recognition-layout__title">识别依据摘要</h2>
-                <p className="muted-text">插件可读取当前页面可见 DOM；真实抖店 HTTP fixture 已用于校验接口字段映射。</p>
+                <p className="muted-text">混合优先策略：当前授权页面上下文接口/监听优先，DOM 点击翻页和解析兜底。</p>
                 <div className="recognition-layout__grid">
                   <div className="recognition-layout__fact">
-                    <div className="recognition-layout__fact-label">URL</div>
-                    <div className="recognition-layout__fact-value">{activePage.url}</div>
+                    <div className="recognition-layout__fact-label">商品页 URL</div>
+                    <div className="recognition-layout__fact-value">{activeProductPage.url}</div>
+                  </div>
+                  <div className="recognition-layout__fact">
+                    <div className="recognition-layout__fact-label">评论页 URL</div>
+                    <div className="recognition-layout__fact-value">{activeCommentPage.url}</div>
                   </div>
                   <div className="recognition-layout__fact">
                     <div className="recognition-layout__fact-label">命中规则</div>
-                    <div className="recognition-layout__fact-value">{recognition.reasons.join(" / ")}</div>
+                    <div className="recognition-layout__fact-value">{activeRecognition?.reasons.join(" / ") ?? "尚未识别"}</div>
                   </div>
                   <div className="recognition-layout__fact">
-                    <div className="recognition-layout__fact-label">本页记录</div>
-                    <div className="recognition-layout__fact-value">{activePage.rows.length} 条</div>
-                  </div>
-                  <div className="recognition-layout__fact">
-                    <div className="recognition-layout__fact-label">采集边界</div>
-                    <div className="recognition-layout__fact-value">仅当前授权页面可见字段</div>
+                    <div className="recognition-layout__fact-label">checkpoint</div>
+                    <div className="recognition-layout__fact-value">
+                      {runState.checkpoint ? `${runState.checkpoint.pageType} 下一页 ${runState.checkpoint.nextPageIndex}` : "无"}
+                    </div>
                   </div>
                 </div>
               </div>
-              <SecurityNote title="安全边界" text="不读取 Cookie / Token，不自动修改后台数据，不在插件内推导健康、准入或审批结论。" />
+              <SecurityNote title="安全边界" text="不读取 Cookie / Token，不自动改价、回复评论或修改商品；评论统计只作为后端诊断输入。" />
             </div>
           </ModuleCard>
 
-          <ModuleCard title="扫描与受控循环" right={<span className="muted-text">当前页：{activePage.pageIndex}</span>}>
+          <ModuleCard title="任务控制" right={<span className="muted-text">状态机事件：{runState.lastEvent ?? "none"}</span>}>
             <div className="scan-card">
               <div className="scan-card__cta">
                 <div>
-                  <h2 className="scan-card__title">当前页提取与字段映射预览</h2>
-                  <p className="muted-text">先扫描当前页，再按分页顺序采集。发生结构异常时保留 run state 和继续入口。</p>
+                  <h2 className="scan-card__title">商品与评论双采集</h2>
+                  <p className="muted-text">可先单页识别，再自动翻页采集；结构异常、限流或人工暂停会保留 checkpoint。</p>
                 </div>
-                <button className="primary-button" type="button" onClick={() => setRunState(scanCurrentPage(runState, activePage))}>
-                  扫描当前页
+                <button className="primary-button" type="button" onClick={() => setRunState(recognizeProductPage(runState, activeProductPage))}>
+                  识别商品页
+                </button>
+              </div>
+              <div className="button-row button-row--four">
+                <button className="secondary-button" type="button" onClick={() => setRunState(recognizeCommentPage(runState, activeCommentPage))}>
+                  识别评论页
+                </button>
+                <button className="secondary-button" type="button" onClick={() => setRunState(collectProductPage(runState, activeProductPage))}>
+                  采当前商品页
+                </button>
+                <button className="secondary-button" type="button" onClick={() => setRunState(collectCommentPage(runState, activeCommentPage))}>
+                  采当前评论页
+                </button>
+                <button className="secondary-button" type="button" onClick={() => setUseUnsupportedPage((value) => !value)}>
+                  切换异常页
                 </button>
               </div>
               <div className="button-row">
-                <button className="secondary-button" type="button" onClick={() => setRunState(collectThroughPage(createInitialRunState(syntheticDoudianPages.length), syntheticDoudianPages, 2))}>
-                  采集到第 2 页并中断
+                <button className="secondary-button" type="button" onClick={() => setRunState(collectAllProductPages(createInitialTaskState(syntheticDoudianPages.length), syntheticDoudianPages, 1))}>
+                  商品采集后暂停
                 </button>
-                <button className="secondary-button" type="button" onClick={() => setRunState(collectThroughPage(runState, syntheticDoudianPages.slice(runState.currentPage)))}>
-                  继续采集
+                <button className="secondary-button" type="button" onClick={() => setRunState(collectAllProductPages(runState, syntheticDoudianPages.slice(runState.currentPage)))}>
+                  继续商品采集
                 </button>
-                <button className="secondary-button" type="button" onClick={() => setUseUnsupportedPage((value) => !value)}>
-                  切换不可采集样例
+                <button className="secondary-button" type="button" onClick={() => setRunState(collectAllCommentPages(runState, syntheticDoudianCommentPages.slice(Math.max(0, runState.currentPage - 1))))}>
+                  继续评论采集
                 </button>
               </div>
               <div>
                 <div className="scan-card__progress-head">
                   <span className="scan-card__progress-label">运行总进度</span>
-                  <span className="muted-text">第 {runState.currentPage} / {runState.totalPages} 页 · {runState.collectedRows.length} 条</span>
+                  <span className="muted-text">第 {runState.currentPage} / {runState.totalPages} 页 · 状态 {runStatusLabel(runState.status)}</span>
                 </div>
                 <div className="progress-bar">
-                  <span style={{ width: `${progressValue}%` }} />
+                  <span style={{ width: `${progressValue(runState)}%` }} />
                 </div>
               </div>
-              {runState.interruptionReason ? <div className="inline-warning">{runState.interruptionReason}</div> : null}
+              {runState.lastError ? <div className="inline-warning">{runState.lastError}</div> : null}
             </div>
           </ModuleCard>
 
-          <ModuleCard title="本地 run state" right={<StatusBadge tone={runTone(runState.status)}>{runStatusLabel(runState.status)}</StatusBadge>}>
+          <ModuleCard title="状态机时间线" right={<StatusBadge tone={runTone(runState.status)}>{runStatusLabel(runState.status)}</StatusBadge>}>
             <div className="timeline-card">
               <div className="timeline-card__head">
                 <div>
                   <h2 className="timeline-card__title">当前采集 Run：{runState.runId}</h2>
-                  <p className="muted-text">记录当前页、累计记录数、运行状态和中断原因；这些状态仅用于采集流程控制。</p>
+                  <p className="muted-text">记录页面识别、翻页、暂停、复位和提交状态；这些状态只用于采集流程控制。</p>
                 </div>
                 <div className="timeline-card__meta">
-                  <span className="timeline-chip">当前页 {runState.currentPage}</span>
-                  <span className="timeline-chip">累计 {runState.collectedRows.length}</span>
-                  <span className="timeline-chip">状态 {runStatusLabel(runState.status)}</span>
+                  <span className="timeline-chip">商品 {runState.collectedProductRows.length}</span>
+                  <span className="timeline-chip">评论 {runState.collectedCommentRows.length}</span>
+                  <span className="timeline-chip">已提交 {runState.submitted ? "是" : "否"}</span>
                 </div>
               </div>
               <div className="timeline-list">
-                <article className="timeline-step timeline-step--done">
+                <article className={`timeline-step timeline-step--${activeRecognition ? "done" : "waiting"}`}>
                   <div className="timeline-step__top">
                     <div className="timeline-step__title">页面识别</div>
-                  <div className="timeline-step__time">fixture / http</div>
+                    <div className="timeline-step__time">{activeRecognition?.pageType ?? "等待"}</div>
                   </div>
-                  <p className="muted-text">{recognition.reasons.join("；")}</p>
+                  <p className="muted-text">{activeRecognition?.reasons.join("；") ?? "点击识别按钮后开始任务。"}</p>
                 </article>
-                <article className={`timeline-step timeline-step--${runState.currentPreview ? "done" : "waiting"}`}>
+                <article className={`timeline-step timeline-step--${runState.collectedProductRows.length > 0 ? "done" : "waiting"}`}>
                   <div className="timeline-step__top">
-                    <div className="timeline-step__title">当前页提取</div>
-                    <div className="timeline-step__time">{preview.rows.length} 条</div>
+                    <div className="timeline-step__title">商品采集</div>
+                    <div className="timeline-step__time">{runState.collectedProductRows.length} 条</div>
                   </div>
-                  <p className="muted-text">标准字段预览已生成，异常字段会保留在 warnings。</p>
+                  <p className="muted-text">商品 ID、SKU、价格、库存、类目、状态、活动标签和更新时间作为采集事实保留。</p>
+                </article>
+                <article className={`timeline-step timeline-step--${runState.collectedCommentRows.length > 0 ? "done" : "waiting"}`}>
+                  <div className="timeline-step__top">
+                    <div className="timeline-step__title">评论采集</div>
+                    <div className="timeline-step__time">{runState.collectedCommentRows.length} 条</div>
+                  </div>
+                  <p className="muted-text">评分、内容摘要、售后/追评/差评标记和回复状态仅作为后端统计输入。</p>
                 </article>
                 <article className={`timeline-step timeline-step--${runState.status === "paused" ? "active" : "waiting"}`}>
                   <div className="timeline-step__top">
-                    <div className="timeline-step__title">受控中断点</div>
-                    <div className="timeline-step__time">{runState.status === "paused" ? "可继续" : "无中断"}</div>
+                    <div className="timeline-step__title">暂停与恢复</div>
+                    <div className="timeline-step__time">{runState.checkpoint ? `下一页 ${runState.checkpoint.nextPageIndex}` : "无 checkpoint"}</div>
                   </div>
-                  <p className="muted-text">{runState.interruptionReason ?? "自动循环尚未遇到翻页或结构异常。"}</p>
+                  <p className="muted-text">{runState.lastError ?? "未遇到限流、结构变化或人工暂停。"}</p>
                 </article>
               </div>
             </div>
           </ModuleCard>
 
-          <ModuleCard title="扫描结果摘要" right={<span className="muted-text">采集层指标</span>}>
-            <div className="summary-grid">
+          <ModuleCard title="实时统计" right={<span className="muted-text">采集层指标</span>}>
+            <div className="summary-grid summary-grid--wide">
               {summary.map((metric) => (
                 <div className="summary-metric" key={metric.label}>
                   <div className={`summary-metric__value summary-metric__value--${metric.tone}`}>{metric.value}</div>
@@ -253,53 +318,108 @@ export function SidePanelApp() {
           </ModuleCard>
 
           <section className="module-card">
-            <CollapsibleSection title="字段映射预览" meta={`${preview.mapping.length} 个标准字段`}>
-              <div className="mapping-list">
-                {preview.mapping.map((row) => (
-                  <div className="mapping-row" key={row.targetKey}>
-                    <div>
-                      <div className="mapping-row__title">{row.sourceLabel}</div>
-                      <div className="mapping-row__subtle">样例：{row.sampleValue}</div>
-                    </div>
-                    <div className="mapping-row__arrow">-&gt;</div>
-                    <div>
-                      <div className="mapping-row__title">{row.targetLabel}</div>
-                      <div className="mapping-row__subtle">{row.status === "mapped" ? "已映射" : "本页样例缺失"}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CollapsibleSection>
+            <div className="tab-row">
+              <button className={`tab-button ${previewTab === "products" ? "tab-button--active" : ""}`} type="button" onClick={() => setPreviewTab("products")}>
+                商品预览
+              </button>
+              <button className={`tab-button ${previewTab === "comments" ? "tab-button--active" : ""}`} type="button" onClick={() => setPreviewTab("comments")}>
+                评论预览
+              </button>
+            </div>
 
-            <CollapsibleSection title="当前页记录预览" meta={`${preview.rows.length} 条`}>
-              <div className="preview-table">
-                <div className="preview-table__row preview-table__row--head">
-                  <span>SKU</span>
-                  <span>标题</span>
-                  <span>价格</span>
-                  <span>库存</span>
-                  <span>提示</span>
-                </div>
-                {preview.rows.map((row) => (
-                  <div className="preview-table__row" key={`${row.rowIndex}-${row.title}`}>
-                    <span>{row.externalSkuId || "缺失"}</span>
-                    <span>{row.title || "缺失"}</span>
-                    <span>{row.salePrice ?? "空"}</span>
-                    <span>{row.availableStock ?? "空"}</span>
-                    <span>{row.warnings.length ? row.warnings.join("；") : "无"}</span>
+            {previewTab === "products" ? (
+              <>
+                <CollapsibleSection title="商品字段映射" meta={`${runState.currentProductPreview?.mapping.length ?? 0} 个标准字段`}>
+                  <div className="mapping-list">
+                    {(runState.currentProductPreview?.mapping ?? []).map((row) => (
+                      <div className="mapping-row" key={row.targetKey}>
+                        <div>
+                          <div className="mapping-row__title">{row.sourceLabel}</div>
+                          <div className="mapping-row__subtle">样例：{row.sampleValue}</div>
+                        </div>
+                        <div className="mapping-row__arrow">-&gt;</div>
+                        <div>
+                          <div className="mapping-row__title">{row.targetLabel}</div>
+                          <div className="mapping-row__subtle">{row.status === "mapped" ? "已映射" : "本页样例缺失"}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CollapsibleSection>
+                </CollapsibleSection>
+                <CollapsibleSection title="商品记录预览" meta={`${runState.collectedProductRows.length} 条`}>
+                  <div className="preview-table">
+                    <div className="preview-table__row preview-table__row--head">
+                      <span>SKU</span>
+                      <span>标题</span>
+                      <span>价格</span>
+                      <span>库存</span>
+                      <span>提示</span>
+                    </div>
+                    {runState.collectedProductRows.map((row) => (
+                      <div className="preview-table__row" key={`${row.rowIndex}-${row.externalSkuId}`}>
+                        <span>{row.externalSkuId || "缺失"}</span>
+                        <span>{row.title || "缺失"}</span>
+                        <span>{row.salePrice ?? "空"}</span>
+                        <span>{row.availableStock ?? "空"}</span>
+                        <span>{row.warnings.length ? row.warnings.join("；") : "无"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+              </>
+            ) : (
+              <>
+                <CollapsibleSection title="评论字段映射" meta={`${runState.currentCommentPreview?.mapping.length ?? 0} 个标准字段`}>
+                  <div className="mapping-list">
+                    {(runState.currentCommentPreview?.mapping ?? []).map((row) => (
+                      <div className="mapping-row" key={row.targetKey}>
+                        <div>
+                          <div className="mapping-row__title">{row.sourceLabel}</div>
+                          <div className="mapping-row__subtle">样例：{row.sampleValue}</div>
+                        </div>
+                        <div className="mapping-row__arrow">-&gt;</div>
+                        <div>
+                          <div className="mapping-row__title">{row.targetLabel}</div>
+                          <div className="mapping-row__subtle">{row.status === "mapped" ? "已映射" : "本页样例缺失"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+                <CollapsibleSection title="评论记录预览" meta={`${runState.collectedCommentRows.length} 条`}>
+                  <div className="preview-table preview-table--comments">
+                    <div className="preview-table__row preview-table__row--head">
+                      <span>评论</span>
+                      <span>商品</span>
+                      <span>评分</span>
+                      <span>回复</span>
+                      <span>提示</span>
+                    </div>
+                    {runState.collectedCommentRows.map((row) => (
+                      <div className="preview-table__row" key={`${row.rowIndex}-${row.externalCommentId}`}>
+                        <span>{row.externalCommentId}</span>
+                        <span>{row.externalProductId ?? "缺失"}</span>
+                        <span>{row.rating ?? "空"}</span>
+                        <span>{row.replyStatus ?? "空"}</span>
+                        <span>{row.warnings.length ? row.warnings.join("；") : "无"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CollapsibleSection>
+              </>
+            )}
 
-            <CollapsibleSection title="ingest submit payload" meta={`${payload.rows.length} 条待提交`}>
-              <pre className="payload-preview">{JSON.stringify(payload, null, 2)}</pre>
+            <CollapsibleSection title="商品 ingest payload" meta={`${productPayload.rows.length} 条待提交`}>
+              <pre className="payload-preview">{JSON.stringify(productPayload, null, 2)}</pre>
+            </CollapsibleSection>
+            <CollapsibleSection title="评论 ingest payload" meta={`${commentPayload.rows.length} 条待提交`}>
+              <pre className="payload-preview">{JSON.stringify(commentPayload, null, 2)}</pre>
             </CollapsibleSection>
           </section>
 
           <ModuleCard title="提交通路" right={<span className="muted-text">contract-first</span>}>
             <div className="submit-panel">
-              <p className="muted-text">默认提交到真实 ingest API；mock submit adapter 仅保留为本地开发与测试 fallback。</p>
+              <p className="muted-text">商品提交到 /api/ingest，评论提交到 /api/ingest/comments；后端统一负责归一化、诊断输入和统计投影。</p>
               <div className="dependency-note">{realIngestAdapterDependency.note}</div>
               {runState.submitReceipt ? (
                 <div className="submit-receipt">
@@ -314,17 +434,20 @@ export function SidePanelApp() {
 
         <footer className="sticky-action-bar">
           <div className="sticky-action-bar__grid">
-            <button className="secondary-button" type="button" onClick={() => setActivePageIndex((value) => (value + 1) % syntheticDoudianPages.length)}>
-              切换页 fixture
+            <button className="secondary-button" type="button" onClick={() => setActiveProductPageIndex((value) => (value + 1) % syntheticDoudianPages.length)}>
+              切换商品页
             </button>
-            <button className="warn-button" type="button" onClick={() => setRunState(createInitialRunState(syntheticDoudianPages.length))}>
-              重置 run
+            <button className="secondary-button" type="button" onClick={() => setActiveCommentPageIndex((value) => (value + 1) % (syntheticDoudianCommentPages.length + 1))}>
+              切换评论页
             </button>
-            <button className="secondary-button sticky-action-bar__full" type="button" onClick={() => setRunState(attachMockSubmitReceipt(runState))}>
-              mock fallback submit
+            <button className="warn-button" type="button" onClick={() => setRunState(resetTaskState(Math.max(syntheticDoudianPages.length, syntheticDoudianCommentPages.length)))}>
+              复位 run
             </button>
-            <button className="primary-button sticky-action-bar__full" type="button" onClick={() => void submitRealPayload()}>
-              提交真实 ingest API
+            <button className="secondary-button" type="button" onClick={() => setRunState(attachTaskSubmitReceipt(runState, mockCombinedReceipt(runState)))}>
+              mock submit
+            </button>
+            <button className="primary-button sticky-action-bar__full" type="button" onClick={() => void submitRealPayloads()}>
+              提交商品与评论 ingest
             </button>
           </div>
         </footer>

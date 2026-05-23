@@ -611,6 +611,10 @@ button {
   gap: 10px;
 }
 
+.button-row--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .inline-warning,
 .dependency-note {
   border: 1px solid color-mix(in oklab, var(--review) 32%, white);
@@ -779,6 +783,10 @@ button {
   gap: 10px;
 }
 
+.summary-grid--wide {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .summary-metric {
   padding: 11px;
   border-radius: 14px;
@@ -919,6 +927,32 @@ button {
   background: #f7f9fc;
   color: var(--fg);
   font-weight: 700;
+}
+
+.tab-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px 13px;
+  background: #fcfdff;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-button {
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tab-button--active {
+  background: #edf4ff;
+  border-color: #c9dcff;
+  color: #1d5fd6;
 }
 
 .payload-preview {

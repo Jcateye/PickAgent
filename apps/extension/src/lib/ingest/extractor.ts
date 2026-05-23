@@ -45,6 +45,8 @@ export function extractDoudianCurrentPage(page: SyntheticDoudianPage): PageExtra
     const availableStock = numberValue(row.source["可售库存"])
     const category = stringValue(row.source["类目"]) || null
     const listingStatus = stringValue(row.source["商品状态"]) || null
+    const activityLabels = Array.isArray(row.source["活动标签"]) ? row.source["活动标签"].map(stringValue).filter(Boolean) : []
+    const updatedAt = stringValue(row.source["更新时间"]) || null
     const warnings = [
       externalSkuId ? "" : "缺少商品ID，提交前需要人工确认行身份。",
       title ? "" : "缺少商品标题，预览无法展示商品名称。",
@@ -53,13 +55,17 @@ export function extractDoudianCurrentPage(page: SyntheticDoudianPage): PageExtra
     ].filter(Boolean)
 
     return {
+      sourceKind: "product",
       rowIndex: row.rowIndex,
+      externalProductId: externalSkuId || null,
       externalSkuId,
       title,
       salePrice,
       availableStock,
       category,
       listingStatus,
+      activityLabels,
+      updatedAt,
       sourceUrl: page.url,
       raw: row.source,
       warnings
