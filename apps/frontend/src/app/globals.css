@@ -352,6 +352,14 @@ h4 {
   grid-column: 1 / -1;
 }
 
+.reviewWorkbenchLayout,
+.reportPreviewLayout {
+  display: grid;
+  grid-template-columns: minmax(420px, 0.95fr) minmax(420px, 1.05fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -392,6 +400,209 @@ h4 {
 
 .panelBody {
   padding: 18px;
+}
+
+.filterBar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.filterBar select {
+  min-width: 160px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0 10px;
+}
+
+.reviewList {
+  display: grid;
+  gap: 10px;
+}
+
+.reviewListItem {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.reviewListItem--selected {
+  border-color: var(--primary);
+  background: #f3f7ff;
+}
+
+.reviewItemTopline,
+.detailInline,
+.decisionActions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reviewItemMeta,
+.reviewItemQuestion,
+.detailBlock span,
+.sourceObjectBar span,
+.reportExecutiveSummary span,
+.reportSectionHeader span,
+.contractList span,
+.evidenceRow span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reviewItemQuestion {
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.reviewDetailBody,
+.decisionPanelBody,
+.reportActionBody,
+.reportBody,
+.reportSectionList {
+  display: grid;
+  gap: 14px;
+}
+
+.detailBlock {
+  display: grid;
+  gap: 6px;
+}
+
+.detailBlock strong {
+  font-size: 15px;
+}
+
+.detailBlock p,
+.detailInline p,
+.reportExecutiveSummary p,
+.reportSectionHeader p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.sourceObjectBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.sourceObjectBar p {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.evidenceList {
+  display: grid;
+  gap: 10px;
+}
+
+.evidenceRow {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(120px, 1fr) minmax(120px, 0.8fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-soft);
+}
+
+.evidenceRow code {
+  color: var(--primary-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.decisionPanelBody textarea {
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfdff;
+  color: var(--fg);
+  padding: 12px;
+  line-height: 1.6;
+}
+
+.decisionActions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.decisionFeedback {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.reportExecutiveSummary,
+.reportSection {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 16px;
+}
+
+.reportSection {
+  display: grid;
+  gap: 14px;
+}
+
+.reportSectionHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.reportSectionHeader h3 {
+  font-size: 16px;
+}
+
+.reportSection ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.reportActionBody .primaryButton,
+.reportActionBody .secondaryButton {
+  width: fit-content;
+}
+
+.contractList {
+  display: grid;
+  gap: 10px;
+}
+
+.contractList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
 }
 
 .statusBadge {
@@ -934,6 +1145,11 @@ h4 {
   .agentMissionLayout {
     grid-template-columns: 1fr;
   }
+
+  .reviewWorkbenchLayout,
+  .reportPreviewLayout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1080px) {
@@ -1003,6 +1219,15 @@ h4 {
 
   .missionStepTitleRow,
   .toolTraceHeader {
+    flex-direction: column;
+  }
+
+  .evidenceRow {
+    grid-template-columns: 1fr;
+  }
+
+  .sourceObjectBar,
+  .contractList div {
     flex-direction: column;
   }
 }
