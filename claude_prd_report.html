@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SKU Ready Agent · PRD 与实现架构评审报告</title>
+  <style>
+    :root {
+      --bg: #f5f4ed;
+      --panel: rgba(255,255,255,0.82);
+      --panel-strong: #ffffff;
+      --text: #182230;
+      --muted: #5f6b7a;
+      --line: #d7dde5;
+      --accent: #1f4b7a;
+      --accent-soft: #e8f0f8;
+      --good: #246b45;
+      --warn: #8a5a16;
+      --bad: #8b2f2f;
+      --shadow: 0 18px 60px rgba(31, 52, 74, 0.12);
+      --radius: 24px;
+      --radius-sm: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(31,75,122,0.10), transparent 32%),
+        radial-gradient(circle at top right, rgba(36,107,69,0.10), transparent 28%),
+        var(--bg);
+      line-height: 1.7;
+    }
+
+    .page {
+      width: min(1240px, calc(100vw - 32px));
+      margin: 32px auto 64px;
+    }
+
+    .hero {
+      padding: 48px;
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 32px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.74));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h1 {
+      margin-top: 18px;
+      font-size: clamp(34px, 5vw, 56px);
+      font-family: var(--serif);
+      letter-spacing: -0.03em;
+    }
+    .lead {
+      margin-top: 18px;
+      max-width: 920px;
+      font-size: 18px;
+      color: var(--muted);
+    }
+
+    .meta-grid,
+    .kpi-grid,
+    .card-grid,
+    .two-col,
+    .matrix,
+    .init-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .meta-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 28px; }
+    .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 28px; }
+    .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .two-col { grid-template-columns: 1.2fr 0.8fr; }
+    .matrix { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .init-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .meta, .kpi, .card, .panel, .mini {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      padding: 20px;
+      backdrop-filter: blur(8px);
+    }
+
+    .meta .label, .kpi .label, .mini .label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+
+    .meta .value, .kpi .value {
+      margin-top: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .section {
+      margin-top: 24px;
+      padding: 28px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.75);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .section h2 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      font-family: var(--serif);
+    }
+
+    .section > p.intro {
+      margin-top: 0;
+      color: var(--muted);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .tag {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(31,75,122,0.08);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+
+    ul, ol { margin: 14px 0 0 1.2em; padding: 0; }
+    li + li { margin-top: 8px; }
+
+    .ascii {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 18px;
+      background: #0f1720;
+      color: #eef6ff;
+      border: 1px solid rgba(255,255,255,0.08);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 18px;
+      overflow: hidden;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.6);
+    }
+
+    th, td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(31,75,122,0.08);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .callout {
+      margin-top: 18px;
+      padding: 18px 20px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(31,75,122,0.08), rgba(31,75,122,0.04));
+      border: 1px solid rgba(31,75,122,0.12);
+    }
+
+    .callout strong { color: var(--accent); }
+
+    .footer {
+      margin-top: 28px;
+      padding: 20px 24px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .small {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 980px) {
+      .meta-grid, .kpi-grid, .card-grid, .two-col, .matrix, .init-grid {
+        grid-template-columns: 1fr;
+      }
+      .hero { padding: 28px; }
+      .section { padding: 22px; }
+      .page { width: min(100vw - 16px, 1240px); margin: 16px auto 40px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="eyebrow">Single-file HTML Report · PickAgent</div>
+      <h1>SKU Ready Agent：PRD 解读、实现架构建议与当前仓库状态</h1>
+      <p class="lead">
+        这份报告面向“明天可落地的黑客松实现”而写，汇总了 <strong>需求 PRD</strong>、<strong>建议实现架构</strong>、<strong>价值主张</strong>、<strong>关键设计注意点</strong>，以及当前 <strong>PickAgent</strong> 仓库的 agent 工作区与模块初始化现状。文档采用单文件 HTML 形式，便于直接阅读、分享和继续演化。
+      </p>
+
+      <div class="meta-grid">
+        <div class="meta">
+          <div class="label">目标产品</div>
+          <div class="value">SKU Ready Agent</div>
+        </div>
+        <div class="meta">
+          <div class="label">当前阶段</div>
+          <div class="value">PRD v0.1 / 架构收敛前</div>
+        </div>
+        <div class="meta">
+          <div class="label">报告定位</div>
+          <div class="value">需求—架构—状态 三合一</div>
+        </div>
+        <div class="meta">
+          <div class="label">落地策略</div>
+          <div class="value">先闭环，再扩展</div>
+        </div>
+      </div>
+
+      <div class="tag-row">
+        <span class="tag">多平台商品健康监控</span>
+        <span class="tag">活动准入模拟</span>
+        <span class="tag">Evidence Chain</span>
+        <span class="tag">Review Gate</span>
+        <span class="tag">LLM 解析 + 规则引擎执行</span>
+        <span class="tag">黑客松可演示闭环</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>一、PRD 目标与问题定义</h2>
+      <p class="intro">
+        这份 PRD 的核心命题不是“做一个活动来了以后临时筛 SKU 的工具”，而是把商品运营的临时救火，转成日常、可追溯、可协同的执行系统。
+      </p>
+
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="label">核心口号</div>
+          <div class="value">让每个 SKU 平时就处于 Ready 状态</div>
+        </div>
+        <div class="kpi">
+          <div class="label">产品定位</div>
+          <div class="value">企业 Agent 体系中的运营执行层</div>
+        </div>
+        <div class="kpi">
+          <div class="label">能力核心</div>
+          <div class="value">自动采集、自动诊断、自动模拟、人工 Review</div>
+        </div>
+        <div class="kpi">
+          <div class="label">安全原则</div>
+          <div class="value">LLM 负责理解，规则引擎负责判断</div>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top:18px;">
+        <div class="panel">
+          <h3>PRD 解决的真实问题</h3>
+          <ul>
+            <li>多平台商品数据分散在电商后台、ERP、报表、活动系统与售后系统中。</li>
+            <li>活动规则复杂，且往往在活动发布后才临时拉数、筛数、协同确认。</li>
+            <li>库存不足、证书缺失、好评率下降、互斥活动、价格口径冲突等问题，常在最后一刻暴露。</li>
+            <li>如果直接把业务决策交给 LLM，会带来幻觉、误判与不可追溯风险。</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>PRD 的正确方向</h3>
+          <ul>
+            <li>把“活动临时报名判断”升级成“长期 SKU 健康管理”。</li>
+            <li>把“Excel 手工筛选”升级成“规则解析 + 准入模拟 + Review Gate”。</li>
+            <li>把“聊天问答”降级为自然语言控制台，而不是业务核心本体。</li>
+            <li>把 A 战略 Agent、D 风控 Agent 的信号，落到 SKU 级执行建议上。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>一句话总结：</strong>
+        PRD 的产品叙事是成立的，且适合黑客松路演；真正要收紧的是详细设计边界，而不是推翻方向。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>二、建议实现架构图（MVP 落地版）</h2>
+      <p class="intro">
+        建议架构遵循一条主线：<strong>采集事实 → 归一化 → 生成健康判断 → 解析活动规则 → 执行准入模拟 → 进入 Review → 对外查询与报告</strong>。
+      </p>
+
+      <div class="ascii">┌──────────────────────────────────────────────────────────────────────────────┐
+│                                CLIENT LAYER                                 │
+├───────────────────────────────┬───────────────────────────┬──────────────────┤
+│ 模拟商品后台页面               │ Dashboard / Review / Report│ Agent Chat       │
+│ (table / list)                │ Next.js UI                │ assistant-ui      │
+└───────────────┬───────────────┴───────────────┬───────────┴─────────┬────────┘
+                │                               │                     │
+                │ scan page                     │ query/read          │ tool call
+                ▼                               ▼                     ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           CONNECTOR / API EDGE                              │
+├───────────────────────────────┬───────────────────────────┬──────────────────┤
+│ Browser Plugin / Plasmo       │ REST API                 │ Chat API          │
+│ - page extractor              │ - /api/ingest            │ - /api/chat       │
+│ - platform adapter            │ - /api/health/*          │                  │
+│ - preview & confirm           │ - /api/activities/*      │                  │
+└───────────────┬───────────────┴───────────────┬───────────┴─────────┬────────┘
+                │                               │                     │
+                └───────────────┬───────────────┴───────────────┬─────┘
+                                ▼                               ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            APPLICATION LAYER                                │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ 1) IngestService                                                           │
+│    raw rows -> Zod validate -> normalize -> write snapshot -> trigger diag │
+│                                                                            │
+│ 2) HealthAssessmentService                                                 │
+│    snapshot -> deterministic health checks -> issues/actions/evidence      │
+│                                                                            │
+│ 3) ActivityRuleService                                                     │
+│    rule text -> LLM parse -> Zod validate -> Canonical Rule DSL           │
+│    parse failed / ambiguous -> manualReviewItems                          │
+│                                                                            │
+│ 4) ActivitySimulationService                                               │
+│    Rule DSL + current SKU view -> eligibility result -> repair plan       │
+│    item-level rules + set-level rules(category quota etc.)                │
+│                                                                            │
+│ 5) ReviewService                                                           │
+│    diagnosis/simulation/parser output -> structured review items          │
+│                                                                            │
+│ 6) ReportService                                                           │
+│    health summary + simulation + review -> markdown report                │
+│                                                                            │
+│ 7) QueryService / ToolService                                              │
+│    给 Dashboard / Chat 提供统一查询入口                                    │
+└───────────────────────────────┬───────────────────────────┬──────────────────┘
+                                │                           │
+                                ▼                           ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                               DOMAIN CORE                                   │
+├───────────────────────────────┬───────────────────────────┬──────────────────┤
+│ SKU PROFILE                   │ RULE DSL                  │ EVIDENCE / REVIEW │
+│ - canonicalSkuId              │ - threshold               │ - EvidenceRef     │
+│ - platform/store/sku mapping  │ - field_compare           │ - ReviewItem      │
+│ - product identity            │ - boolean_block           │ - reason/status   │
+│                               │ - mutual_exclusion        │ - linked rule     │
+│ SNAPSHOT / PROJECTION         │ - category_quota          │ - linked snapshot │
+│ - SkuSnapshot                 │ - data_required           │                  │
+│ - CurrentSkuProjection        │ - manual_review           │                  │
+│ - latest diagnosis            │                           │                  │
+│ - latest simulation per act.  │                           │                  │
+└───────────────────────────────┬───────────────────────────┴──────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                             PERSISTENCE LAYER                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ PostgreSQL / Prisma                                                        │
+│                                                                            │
+│ - SkuProfile                                                               │
+│ - SkuSnapshot                                                              │
+│ - SkuHealthDiagnosis                                                       │
+│ - CurrentSkuProjection                                                     │
+│ - ActivityRuleSet                                                          │
+│ - ActivitySimulationRun                                                    │
+│ - ActivitySimulationResult                                                 │
+│ - ReviewItem                                                               │
+│ - WorkflowRun / WorkflowStep                                               │
+│ - AgentEvent                                                               │
+└───────────────────────────────┬──────────────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                        SAFETY / OBSERVABILITY LAYER                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ - Zod on all external input + LLM output                                  │
+│ - fail-closed                                                              │
+│ - stale/conflict/insufficient-data checks                                 │
+│ - workflow logs                                                            │
+│ - evidence trace                                                           │
+│ - review gate                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘</div>
+    </section>
+
+    <section class="section">
+      <h2>三、核心数据关系与建议主语</h2>
+      <p class="intro">
+        当前 PRD 的最大设计风险，是“长期健康档案”缺少稳定主语。MVP 需要最少补出一个 <strong>SkuProfile</strong> 或等价的长期聚合层。
+      </p>
+
+      <div class="ascii">SkuProfile (长期主语)
+   │ 1
+   ├───────────────&lt; SkuSnapshot (每次采集事实)
+   │                     │ 1
+   │                     └──────&lt; SkuHealthDiagnosis (基于某次 snapshot 的诊断)
+   │
+   ├───────────────&lt; CurrentSkuProjection (当前查询视图)
+   │
+ActivityRuleSet (某次活动规则)
+   │ 1
+   ├───────────────&lt; ActivitySimulationRun
+   │                     │ 1
+   │                     └──────&lt; ActivitySimulationResult &gt;────── 1 SkuProfile
+   │
+   └───────────────&lt; ReviewItem
+                         ├─ optional -> SkuSnapshot
+                         ├─ optional -> SkuHealthDiagnosis
+                         ├─ optional -> ActivitySimulationResult
+                         └─ * EvidenceRef</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>层级</th>
+            <th>建议职责</th>
+            <th>为什么重要</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>SkuProfile</strong></td>
+            <td>长期主语，承接平台 / 店铺 / SKU 身份、商品映射、查询入口</td>
+            <td>否则“健康档案页”只能退化为某次 snapshot 详情页</td>
+          </tr>
+          <tr>
+            <td><strong>SkuSnapshot</strong></td>
+            <td>采集事实，保留 rawJson、来源、采集时间、字段值</td>
+            <td>保证可追溯性，支撑数据过期与冲突检查</td>
+          </tr>
+          <tr>
+            <td><strong>SkuHealthDiagnosis</strong></td>
+            <td>对 snapshot 做确定性健康判断</td>
+            <td>把长期健康与活动规则计算解耦</td>
+          </tr>
+          <tr>
+            <td><strong>ActivitySimulationResult</strong></td>
+            <td>在活动上下文下计算 eligibilityStatus、失败规则、修复建议</td>
+            <td>避免把 618 门槛写死为所有 SKU 的长期健康标准</td>
+          </tr>
+          <tr>
+            <td><strong>EvidenceRef</strong></td>
+            <td>把字段、来源、采集时间、规则原文、判定依据结构化保存</td>
+            <td>否则 Safety Layer 和 Review Gate 只是文案，不是系统能力</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>四、具体价值点</h2>
+      <p class="intro">
+        这个方案的价值，不在“AI 帮你回答一个问题”，而在于把多源数据、规则约束和执行闭环统一起来。
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <h3>1. 把临时救火变成持续运营</h3>
+          <p>传统流程是活动来了才拉表筛数；SKU Ready Agent 把商品健康前移，平时就识别库存、证书、信息完整度、经营风险等问题。</p>
+        </div>
+        <div class="card">
+          <h3>2. 把规则理解与业务判断分开</h3>
+          <p>LLM 负责把自然语言活动规则解析成结构化 DSL，真正的准入判断交给规则引擎执行，减少幻觉风险。</p>
+        </div>
+        <div class="card">
+          <h3>3. 把不可追溯建议变成证据驱动决策</h3>
+          <p>每个结论都能指向字段、来源、采集时间与规则证据，适合运营、商品、供应链、法务共同 Review。</p>
+        </div>
+        <div class="card">
+          <h3>4. 把聊天框降级为控制台</h3>
+          <p>Dashboard、详情页、Review 工作台和报告都可直接查询服务端；Chat 只是自然语言入口，不成为系统单点。</p>
+        </div>
+        <div class="card">
+          <h3>5. 天然适配多 Agent 体系</h3>
+          <p>战略 Agent 给市场机会信号，风控 Agent 给边界信号，SKU Ready Agent 把它们翻译成 SKU 级可执行建议。</p>
+        </div>
+        <div class="card">
+          <h3>6. 黑客松上可讲清“AI 安全”</h3>
+          <p>Fail-closed、Review Gate、Zod 校验、Evidence Chain 这些设计，能让评委相信这不是“把大模型硬套进业务”。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>五、核心注意点与设计边界</h2>
+      <p class="intro">
+        这些不是“以后再优化”的细节，而是决定这套实现会不会从 Demo 代码快速失控的关键边界。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>注意点</th>
+            <th>建议做法</th>
+            <th>风险</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>长期健康 vs 活动准入</strong></td>
+            <td>拆成 <code>healthStatus</code> 与 <code>eligibilityStatus</code></td>
+            <td class="bad">不拆会把活动门槛污染为长期标准</td>
+          </tr>
+          <tr>
+            <td><strong>规则 DSL</strong></td>
+            <td>最少支持 threshold / field_compare / boolean_block / mutual_exclusion / category_quota / manual_review / data_required</td>
+            <td class="bad">DSL 不足会让模拟器退化成硬编码 demo</td>
+          </tr>
+          <tr>
+            <td><strong>SKU identity</strong></td>
+            <td>先定义 platform + storeId + skuId 与 canonicalSkuId 的关系</td>
+            <td class="bad">档案页、跨平台汇总、Chat 查询会没有稳定主语</td>
+          </tr>
+          <tr>
+            <td><strong>证据链</strong></td>
+            <td>定义 EvidenceRef：sourceType / sourceId / field / rawValue / normalizedValue / collectedAt / ruleId / evidenceText</td>
+            <td class="bad">Review Gate 缺乏真正的追溯能力</td>
+          </tr>
+          <tr>
+            <td><strong>时态 / 生效时间</strong></td>
+            <td>明确 latest snapshot、latest valid diagnosis、simulation validity</td>
+            <td class="warn">过期数据、旧规则结果会污染 Dashboard 和 API</td>
+          </tr>
+          <tr>
+            <td><strong>类目上限等集合规则</strong></td>
+            <td>区分 item-level rules 与 set-level rules</td>
+            <td class="warn">无法靠单 SKU 判断解决</td>
+          </tr>
+          <tr>
+            <td><strong>P0 范围控制</strong></td>
+            <td>先跑通主闭环，Chat 和复杂工作流只做薄层</td>
+            <td class="warn">黑客松现场最容易卡在 UI 集成和非主链路</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>建议的明天前必须钉死的 5 个边界：</strong>
+        稳定长期主语、SKU 身份规则、Rule DSL、健康状态与活动状态拆分、结构化 EvidenceRef。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>六、建议的 MVP 主链路</h2>
+      <p class="intro">
+        如果目标是“明天可以稳定演示”，建议把所有需求收敛成一条能完整跑通、可解释、可回放的主链路。</p>
+
+      <div class="matrix">
+        <div class="panel">
+          <h3>主闭环</h3>
+          <ol>
+            <li>模拟商品后台页面提供可识别表格。</li>
+            <li>插件扫描当前页面并做字段预览。</li>
+            <li><code>/api/ingest</code> 做 Zod 校验、标准化、入库 snapshot。</li>
+            <li>生成 deterministic health diagnosis。</li>
+            <li>用户粘贴活动规则，LLM 解析为 Rule DSL。</li>
+            <li>规则引擎执行活动准入模拟。</li>
+            <li>生成 Review 清单与报告摘要。</li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>可降级项</h3>
+          <ol>
+            <li>Chat 可以只做薄工具调用，不做复杂多轮智能体。</li>
+            <li>WorkflowRun / WorkflowStep 只做轻量日志，不做通用编排引擎。</li>
+            <li>外部 Agent 事件先做静态模拟卡片。</li>
+            <li>CSV 导入、跨平台同 SKU 汇总、复杂权限系统后置。</li>
+            <li>报告先输出 Markdown 或 HTML 片段即可，不必先做 PDF 导出。</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>七、当前 PickAgent 仓库的 agent 工作空间情况</h2>
+      <p class="intro">
+        当前仓库还处于 <strong>“工作流脚手架已建，业务模块尚未初始化”</strong> 的状态。也就是说，规则、方法论、PRD 文档已在，但真正的应用代码、数据库模型、插件代码和 API 实现都还未开始。</p>
+
+      <div class="init-grid">
+        <div class="panel">
+          <h3>已存在的 agent 工作区文档</h3>
+          <ul>
+            <li><code>CLAUDE.md</code>：项目总规则，要求使用 ProjectWorkFlowDemo 风格工作流。</li>
+            <li><code>CONTEXT.md</code>：术语上下文文件，目前内容极少，基本还是占位。</li>
+            <li><code>docs/agents/profile.md</code>：当前 profile 为 <strong>coding</strong>。</li>
+            <li><code>docs/agents/workspace-template.md</code>：当前模板为 <strong>coding-real-engineer</strong>。</li>
+            <li><code>docs/agents/domain.md</code>：说明上下文与 ADR 的使用方式。</li>
+            <li><code>docs/agents/issue-tracker.md</code>：默认 issue tracker 层为 <strong>local-markdown</strong>。</li>
+            <li><code>docs/agents/verification.md</code>：要求非平凡实现必须先定义最小可靠验证。</li>
+            <li><code>docs/agents/claude-code-ecosystem.md</code>：记录当前全局 Claude Code 基线生态。</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>当前工作区判断</h3>
+          <ul>
+            <li><span class="status-dot" style="background:#246b45"></span>方法论与协作规范已就位。</li>
+            <li><span class="status-dot" style="background:#246b45"></span>PRD 已形成完整产品叙事。</li>
+            <li><span class="status-dot" style="background:#8a5a16"></span>ADR 目录存在，但尚未落任何架构决策文档。</li>
+            <li><span class="status-dot" style="background:#8b2f2f"></span>还没有真正的代码模块、数据模型、接口、前端页面或插件工程。</li>
+            <li><span class="status-dot" style="background:#8b2f2f"></span>仓库当前更像“Agent 工作台 + PRD 容器”，还不是应用仓库。</li>
+          </ul>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th>当前状态</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Profile</td>
+            <td class="good">coding</td>
+            <td>适合架构评审、开发与调试</td>
+          </tr>
+          <tr>
+            <td>Workspace Template</td>
+            <td class="good">coding-real-engineer</td>
+            <td>强调小步改动、验证优先、不要投机式抽象</td>
+          </tr>
+          <tr>
+            <td>Issue Tracker Layer</td>
+            <td class="good">local-markdown</td>
+            <td>说明当前项目还没绑定 GitHub Issues 等外部追踪系统</td>
+          </tr>
+          <tr>
+            <td>Verification Layer</td>
+            <td class="good">已定义规则</td>
+            <td>要求先定义最小可靠校验，再宣称完成</td>
+          </tr>
+          <tr>
+            <td>ADR</td>
+            <td class="warn">空目录</td>
+            <td>说明关键架构决策还没有固化</td>
+          </tr>
+          <tr>
+            <td>Source Modules</td>
+            <td class="bad">未初始化</td>
+            <td>尚无 Next.js / Prisma / Plasmo / app / src / api 代码</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>八、当前模块初始化情况</h2>
+      <p class="intro">
+        从仓库结构看，当前并不是“已经搭好项目骨架、只差实现功能”，而是“连骨架都还未正式初始化”。这不是坏事，反而说明现在正是先把边界钉清、再快速生成代码骨架的最佳时机。</p>
+
+      <div class="card-grid">
+        <div class="card">
+          <h3>已初始化</h3>
+          <ul>
+            <li>项目规则文件</li>
+            <li>PRD 主文档</li>
+            <li>agent workspace 说明文档</li>
+            <li>ADR 目录占位</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>未初始化</h3>
+          <ul>
+            <li>Next.js 应用工程</li>
+            <li>Prisma schema 与数据库连接</li>
+            <li>API routes</li>
+            <li>Plasmo 插件工程</li>
+            <li>测试框架与验证脚本</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>初始化前建议先定的事</h3>
+          <ul>
+            <li>最小数据模型</li>
+            <li>Rule DSL</li>
+            <li>主链路 API 边界</li>
+            <li>EvidenceRef 结构</li>
+            <li>健康状态与活动状态拆分</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>判断：</strong>
+        当前 PickAgent 仓库的最佳下一步不是直接铺代码，而是先用最小边界定义把“会不会写散”这个问题解决掉，然后再一口气搭骨架。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>九、最终建议</h2>
+      <p class="intro">
+        如果目标是“明天黑客松稳”，建议采用“产品叙事不动、实现边界收紧、主链路先跑通”的策略。</p>
+
+      <ol>
+        <li><strong>保留 PRD 主叙事：</strong> 继续强调这是企业 Agent 体系中的运营执行层。</li>
+        <li><strong>先固化最小架构：</strong> SkuProfile、Snapshot、Diagnosis、RuleSet、Simulation、Review、EvidenceRef。</li>
+        <li><strong>Chat 不做核心：</strong> 先保证 API 与服务层能独立跑通，聊天只是自然语言入口。</li>
+        <li><strong>主链路优先：</strong> 采集 → 入库 → 诊断 → 解析规则 → 模拟 → Review → 报告。</li>
+        <li><strong>安全能力做成系统能力：</strong> 不要只停留在文案上，至少要有结构化 evidence 与 fail-closed 分支。</li>
+      </ol>
+
+      <div class="callout">
+        <strong>一句收尾：</strong>
+        这份 PRD 值得继续推进；它真正需要的不是“重写”，而是把 <em>主语、规则、时态、证据、主链路</em> 五个边界先钉死，再进入代码生成与模块初始化。
+      </div>
+    </section>
+
+    <footer class="footer">
+      生成说明：本文件为单文件 HTML 报告，基于 PickAgent 当前仓库文档状态、PRD 内容与实现架构评审意见整理而成。<br />
+      文件名：<strong>claude_prd_report.html</strong>
+    </footer>
+  </main>
+</body>
+</html>
