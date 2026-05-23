@@ -51,3 +51,30 @@
 - 每个 scenario 使用 WHEN / THEN。
 - 每个 `tasks.md` 保留分工文档 5.x 的任务编号。
 - `openspec validate <change> --strict` 全部通过，或记录命令不可用/阻塞原因。
+
+## 6. P0 生产化最小层执行跟踪
+
+日期：2026-05-24
+
+L4 已 accepted，P0 无已知 blocker，但存在需要回流的生产化 P1 risk。P0 不直接扩张业务能力，只收敛生产默认路径、Agent 持久化审计、最小鉴权边界和 build/start 验收。
+
+| 层级 | OpenSpec change | 模块 | 依赖 | 并行规则 | 完成判定 |
+|---|---|---|---|---|---|
+| P0 | `p0-production-minimum-foundation` | 规格冻结 / 分工 | L4 accepted；P1 risk 清单 | umbrella，不承载业务实现 | 子 change、分工文档、验证口径全部冻结。 |
+| P0.1 | `p0-prisma-repository-transaction` | 后端 persistence | `final-api-persistence-foundation` | 优先启动并优先合并 | Prisma/PostgreSQL repository + transaction 成为生产 API 主路径，in-memory 仅保留非生产 fallback。 |
+| P0.2 | `p0-agent-eventstore-persistence` | Agent backend | `final-agent-eventstore-foundation`；repository interface 稳定 | 可与 P0.1 后半段并行，merge 晚于 P0.1 | AgentEventStore/SSE replay 可重启恢复，AgentRun/ToolCall/ReviewGate 进入 Workflow/Review 审计链。 |
+| P0.3 | `p0-auth-boundary-and-runtime-config` | Auth / runtime safety | L4 route contract；ToolPolicy contract | 可与 P0.1/P0.2 并行，production smoke 前合并 | 生产 API enforced actor/tenant/session；Pi production adapter 只暴露低风险业务工具。 |
+| P0.4 | `p0-production-acceptance-smoke` | 生产验收 | P0.1、P0.2、P0.3 | 最后合并 | build/start 模式 smoke 覆盖 L4 A/B/C/D、persistence restart、Agent replay、dangerous tool denial 和证据归档。 |
+
+### P0 推进规则
+
+- P0 执行必须从子 change 启动，不在 umbrella change 下直接提交业务实现。
+- `p0-prisma-repository-transaction` 是 production merge 第一优先级。
+- `p0-agent-eventstore-persistence` 可并行设计，但合并必须晚于 repository / transaction 主路径。
+- `p0-auth-boundary-and-runtime-config` 必须在 production smoke 前合并。
+- `p0-production-acceptance-smoke` 只能在 build/start 模式通过后声明 P0 production acceptance。
+
+### P0 blocker / P1 risk 口径
+
+- P0 blocker：生产默认路径仍依赖 in-memory；重启后数据不可恢复；生产 API 无 actor/tenant/session 边界；Pi adapter 可见危险工具；AgentReviewGate 不关联正式 ReviewItem；Copilot Overlay 默认 fake；未跑 build/start smoke。
+- P1 risk：in-memory 仅作为测试或显式 dev fallback；seed 已可隔离但仍存在；EvidenceRef 未拆表；production smoke 不覆盖性能/HA/完整 IAM；兼容旧工具别名但 production adapter 不暴露。
