@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import { ApiStatePanel } from '@/modules/staff-health-console/api-state-panel'
 import { healthStatusTone } from '@/modules/staff-health-console/contracts'
 import { getSkuDetail, getSkuList } from '@/modules/staff-health-console/data'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -9,7 +10,7 @@ import { StatusBadge } from '@/shared/ui/status-badge'
 
 export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string }) {
   const skuList = await getSkuList()
-  const selectedSku = await getSkuDetail(skuProfileId ?? skuList[0]?.skuProfileId)
+  const selectedSku = await getSkuDetail(skuProfileId ?? skuList.items[0]?.skuProfileId)
 
   return (
     <div className="pageStack">
@@ -30,6 +31,7 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
         title="SKU 健康"
         description="SKU 列表和详情只展示 CurrentSkuProjection 与 SKU detail DTO，状态、分数、问题和下一步动作均不在前端重新计算。"
       />
+      <ApiStatePanel state={selectedSku.viewState ?? skuList.viewState} />
 
       <div className="twoColumnScaffold skuHealthLayout">
         <div className="twoColumnMain">
@@ -44,29 +46,33 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                   <span>质量</span>
                   <span>下一步</span>
                 </div>
-                {skuList.map((sku) => (
-                  <Link
-                    className="skuTableRow skuTableRow--link"
-                    href={sku.targetHref}
-                    key={sku.skuProfileId}
-                    aria-current={sku.skuProfileId === selectedSku.projection.skuProfileId ? 'page' : undefined}
-                  >
-                    <span>
-                      <strong>{sku.productName}</strong>
-                      <small>{sku.canonicalSkuKey}</small>
-                    </span>
-                    <span>
-                      {sku.platform}
-                      <small>{sku.storeName}</small>
-                    </span>
-                    <span>
-                      <StatusBadge tone={healthStatusTone(sku.healthStatus)}>{sku.healthStatus}</StatusBadge>
-                      <small>{sku.healthScore} 分</small>
-                    </span>
-                    <span>{sku.dataQualityScore}%</span>
-                    <span>{sku.nextAction}</span>
-                  </Link>
-                ))}
+                {skuList.items.length === 0 ? (
+                  <div className="skuTableEmpty">真实 SKU list 当前为空；请先通过 /api/ingest 写入采集结果。</div>
+                ) : (
+                  skuList.items.map((sku) => (
+                    <Link
+                      className="skuTableRow skuTableRow--link"
+                      href={sku.targetHref}
+                      key={sku.skuProfileId}
+                      aria-current={sku.skuProfileId === selectedSku.projection.skuProfileId ? 'page' : undefined}
+                    >
+                      <span>
+                        <strong>{sku.productName}</strong>
+                        <small>{sku.canonicalSkuKey}</small>
+                      </span>
+                      <span>
+                        {sku.platform}
+                        <small>{sku.storeName}</small>
+                      </span>
+                      <span>
+                        <StatusBadge tone={healthStatusTone(sku.healthStatus)}>{sku.healthStatus}</StatusBadge>
+                        <small>{sku.healthScore} 分</small>
+                      </span>
+                      <span>{sku.dataQualityScore}%</span>
+                      <span>{sku.nextAction}</span>
+                    </Link>
+                  ))
+                )}
               </div>
             </PanelBody>
           </Panel>
@@ -155,6 +161,34 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                     <small>{evidence.source}</small>
                   </div>
                 ))}
+              </div>
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader title="可追溯来源" description="snapshot、diagnosis、collection risk 和 evidence source 均来自 SKU detail DTO。" />
+            <PanelBody>
+              <div className="traceabilityList">
+                <div>
+                  <span>Snapshot</span>
+                  <strong>{selectedSku.traceability?.snapshot?.id ?? '未返回'}</strong>
+                  <p>{selectedSku.traceability?.snapshot?.summary ?? '真实 detail DTO 未返回 latestSnapshot。'}</p>
+                </div>
+                <div>
+                  <span>Diagnosis</span>
+                  <strong>{selectedSku.traceability?.diagnosis?.id ?? '未返回'}</strong>
+                  <p>{selectedSku.traceability?.diagnosis?.summary ?? '真实 detail DTO 未返回 latestDiagnosis。'}</p>
+                </div>
+                <div>
+                  <span>Collection Risk</span>
+                  <strong>{selectedSku.traceability?.collectionRisks.length ?? 0} 项</strong>
+                  <p>{selectedSku.traceability?.collectionRisks.join('；') || '当前 DTO 未返回采集缺口风险。'}</p>
+                </div>
+                <div>
+                  <span>Evidence Source</span>
+                  <strong>{selectedSku.traceability?.evidenceSources.length ?? selectedSku.evidence.length} 项</strong>
+                  <p>{selectedSku.traceability?.evidenceSources.join('；') || selectedSku.evidence.map((item) => `${item.label}: ${item.source}`).join('；')}</p>
+                </div>
               </div>
             </PanelBody>
           </Panel>

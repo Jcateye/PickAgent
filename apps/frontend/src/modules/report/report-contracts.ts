@@ -7,6 +7,7 @@ export interface ReportEvidenceSummaryDto {
   label: string
   value: string
   source: string
+  href: string
 }
 
 export interface ReportSectionDto {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -15,7 +15,8 @@ import type {
   ReviewSourceType,
   ReviewStatus
 } from './review-contracts'
-import { createReviewProviderSnapshot } from './review-service-provider'
+import { mockReviewItems } from './review-fixtures'
+import { decideReviewItem, fetchReviewItems } from './review-service-provider'
 
 const statusOptions: Array<{ value: ReviewListFiltersDto['status']; label: string }> = [
   { value: 'all', label: '全部状态' },
@@ -77,12 +78,32 @@ function decisionLabel(decision: ReviewDecision) {
 }
 
 export function ReviewsPage() {
-  const provider = useMemo(() => createReviewProviderSnapshot(), [])
-  const [reviews, setReviews] = useState<ReviewItemDto[]>(provider.items)
+  const [reviews, setReviews] = useState<ReviewItemDto[]>(mockReviewItems)
   const [filters, setFilters] = useState<ReviewListFiltersDto>({ status: 'all', sourceType: 'all' })
-  const [selectedId, setSelectedId] = useState(provider.items[0]?.id)
+  const [selectedId, setSelectedId] = useState(mockReviewItems[0]?.id)
   const [comment, setComment] = useState('同意按证据摘要推进，保留来源对象追溯。')
   const [lastAction, setLastAction] = useState<string | null>(null)
+  const [apiState, setApiState] = useState<'loading' | 'ready' | 'fallback'>('loading')
+  const [apiError, setApiError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchReviewItems()
+      .then((items) => {
+        if (cancelled) return
+        setReviews(items)
+        setSelectedId((current) => current && items.some((item) => item.id === current) ? current : items[0]?.id)
+        setApiState('ready')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setApiState('fallback')
+        setApiError(error instanceof Error ? error.message : 'Review API failed')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filteredReviews = useMemo(
     () =>
@@ -96,19 +117,24 @@ export function ReviewsPage() {
 
   const selectedReview = reviews.find((item) => item.id === selectedId) ?? filteredReviews[0] ?? reviews[0]
 
-  function applyDecision(decision: ReviewDecision) {
+  async function applyDecision(decision: ReviewDecision) {
     if (!selectedReview) return
 
     const status = decisionToStatus(decision)
-    const updated = provider.decide(selectedReview.id, decision, 'staff@example.test', comment)
-    setReviews((current) =>
-      current.map((item) =>
-        item.id === selectedReview.id
-          ? updated
-          : item
+    try {
+      const updated = await decideReviewItem(selectedReview.id, decision, 'staff@example.test', comment)
+      setReviews((current) =>
+        current.map((item) =>
+          item.id === selectedReview.id
+            ? updated
+            : item
+        )
       )
-    )
-    setLastAction(`${selectedReview.id} 已${decisionLabel(decision)}，状态更新为「${statusLabel[status]}」。`)
+      setLastAction(`${selectedReview.id} 已${decisionLabel(decision)}，状态更新为「${statusLabel[status]}」。`)
+      setApiError(null)
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Review decision API failed')
+    }
   }
 
   return (
@@ -126,7 +152,7 @@ export function ReviewsPage() {
       />
       <PageHeader
         title="Review 工作台"
-        description={`消费 ReviewService 输出和来源对象 DTO，完成列表筛选、详情检查、证据摘要与人工决策闭环。当前数据源：${provider.mode === 'service' ? 'ReviewService' : 'mock fallback'}`}
+        description={`默认消费 /api/reviews 与 /api/reviews/:id/decision 的持久化 Review DTO；当前状态：${apiState === 'ready' ? 'API ready' : apiState === 'loading' ? '加载 API snapshot' : 'fixture fallback'}`}
       />
 
       <div className="reviewWorkbenchLayout">
@@ -213,9 +239,9 @@ export function ReviewsPage() {
                     <strong>{selectedReview.source.id}</strong>
                     <p>{sourceLabel[selectedReview.source.type]} · {selectedReview.source.routeLabel}</p>
                   </div>
-                  <button className="secondaryButton" type="button">
+                  <a className="secondaryButton" href={selectedReview.source.href}>
                     对象入口
-                  </button>
+                  </a>
                 </div>
               </PanelBody>
             </Panel>
@@ -228,7 +254,7 @@ export function ReviewsPage() {
                     <div className="evidenceRow" key={evidence.id}>
                       <span>{evidence.label}</span>
                       <strong>{evidence.value}</strong>
-                      <code>{evidence.source}</code>
+                      <a href={evidence.href}>{evidence.source}</a>
                     </div>
                   ))}
                 </div>
@@ -256,7 +282,7 @@ export function ReviewsPage() {
                   </p>
                 ) : null}
                 {lastAction ? <p className="decisionFeedback">{lastAction}</p> : null}
-                {provider.fallbackReason ? <p className="decisionFeedback">Fallback：{provider.fallbackReason}</p> : null}
+                {apiError ? <p className="decisionFeedback">Fallback：{apiError}</p> : null}
               </PanelBody>
             </Panel>
           </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { ApiStatePanel } from '@/modules/staff-health-console/api-state-panel'
 import { connectorStatusTone } from '@/modules/staff-health-console/contracts'
 import { getConnectorConsole } from '@/modules/staff-health-console/data'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -15,6 +16,7 @@ export async function ConnectorsPage() {
         title="Connectors"
         description="展示插件或连接器的连接状态、最近一次采集摘要和当前可用边界；本页不承担插件自动化控制流程。"
       />
+      {consoleState.viewState ? <ApiStatePanel state={consoleState.viewState} /> : null}
 
       <div className="twoColumnScaffold">
         <div className="twoColumnMain">

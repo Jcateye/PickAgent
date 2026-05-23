@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import { ApiStatePanel } from '@/modules/staff-health-console/api-state-panel'
 import { getDashboardSummary } from '@/modules/staff-health-console/data'
 import { workflowRunTone } from '@/modules/staff-health-console/contracts'
 import { PageHeader } from '@/shared/ui/page-header'
@@ -25,6 +26,7 @@ export async function DashboardPage() {
         title="Dashboard 总览"
         description="总览页展示监控范围、健康状态分布、数据质量摘要和最近运行入口；页面只消费 summary DTO，不展开活动模拟或审批细节。"
       />
+      {summary.viewState ? <ApiStatePanel state={summary.viewState} /> : null}
 
       <section className="kpiGrid">
         {summary.metrics.map((metric) => (
@@ -49,16 +51,20 @@ export async function DashboardPage() {
             <PanelHeader title="风险摘要" description="风险聚合来自服务端 summary DTO，点击进入对象列表继续处理。" />
             <PanelBody>
               <div className="riskSummaryList">
-                {summary.riskSummaries.map((risk) => (
-                  <Link className="summaryLinkItem" href={risk.targetHref} key={risk.id}>
-                    <div>
-                      <StatusBadge tone={risk.tone}>{risk.count}</StatusBadge>
-                      <strong>{risk.label}</strong>
-                      <p>{risk.description}</p>
-                    </div>
-                    <span>查看 SKU</span>
-                  </Link>
-                ))}
+                {summary.riskSummaries.length === 0 ? (
+                  <div className="compactState">真实 summary 当前没有风险聚合项。</div>
+                ) : (
+                  summary.riskSummaries.map((risk) => (
+                    <Link className="summaryLinkItem" href={risk.targetHref} key={risk.id}>
+                      <div>
+                        <StatusBadge tone={risk.tone}>{risk.count}</StatusBadge>
+                        <strong>{risk.label}</strong>
+                        <p>{risk.description}</p>
+                      </div>
+                      <span>查看 SKU</span>
+                    </Link>
+                  ))
+                )}
               </div>
             </PanelBody>
           </Panel>
@@ -69,25 +75,29 @@ export async function DashboardPage() {
             <PanelHeader title="最近运行摘要" description="最近采集与刷新运行入口保持和 Workflow 页面一致的对象语义。" />
             <PanelBody>
               <div className="runList">
-                {summary.recentRuns.map((run) => (
-                  <Link className="runItem" href={run.targetHref} key={run.id}>
-                    <div className="runTitleRow">
-                      <strong>{run.title}</strong>
-                      <StatusBadge tone={workflowRunTone(run.status)}>{run.status}</StatusBadge>
-                    </div>
-                    <dl>
-                      <div>
-                        <dt>来源</dt>
-                        <dd>{run.source}</dd>
+                {summary.recentRuns.length === 0 ? (
+                  <div className="compactState">真实 API 当前没有最近运行摘要；等待 ingest 或 workflow 写入。</div>
+                ) : (
+                  summary.recentRuns.map((run) => (
+                    <Link className="runItem" href={run.targetHref} key={run.id}>
+                      <div className="runTitleRow">
+                        <strong>{run.title}</strong>
+                        <StatusBadge tone={workflowRunTone(run.status)}>{run.status}</StatusBadge>
                       </div>
-                      <div>
-                        <dt>时间</dt>
-                        <dd>{run.finishedAtLabel}</dd>
-                      </div>
-                    </dl>
-                    <p>{run.summary}</p>
-                  </Link>
-                ))}
+                      <dl>
+                        <div>
+                          <dt>来源</dt>
+                          <dd>{run.source}</dd>
+                        </div>
+                        <div>
+                          <dt>时间</dt>
+                          <dd>{run.finishedAtLabel}</dd>
+                        </div>
+                      </dl>
+                      <p>{run.summary}</p>
+                    </Link>
+                  ))
+                )}
               </div>
             </PanelBody>
           </Panel>

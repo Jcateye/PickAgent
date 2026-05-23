@@ -1,6 +1,15 @@
 import assert from "node:assert/strict"
 
-import { realDoudianStockDiagnoseFixture, realDoudianStockListFixture } from "../fixtures/real-doudian-http"
+import {
+  realDoudianSkuStockDiagnoseRequestFixture,
+  realDoudianStockDiagnoseFixture,
+  realDoudianStockListFilteredFixture,
+  realDoudianStockListFilteredRequestFixture,
+  realDoudianStockListFirstPageFixture,
+  realDoudianStockListFirstPageRequestFixture,
+  realDoudianStockListSecondPageFixture,
+  realDoudianStockListSecondPageRequestFixture
+} from "../fixtures/real-doudian-http"
 import {
   emptySyntheticDoudianCommentPage,
   syntheticDoudianCommentPages,
@@ -8,10 +17,16 @@ import {
   unsupportedSyntheticPage
 } from "../fixtures/synthetic-doudian"
 import { extractDoudianCommentPage } from "./comment-extractor"
-import { mapDoudianStockListToPreview } from "./doudian-http-adapter"
+import {
+  buildSkuStockDiagnoseRequest,
+  buildStockListRequest,
+  collectDoudianStockPages,
+  mapDoudianStockListToPreview
+} from "./doudian-http-adapter"
 import { extractDoudianCurrentPage } from "./extractor"
 import { recognizeDoudianCommentList, recognizeDoudianProductList } from "./page-recognition"
 import { submitCommentIngestToRealApi, submitToRealIngestApi } from "./real-ingest-adapter"
+import { toFoundationIngestPayload } from "./foundation-ingest-payload"
 import {
   attachMockSubmitReceipt,
   buildIngestPayload,
@@ -116,10 +131,30 @@ assert.equal(resetState.status, "resetting")
 assert.equal(resetState.collectedProductRows.length, 0)
 assert.equal(resetState.collectedCommentRows.length, 0)
 
-const diagnoseByKey = new Map(
-  realDoudianStockDiagnoseFixture.data?.map((row) => [`${row.product_id}:${row.sku_id}`, row] as const)
-)
-const realPreview = mapDoudianStockListToPreview(realDoudianStockListFixture, {
+async function runFinalBrowserIngestValidationSmoke() {
+const firstPageRequest = buildStockListRequest({ page: 1, pageSize: 10 })
+assert.deepEqual(firstPageRequest, realDoudianStockListFirstPageRequestFixture)
+
+const secondPageRequest = buildStockListRequest({ page: 2, pageSize: 10 })
+assert.deepEqual(secondPageRequest, realDoudianStockListSecondPageRequestFixture)
+
+const filteredRequest = buildStockListRequest({
+  page: 1,
+  pageSize: 10,
+  filters: {
+    product_name: "韩版夏季短袖上衣",
+    status: 0,
+    stock_type: 0,
+    category_id: 1000003337
+  }
+})
+assert.deepEqual(filteredRequest, realDoudianStockListFilteredRequestFixture)
+
+const diagnoseRequest = buildSkuStockDiagnoseRequest(realDoudianStockListFirstPageFixture.data?.[1] ?? {})
+assert.deepEqual(diagnoseRequest, realDoudianSkuStockDiagnoseRequestFixture)
+
+const diagnoseByKey = new Map(realDoudianStockDiagnoseFixture.data?.map((row) => [`${row.product_id}:${row.sku_id}`, row] as const))
+const realPreview = mapDoudianStockListToPreview(realDoudianStockListFirstPageFixture, {
   sourceUrl: "https://fxg.jinritemai.com/ffa/g/stock-manage/list",
   diagnoseByKey
 })
@@ -132,36 +167,96 @@ assert.ok(realPreview.rows[0]?.warnings.some((warning) => warning.includes("cate
 assert.ok(realPreview.rows[2]?.warnings.some((warning) => warning.includes("is_alarming")))
 assert.equal(realPreview.mapping.length, 6)
 
-void submitToRealIngestApi(payload, {
+const realSecondPagePreview = mapDoudianStockListToPreview(realDoudianStockListSecondPageFixture, {
+  sourceUrl: "https://fxg.jinritemai.com/ffa/g/stock-manage/list?page=2",
+  diagnoseByKey
+})
+assert.equal(realSecondPagePreview.pageIndex, 2)
+assert.equal(realSecondPagePreview.rows.length, 1)
+assert.equal(realSecondPagePreview.rows[0]?.availableStock, 0)
+
+const realFilteredPreview = mapDoudianStockListToPreview(realDoudianStockListFilteredFixture, {
+  sourceUrl: "https://fxg.jinritemai.com/ffa/g/stock-manage/list?filter=product_name",
+  diagnoseByKey
+})
+assert.equal(realFilteredPreview.rows.length, 1)
+assert.equal(realFilteredPreview.rows[0]?.externalSkuId, "3668752191222018")
+
+const collectedRealPages = await collectDoudianStockPages({
+  sourceUrl: "https://fxg.jinritemai.com/ffa/g/stock-manage/list",
+  pageSize: 10,
+  maxPages: 2,
+  filters: {
+    product_name: "韩版夏季短袖上衣",
+    status: 0,
+    stock_type: 0,
+    category_id: 1000003337
+  },
+  fetcher: async (input, init) => {
+    const request = JSON.parse(String(init?.body))
+    if (String(input) === "/stock/manage/list") {
+      if (request.page === 1) {
+        assert.deepEqual(request, realDoudianStockListFilteredRequestFixture)
+        return new Response(JSON.stringify(realDoudianStockListFilteredFixture), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      assert.deepEqual(request, { ...realDoudianStockListSecondPageRequestFixture, product_name: "韩版夏季短袖上衣", status: 0, stock_type: 0, category_id: 1000003337 })
+      return new Response(JSON.stringify({ ...realDoudianStockListSecondPageFixture, total: 11 }), { status: 200, headers: { "content-type": "application/json" } })
+    }
+
+    assert.equal(String(input), "/stock/manage/sku_stock_diagnose")
+    assert.ok(Array.isArray(request.sku_ids))
+    return new Response(JSON.stringify(realDoudianStockDiagnoseFixture), { status: 200, headers: { "content-type": "application/json" } })
+  }
+})
+assert.equal(collectedRealPages.length, 1)
+assert.equal(collectedRealPages[0]?.rows.length, 1)
+
+const foundationPayload = toFoundationIngestPayload(payload)
+assert.equal(foundationPayload.connectorId, "doudian-browser-extension")
+assert.equal(foundationPayload.rows.length, 5)
+assert.equal(foundationPayload.rows[0]?.platform, "doudian")
+assert.equal(foundationPayload.rows[0]?.storeId, "fxg.jinritemai.com")
+assert.equal(foundationPayload.rows[0]?.stock, payload.rows[0]?.availableStock ?? undefined)
+assert.equal(foundationPayload.rows[0]?.raw.extensionRunId, payload.runId)
+
+await submitToRealIngestApi(payload, {
   endpoint: "https://pickagent.local/api/ingest",
   fetcher: async (_input, init) => {
     assert.equal(init?.method, "POST")
     const submittedPayload = JSON.parse(String(init?.body))
-    assert.equal(submittedPayload.schemaVersion, "extension-ingest.v1")
+    assert.equal(submittedPayload.connectorId, "doudian-browser-extension")
     assert.equal(submittedPayload.rows.length, 5)
-    return new Response(JSON.stringify({ submitId: "INGEST-RUN-SYNTHETIC-DOUDIAN-L1", acceptedRows: submittedPayload.rows.length }), {
+    assert.equal(submittedPayload.rows[0].platform, "doudian")
+    assert.equal(submittedPayload.rows[0].storeId, "fxg.jinritemai.com")
+    return new Response(JSON.stringify({ code: "OK", message: "ok", requestId: "req_test", data: { workflowRunId: "workflow_http_smoke", summaries: [{ skuProfileId: "sku_1" }] } }), {
       status: 200,
       headers: { "content-type": "application/json" }
     })
   }
-}).then((realSubmitReceipt) => {
-  assert.equal(realSubmitReceipt.adapter, "real-api")
-  assert.equal(realSubmitReceipt.acceptedRows, 5)
-  return submitCommentIngestToRealApi(commentTaskPayload, {
-    endpoint: "https://pickagent.local/api/ingest/comments",
-    fetcher: async (_input, init) => {
-      assert.equal(init?.method, "POST")
-      const submittedPayload = JSON.parse(String(init?.body))
-      assert.equal(submittedPayload.schemaVersion, "extension-comment-ingest.v1")
-      assert.equal(submittedPayload.rows.length, 3)
-      return new Response(JSON.stringify({ submitId: "COMMENT-INGEST-RUN", acceptedRows: submittedPayload.rows.length }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      })
-    }
-  })
-}).then((commentSubmitReceipt) => {
-  assert.equal(commentSubmitReceipt.adapter, "real-api")
-  assert.equal(commentSubmitReceipt.acceptedRows, 3)
-  console.log("extension ingest real doudian fixture smoke passed")
 })
+  .then((realSubmitReceipt) => {
+    assert.equal(realSubmitReceipt.adapter, "real-api")
+    assert.equal(realSubmitReceipt.acceptedRows, 1)
+    assert.equal(realSubmitReceipt.submitId, "workflow_http_smoke")
+    return submitCommentIngestToRealApi(commentTaskPayload, {
+      endpoint: "https://pickagent.local/api/ingest/comments",
+      fetcher: async (_input, init) => {
+        assert.equal(init?.method, "POST")
+        const submittedPayload = JSON.parse(String(init?.body))
+        assert.equal(submittedPayload.schemaVersion, "extension-comment-ingest.v1")
+        assert.equal(submittedPayload.rows.length, 3)
+        return new Response(JSON.stringify({ submitId: "COMMENT-INGEST-RUN", acceptedRows: submittedPayload.rows.length }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      }
+    })
+  })
+  .then((commentSubmitReceipt) => {
+    assert.equal(commentSubmitReceipt.adapter, "real-api")
+    assert.equal(commentSubmitReceipt.acceptedRows, 3)
+    console.log("extension ingest real doudian fixture smoke passed")
+  })
+}
+
+void runFinalBrowserIngestValidationSmoke()

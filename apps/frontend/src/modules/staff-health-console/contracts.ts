@@ -6,6 +6,13 @@ export type WorkflowRunStatus = 'SUCCEEDED' | 'RUNNING' | 'WAITING_FOR_REVIEW' |
 
 export type StatusTone = 'neutral' | 'ready' | 'review' | 'warning' | 'blocked'
 
+export interface ApiViewState {
+  kind: 'real' | 'empty' | 'fallback'
+  endpoint: string
+  message: string
+  requestId?: string
+}
+
 export interface DashboardMetricDto {
   id: string
   label: string
@@ -42,6 +49,7 @@ export interface DashboardSummaryDto {
     href: string
     description: string
   }>
+  viewState?: ApiViewState
 }
 
 export interface ConnectorDto {
@@ -62,6 +70,7 @@ export interface ConnectorConsoleDto {
     label: string
     description: string
   }>
+  viewState?: ApiViewState
 }
 
 export interface CurrentSkuProjectionDto {
@@ -103,6 +112,21 @@ export interface SkuDetailDto {
     description: string
     owner: string
   }>
+  traceability?: {
+    snapshot: {
+      id: string
+      collectedAtLabel: string
+      summary: string
+    } | null
+    diagnosis: {
+      id: string
+      diagnosedAtLabel: string
+      summary: string
+    } | null
+    collectionRisks: string[]
+    evidenceSources: string[]
+  }
+  viewState?: ApiViewState
 }
 
 export function healthStatusTone(status: HealthStatus): StatusTone {
