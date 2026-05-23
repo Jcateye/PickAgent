@@ -1,0 +1,230 @@
+export type HealthStatus = "READY" | "WARNING" | "BLOCKED" | "UNKNOWN";
+export type ParseStatus = "PARSED" | "NEEDS_REVIEW" | "FAILED";
+export type SimulationEligibility = "DIRECT_READY" | "REPAIRABLE_READY" | "MANUAL_REVIEW" | "BLOCKED";
+export type ReviewStatus = "OPEN" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
+export type ReviewDecision = "APPROVE" | "REJECT" | "REQUEST_CHANGES";
+export type ReportType = "HEALTH" | "ACTIVITY";
+export type AgentToolName =
+  | "getSkuSummary"
+  | "parseActivityRules"
+  | "runSimulation"
+  | "createReviewItems"
+  | "generateReportPreview";
+
+export interface EvidenceLinkDto {
+  type: "snapshot" | "diagnosis" | "rule" | "simulation" | "review" | "report" | "tool_trace";
+  entityId: string;
+  label: string;
+  summary: string;
+}
+
+export interface IngestRowDto {
+  platform: string;
+  storeId: string;
+  externalSkuId: string;
+  productName?: string;
+  category?: string;
+  brand?: string;
+  sourceUrl?: string;
+  rowIndex?: number;
+  sales30d?: number;
+  positiveRate?: number;
+  stock?: number;
+  originalPrice?: number;
+  lowestPrice30d?: number;
+  campaignPrice?: number;
+  joinedBrandDay?: boolean;
+  certificateStatus?: string;
+  raw: Record<string, unknown>;
+}
+
+export interface IngestPayloadDto {
+  connectorId?: string;
+  collectedAt: string;
+  rows: IngestRowDto[];
+}
+
+export interface SkuSummaryDto {
+  skuProfileId: string;
+  canonicalSkuKey: string;
+  productName: string;
+  platform: string;
+  storeId: string;
+  healthStatus: HealthStatus;
+  healthScore: number;
+  dataQualityScore: number;
+  topIssues: string[];
+  nextActions: string[];
+}
+
+export interface SkuDetailDto extends SkuSummaryDto {
+  latestSnapshot: NormalizedSkuSnapshotDto | null;
+  latestDiagnosis: HealthDiagnosisDto | null;
+  evidence: EvidenceLinkDto[];
+}
+
+export interface NormalizedSkuSnapshotDto {
+  snapshotId: string;
+  skuProfileId: string;
+  collectedAt: string;
+  productName: string;
+  category?: string;
+  brand?: string;
+  sales30d?: number;
+  positiveRate?: number;
+  stock?: number;
+  originalPrice?: number;
+  lowestPrice30d?: number;
+  campaignPrice?: number;
+  joinedBrandDay?: boolean;
+  certificateStatus?: string;
+  raw: Record<string, unknown>;
+  normalized: Record<string, unknown>;
+}
+
+export interface HealthDiagnosisDto {
+  diagnosisId: string;
+  skuProfileId: string;
+  snapshotId: string;
+  healthStatus: HealthStatus;
+  healthScore: number;
+  dataQualityScore: number;
+  issues: string[];
+  nextActions: string[];
+  evidence: EvidenceLinkDto[];
+  diagnosedAt: string;
+}
+
+export type RuleOperator = "gte" | "lte" | "eq" | "neq";
+export type RuleType = "threshold" | "field_compare" | "boolean_block" | "data_required" | "quota" | "manual_review";
+
+export interface CanonicalRuleDto {
+  id: string;
+  type: RuleType;
+  field?: string;
+  operator?: RuleOperator;
+  value?: number | string | boolean;
+  compareField?: string;
+  message: string;
+  severity: "info" | "warning" | "blocking";
+}
+
+export interface ActivityRuleSetDto {
+  ruleSetId: string;
+  name: string;
+  platform?: string;
+  sourceText: string;
+  rules: CanonicalRuleDto[];
+  parseStatus: ParseStatus;
+  confidence: number;
+  errors: string[];
+}
+
+export interface WhatIfInputDto {
+  stock?: number;
+  campaignPrice?: number;
+  certificateStatus?: string;
+}
+
+export interface SimulationRequestDto {
+  ruleSetId: string;
+  skuProfileIds: string[];
+  whatIf?: WhatIfInputDto;
+}
+
+export interface SimulationResultDto {
+  simulationResultId: string;
+  skuProfileId: string;
+  ruleSetId: string;
+  eligibility: SimulationEligibility;
+  failedRules: CanonicalRuleDto[];
+  evidence: EvidenceLinkDto[];
+  repairSuggestions: string[];
+  originalEligibility?: SimulationEligibility;
+}
+
+export interface ReviewItemDto {
+  reviewItemId: string;
+  skuProfileId?: string;
+  sourceType: "health" | "simulation" | "agent";
+  sourceId: string;
+  status: ReviewStatus;
+  question: string;
+  recommendation?: string;
+  riskLevel: "L0" | "L1" | "L2";
+  decision?: ReviewDecision;
+  decisionBy?: string;
+  decisionComment?: string;
+  decidedAt?: string;
+  evidence: EvidenceLinkDto[];
+}
+
+export interface ReportPreviewDto {
+  reportId: string;
+  type: ReportType;
+  status: "PREVIEW";
+  title: string;
+  sections: Array<{ id: string; title: string; summary: string; evidence: EvidenceLinkDto[] }>;
+  evidenceSummary: EvidenceLinkDto[];
+}
+
+export interface AgentToolDefinitionDto {
+  name: AgentToolName;
+  description: string;
+  inputSchemaName: string;
+  outputSchemaName: string;
+}
+
+export interface AgentToolExecutionDto<T = unknown> {
+  toolCallId: string;
+  toolName: AgentToolName;
+  status: "SUCCEEDED" | "FAILED";
+  result?: T;
+  linkedEntity?: { type: string; id: string };
+  evidence: EvidenceLinkDto[];
+  trace: Array<{ step: string; summary: string }>;
+}
+
+export const BusinessFoundationSchemaNames = {
+  ingestPayload: "IngestPayloadZodSchema",
+  skuSummary: "SkuSummaryZodSchema",
+  skuDetail: "SkuDetailZodSchema",
+  ruleSet: "ActivityRuleSetZodSchema",
+  simulationResult: "SimulationResultZodSchema",
+  reviewItem: "ReviewItemZodSchema",
+  reportPreview: "ReportPreviewZodSchema",
+  agentTool: "AgentToolZodSchema",
+} as const;
+
+export function assertValidIngestPayload(payload: IngestPayloadDto): void {
+  if (!payload.collectedAt || Number.isNaN(Date.parse(payload.collectedAt))) {
+    throw new Error("collectedAt must be an ISO datetime");
+  }
+  if (!Array.isArray(payload.rows) || payload.rows.length === 0) {
+    throw new Error("rows must contain at least one collected SKU row");
+  }
+  payload.rows.forEach((row, index) => {
+    for (const key of ["platform", "storeId", "externalSkuId"] as const) {
+      if (!row[key]) {
+        throw new Error(`rows[${index}].${key} is required`);
+      }
+    }
+    if (!row.raw || typeof row.raw !== "object") {
+      throw new Error(`rows[${index}].raw is required`);
+    }
+  });
+}
+
+export function assertValidRuleSet(ruleSet: ActivityRuleSetDto): void {
+  if (!ruleSet.ruleSetId || !ruleSet.name || !ruleSet.sourceText) {
+    throw new Error("ruleSetId, name and sourceText are required");
+  }
+  if (!Array.isArray(ruleSet.rules)) {
+    throw new Error("rules must be an array");
+  }
+  ruleSet.rules.forEach((rule, index) => {
+    if (!rule.id || !rule.type || !rule.message || !rule.severity) {
+      throw new Error(`rules[${index}] is missing required canonical fields`);
+    }
+  });
+}
