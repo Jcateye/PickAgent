@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 
 import { collectDoudianStockPages } from "../lib/ingest"
+import type { PageExtractionPreview, StandardProductRow } from "../schemas/ingest"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://fxg.jinritemai.com/*"]
@@ -74,7 +75,7 @@ async function handleMessage(message: PickAgentMessage): Promise<unknown> {
 
     return {
       sourceUrl: location.href,
-      previews
+      previews: previews.map(compactPreview)
     }
   }
 
@@ -90,7 +91,12 @@ async function handleMessage(message: PickAgentMessage): Promise<unknown> {
 }
 
 function buildPageSnapshot(limit: number): PageSnapshot {
-  const buttons = Array.from(document.querySelectorAll("button, a, [role='button'], [class*='button']"))
+  const buttonNodes = Array.from(document.querySelectorAll("button, a, [role='button'], [class*='button']"))
+  const fieldNodes = Array.from(document.querySelectorAll("input, textarea, select"))
+  const tableNodes = Array.from(document.querySelectorAll("table, [role='table'], [class*='table'], [class*='Table']"))
+
+  const buttons = buttonNodes
+    .slice(0, limit)
     .map((element) => ({
       tag: element.tagName.toLowerCase(),
       text: normalizeText(element.textContent),
@@ -99,9 +105,9 @@ function buildPageSnapshot(limit: number): PageSnapshot {
       className: typeof element.className === "string" ? element.className.slice(0, 160) : ""
     }))
     .filter((item) => item.text || item.ariaLabel || item.title)
-    .slice(0, limit)
 
-  const fields = Array.from(document.querySelectorAll("input, textarea, select"))
+  const fields = fieldNodes
+    .slice(0, limit)
     .map((element) => ({
       tag: element.tagName.toLowerCase(),
       type: element.getAttribute("type") ?? "",
@@ -111,15 +117,14 @@ function buildPageSnapshot(limit: number): PageSnapshot {
       id: element.id,
       className: typeof element.className === "string" ? element.className.slice(0, 160) : ""
     }))
-    .slice(0, limit)
 
-  const tables = Array.from(document.querySelectorAll("table, [role='table'], [class*='table'], [class*='Table']"))
+  const tables = tableNodes
+    .slice(0, 12)
     .map((element) => ({
       tag: element.tagName.toLowerCase(),
       text: normalizeText(element.textContent).slice(0, 240),
       className: typeof element.className === "string" ? element.className.slice(0, 160) : ""
     }))
-    .slice(0, 12)
 
   return {
     href: location.href,
@@ -127,13 +132,46 @@ function buildPageSnapshot(limit: number): PageSnapshot {
     readyState: document.readyState,
     bodyTextSample: normalizeText(document.body?.innerText).slice(0, 1000),
     counts: {
-      buttons: buttons.length,
-      fields: fields.length,
-      tables: tables.length
+      buttons: buttonNodes.length,
+      fields: fieldNodes.length,
+      tables: tableNodes.length
     },
     buttons,
     fields,
     tables
+  }
+}
+
+function compactPreview(preview: PageExtractionPreview): PageExtractionPreview {
+  return {
+    ...preview,
+    warnings: preview.warnings.slice(0, 200),
+    rows: preview.rows.map(compactProductRow)
+  }
+}
+
+function compactProductRow(row: StandardProductRow): StandardProductRow {
+  const raw = row.raw as {
+    fxg?: Record<string, unknown>
+    extensionWarnings?: unknown
+    extensionRunId?: unknown
+    externalProductId?: unknown
+    listingStatus?: unknown
+    activityLabels?: unknown
+    updatedAt?: unknown
+  }
+
+  return {
+    ...row,
+    raw: {
+      fxg: raw.fxg ?? {},
+      extensionWarnings: row.warnings,
+      extensionRunId: raw.extensionRunId ?? null,
+      externalProductId: row.externalProductId ?? null,
+      listingStatus: row.listingStatus,
+      activityLabels: row.activityLabels ?? [],
+      updatedAt: row.updatedAt ?? null
+    }
   }
 }
 
@@ -176,9 +214,13 @@ function normalizeText(value: string | null | undefined): string {
 function summarizeForLog(value: unknown): unknown {
   if (!value || typeof value !== "object") return value
   if ("previews" in value && Array.isArray((value as { previews?: unknown[] }).previews)) {
-    return { previewCount: (value as { previews: unknown[] }).previews.length }
+    const previews = (value as { previews: PageExtractionPreview[] }).previews
+    return { previewCount: previews.length, rowCount: previews.reduce((sum, preview) => sum + preview.rows.length, 0) }
   }
-  if ("href" in value) return value
+  if ("href" in value) {
+    const snapshot = value as PageSnapshot
+    return { href: snapshot.href, title: snapshot.title, counts: snapshot.counts }
+  }
   return { type: typeof value }
 }
 
