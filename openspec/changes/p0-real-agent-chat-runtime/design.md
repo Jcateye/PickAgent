@@ -34,6 +34,17 @@ Repository SHALL cover:
 
 Repository SHALL NOT create fixture SKU、fixture rules 或模板 assistant reply。缺失 delegate 或 client 加载失败时由 route 返回 `AGENT.REAL_CHAT_NOT_CONFIGURED`。
 
+## Vercel AI SDK Model Adapter
+
+`VercelAiSdkAgentModelAdapter` 使用 Vercel AI SDK Core 的 text generation API 和 OpenAI provider。Adapter SHALL:
+
+- 从明确配置的 provider model 生成 assistant reply
+- 将 WorkbenchContext 和最近用户消息作为 messages/context 传入
+- 返回 model usage/metadata 供 `AgentMessage.contentJson` 与 `AgentRunEvent.payloadJson` 记录
+- 不内置关键词模板、fixture 回复或业务结论重算
+
+Adapter SHALL NOT 直接执行业务工具。后续工具调用必须经 `AgentToolExecutor` / `AgentToolRegistry`，并由 runtime 记录 tool event/evidence refs。
+
 ## Failure Mode
 
 真实模式缺少 repository 或 model adapter 时，API SHALL 返回 `AGENT.REAL_CHAT_NOT_CONFIGURED`，并说明缺少的配置。该错误是可演示产品的正确失败，不允许伪装为 assistant 回复。
@@ -45,3 +56,5 @@ Repository SHALL NOT create fixture SKU、fixture rules 或模板 assistant repl
 - Route test: 缺少真实 runtime 时 fail closed
 - Runtime test: repository 会保存 user message、run event，并在 model adapter 可用时保存 assistant message
 - Repository test: Prisma delegates receive AgentSession、AgentMission、AgentRun、AgentMessage、AgentRunEvent writes in order
+- Model adapter test: AI SDK call returns assistant content and records provider/model metadata
+- Route test: missing model provider returns `AGENT.REAL_CHAT_NOT_CONFIGURED`

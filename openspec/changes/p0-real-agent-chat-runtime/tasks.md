@@ -10,3 +10,9 @@
 - [x] 2.3 将 `/api/agent/chat` 的真实 repository 配置边界接入 fail-closed 检查。
 - [x] 2.4 补 Prisma delegate 写入顺序测试和缺 delegate route 测试。
 - [x] 2.5 运行 OpenSpec、typecheck、测试，并提交中文 commit。
+- [x] 3.1 冻结 Vercel AI SDK model adapter requirement 和验收标准。
+- [x] 3.2 安装并锁定 `ai`、`@ai-sdk/openai` 依赖。
+- [x] 3.3 实现 `VercelAiSdkAgentModelAdapter`，只负责模型回复，不直接执行业务工具。
+- [x] 3.4 将 `/api/agent/chat` 接入真实 model adapter 配置边界。
+- [x] 3.5 补 model adapter 单测、缺模型配置 route 测试。
+- [x] 3.6 运行 OpenSpec、typecheck、测试、build，并提交中文 commit。

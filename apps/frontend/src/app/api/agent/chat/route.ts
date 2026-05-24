@@ -2,6 +2,7 @@ import { fail, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
+import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
 import type { AgentEvidenceRef, AgentLinkedEntity, AgentMessage, AgentReviewGate, AgentToolTrace, WorkbenchContext } from '@/modules/agent-copilot/types'
 
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
 function createRealAgentChatRuntime() {
   return new RealAgentChatRuntime({
     repository: createConversationRepository(),
+    modelAdapter: createVercelAiSdkAgentModelAdapterFromEnv(),
   })
 }
 
