@@ -165,3 +165,33 @@ test("P0 repository adapter sanitizes sensitive input and keeps Pi adapter away 
   assert.equal("state" in runtime.piAdapter, false);
   assert.equal("businessRuntime" in runtime.piAdapter, false);
 });
+
+test("Workstream E agent-run service exposes mission/run DTOs and control actions", () => {
+  const { runtime, mission, run } = seedRuntime();
+  runtime.agentService.executeTool({
+    runId: run.id,
+    toolName: "parseActivityRules",
+    inputJson: { sourceText: "证书有效。" },
+  });
+
+  const missions = runtime.agentService.listMissions({ page: 1, pageSize: 10 });
+  const missionDetail = runtime.agentService.getMission(mission.id);
+  const runDetail = runtime.agentService.getRun(run.id);
+  const question = runtime.agentService.answerQuestion(run.id, {
+    question: "当前 run 有哪些可追溯证据？",
+    askedBy: "operator@example.test",
+  });
+  const paused = runtime.agentService.pauseRun(run.id, "operator@example.test");
+  const canceled = runtime.agentService.cancelRun(run.id, "operator@example.test", "人工取消");
+
+  assert.equal(missions.items[0]?.missionId, mission.id);
+  assert.equal(missionDetail.runs[0]?.runId, run.id);
+  assert.equal(runDetail.toolCalls[0]?.toolName, "parseActivityRules");
+  assert.match(question.answer, /仅基于当前 run 证据回答/);
+  assert.ok(question.evidenceRefs.length > 0);
+  assert.equal(paused.status, "PAUSED");
+  assert.equal(canceled.status, "CANCELED");
+  assert.equal(canceled.cancelRequested, true);
+  assert.ok(runtime.agentService.listEvents(run.id).some((event) => event.eventType === "run.paused"));
+  assert.ok(runtime.agentService.listEvents(run.id).some((event) => event.eventType === "run.cancel_requested"));
+});

@@ -131,3 +131,101 @@ export interface AgentRunEvent {
   eventPhase?: 'planning' | 'executing' | 'paused' | 'resuming' | 'completed'
   payload: Record<string, unknown>
 }
+
+export interface AgentMissionListItemDto {
+  missionId: string
+  objective: string
+  status: string
+  sourceSurface: string
+  subjectType?: string | null
+  subjectId?: string | null
+  currentRun?: {
+    runId: string
+    status: string
+    startedAt?: string | null
+    updatedAt: string
+  }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentMissionDetailDto extends AgentMissionListItemDto {
+  sessionId: string
+  autonomyLevel: string
+  constraintsJson: Record<string, unknown>
+  workbenchContextJson: Record<string, unknown>
+  planJson: Record<string, unknown>
+  nextActionsJson: Record<string, unknown>
+  runs: Array<{
+    runId: string
+    status: string
+    workflowRunId?: string | null
+    startedAt?: string | null
+    completedAt?: string | null
+    updatedAt: string
+  }>
+}
+
+export interface AgentRunDetailDto {
+  run: {
+    runId: string
+    missionId: string
+    sessionId: string
+    workflowRunId?: string | null
+    status: string
+    modelProvider?: string | null
+    modelName?: string | null
+    cancelRequested: boolean
+    inputJson: Record<string, unknown>
+    outputJson: Record<string, unknown>
+    errorMessage?: string | null
+    startedAt?: string | null
+    completedAt?: string | null
+    createdAt: string
+    updatedAt: string
+  }
+  mission: {
+    missionId: string
+    objective: string
+    status: string
+  }
+  events: AgentRunEvent[]
+  toolCalls: Array<{
+    toolCallId: string
+    toolName: string
+    status: string
+    riskLevel: string
+    reviewPolicy: string
+    workflowStepId?: string | null
+    evidenceRefsJson: Record<string, unknown>
+    errorMessage?: string | null
+    blockedReason?: string | null
+    createdAt: string
+    updatedAt: string
+  }>
+  reviewGates: Array<{
+    gateId: string
+    status: string
+    reasonCode: string
+    question: string
+    agentRecommendation?: string | null
+    evidenceRefsJson: Record<string, unknown>
+    reviewItemId?: string | null
+    decidedBy?: string | null
+    decidedAt?: string | null
+  }>
+  messages: Array<{
+    messageId: string
+    role: string
+    contentText?: string | null
+    contentJson: Record<string, unknown>
+    status: string
+    createdAt: string
+  }>
+}
+
+export interface AgentQuestionResponseDto {
+  messageId: string
+  answer: string
+  evidenceRefs: AgentRunEvent[]
+}

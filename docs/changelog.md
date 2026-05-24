@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-24] 补齐 Agent mission/run EventStore API 闭环
+
+- 模块：backend / frontend-api / contracts / docs
+- 类型：功能
+- 摘要：为 Workstream E agent-run 切片补齐 mission 列表与详情、run 详情、EventStore replay/SSE、pause/cancel、run 内 questions、Review Gate decision 的最小 API 与 service DTO；run 问答限定引用当前 run 的事件、工具调用与 Review Gate 证据，不执行自动改价、报名或商品修改。
+- 影响范围：`apps/backend/src/application/foundation/FinalAgentEventStoreFoundation.ts`、`apps/contracts/types/agent-copilot-workbench.ts`、`apps/frontend/src/app/api/agent/**`
+- 是否影响 contracts：是
+- 是否影响数据结构：否
+- 兼容性说明：新增 API 与 DTO 字段，不修改既有数据库 schema；SSE P0 采用短轮询推送现有 EventStore 新增事件，后续可替换为真实 runtime subscriber。
+- 关联任务 / 决策：Workstream E: Agent missions/runs persistent EventStore, SSE, pause/cancel/questions/review gates
+
+---
+
 ### [2026-05-23] 补充最终设计缺口收敛方案
 
 - 模块：docs / architecture / openspec
