@@ -357,8 +357,15 @@ export class ActivityRuleService {
 
 function deterministicRules(sourceText: string): CanonicalRuleDto[] {
   const rules: CanonicalRuleDto[] = [];
+  const salesThreshold = matchFirstNumber(sourceText, /(?:近\s*30\s*天)?销量[^0-9一二三四五六七八九十百千万]*[>≥不少于至少]*\s*([0-9]+)/i);
   const stockThreshold = matchFirstNumber(sourceText, /库存[^0-9一二三四五六七八九十百千万]*([0-9]+)/i);
   const positiveRateThreshold = matchPercent(sourceText, /好评[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*%?/i);
+  const discountThreshold = matchDiscount(sourceText, /折扣力度[^0-9]*[≥>=不少于至少]*\s*([0-9]+(?:\.[0-9]+)?)\s*折/i);
+  const goldQuota = matchFirstNumber(sourceText, /黄金类目[^0-9]*(?:最多|不超过|≤|<=)\s*([0-9]+)/i);
+  const diamondQuota = matchFirstNumber(sourceText, /钻石类目[^0-9]*(?:最多|不超过|≤|<=)\s*([0-9]+)/i);
+  if (/销量|sales/i.test(sourceText)) {
+    rules.push({ id: "sales_30d_min", type: "threshold", field: "sales30d", operator: "gte", value: salesThreshold ?? 100, message: `近 30 天销量不少于 ${salesThreshold ?? 100} 件`, severity: "blocking" });
+  }
   if (/库存|stock/i.test(sourceText)) {
     rules.push({
       id: "stock_min",
@@ -384,6 +391,21 @@ function deterministicRules(sourceText: string): CanonicalRuleDto[] {
   if (/证书|certificate/i.test(sourceText)) {
     rules.push({ id: "certificate_valid", type: "threshold", field: "certificateStatus", operator: "eq", value: "valid", message: "证书状态必须有效", severity: "blocking" });
   }
+  if (/近\s*30\s*天最低价|最低价|lowest/i.test(sourceText)) {
+    rules.push({ id: "campaign_price_lte_lowest_30d", type: "field_compare", field: "campaignPrice", operator: "lte", compareField: "lowestPrice30d", value: 1, message: "活动价不得高于近 30 天最低价", severity: "blocking" });
+  }
+  if (/折扣力度|折/i.test(sourceText)) {
+    rules.push({ id: "campaign_discount_min", type: "field_compare", field: "campaignPrice", operator: "lte", compareField: "originalPrice", value: discountThreshold ?? 0.7, message: `折扣力度至少 ${Math.round((discountThreshold ?? 0.7) * 10)} 折`, severity: "blocking" });
+  }
+  if (/黄金类目/.test(sourceText)) {
+    rules.push({ id: "gold_category_quota", type: "quota", field: "category", operator: "lte", value: goldQuota ?? 5, message: `黄金类目单店最多报名 ${goldQuota ?? 5} 个 SKU`, severity: "warning" });
+  }
+  if (/钻石类目/.test(sourceText)) {
+    rules.push({ id: "diamond_category_quota", type: "quota", field: "category", operator: "lte", value: diamondQuota ?? 10, message: `钻石类目单店最多报名 ${diamondQuota ?? 10} 个 SKU`, severity: "warning" });
+  }
+  if (/品牌日|互斥|不可重复报名|不能重复报名/.test(sourceText)) {
+    rules.push({ id: "brand_day_mutex", type: "threshold", field: "joinedBrandDay", operator: "neq", value: true, message: "已参加品牌日活动的商品不可重复报名", severity: "blocking" });
+  }
   if (/商机|business_chance_center|clue/i.test(sourceText)) {
     rules.push({ id: "business_chance_manual_review", type: "manual_review", message: "business_chance_center 商机线索需要人工确认后才能转成活动规则", severity: "warning" });
   }
@@ -404,6 +426,12 @@ function matchPercent(sourceText: string, pattern: RegExp): number | undefined {
   const value = matchFirstNumber(sourceText, pattern);
   if (value === undefined) return undefined;
   return value > 1 ? value / 100 : value;
+}
+
+function matchDiscount(sourceText: string, pattern: RegExp): number | undefined {
+  const value = matchFirstNumber(sourceText, pattern);
+  if (value === undefined) return undefined;
+  return value > 1 ? value / 10 : value;
 }
 
 export class ActivitySimulationService {
@@ -447,8 +475,11 @@ function evaluate(snapshot: NormalizedSkuSnapshotDto, rules: CanonicalRuleDto[])
   const failedRules = rules.filter((rule) => {
     if (rule.type === "manual_review") return true;
     const actual = rule.field ? snapshot[rule.field as keyof NormalizedSkuSnapshotDto] : undefined;
+    const compareActual = rule.compareField ? snapshot[rule.compareField as keyof NormalizedSkuSnapshotDto] : undefined;
+    const expected = compareActual !== undefined ? Number(compareActual) * Number(rule.value ?? 1) : Number(rule.value);
+    if (compareActual !== undefined && (actual === undefined || !Number.isFinite(expected))) return true;
     if (rule.operator === "gte") return Number(actual) < Number(rule.value);
-    if (rule.operator === "lte") return Number(actual) > Number(rule.value);
+    if (rule.operator === "lte") return Number(actual) > expected;
     if (rule.operator === "eq") return actual !== rule.value;
     if (rule.operator === "neq") return actual === rule.value;
     return false;

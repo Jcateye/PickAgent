@@ -9,10 +9,10 @@ test("backend business foundation supports ingest, projection, simulation, revie
   const runtime = createBusinessFoundationRuntime();
 
   const ingestResult = runtime.ingestService.ingest(businessFoundationSeedFixture);
-  assert.equal(ingestResult.summaries.length, 2);
+  assert.equal(ingestResult.summaries.length, businessFoundationSeedFixture.rows.length);
 
   const summary = runtime.skuQueryService.getHealthSummary();
-  assert.equal(summary.total, 2);
+  assert.equal(summary.total, businessFoundationSeedFixture.rows.length);
 
   const ruleSet = runtime.activityRuleService.parseRules({
     name: "618 活动准入规则",
@@ -25,7 +25,7 @@ test("backend business foundation supports ingest, projection, simulation, revie
     ruleSetId: ruleSet.ruleSetId,
     skuProfileIds: ingestResult.summaries.map((item) => item.skuProfileId),
   });
-  assert.equal(simulation.length, 2);
+  assert.equal(simulation.length, businessFoundationSeedFixture.rows.length);
   assert.equal(simulation[0]?.eligibility, "DIRECT_READY");
   assert.deepEqual(
     runtime.activitySimulationService.simulateActivityReadiness({
@@ -120,6 +120,44 @@ test("backend business foundation supports ingest, projection, simulation, revie
   const continuedRun = runtime.fakeAgentLoopAdapter.continueMission(agentRun, { decision: "approve" });
   assert.equal(continuedRun.run.status, "DONE");
   assert.equal(continuedRun.reviewGates[0]?.status, "APPROVED");
+});
+
+test("activity rule parser recognizes hackathon campaign rules from challenge screenshot", () => {
+  const runtime = createBusinessFoundationRuntime();
+  const ruleSet = runtime.activityRuleService.parseRules({
+    name: "天猫 618 大促选品规则",
+    platform: "tmall",
+    sourceText: [
+      "参与商品必须满足：近 30 天销量≥100 件；好评率≥95%；库存≥500 件。",
+      "价格要求：活动价不得高于近 30 天最低价；折扣力度≥7 折。",
+      "品类限制：黄金类目单店最多 5 个 SKU；钻石类目单店最多 10 个 SKU。",
+      "互斥规则：已参加“品牌日”活动的商品不可重复报名。",
+    ].join("\n"),
+  });
+
+  assert.equal(ruleSet.parseStatus, "PARSED");
+  assert.deepEqual(
+    ruleSet.rules.map((rule) => rule.id),
+    [
+      "sales_30d_min",
+      "stock_min",
+      "positive_rate",
+      "campaign_price_lte_lowest_30d",
+      "campaign_discount_min",
+      "gold_category_quota",
+      "diamond_category_quota",
+      "brand_day_mutex",
+    ],
+  );
+  assert.deepEqual(
+    ruleSet.rules.map((rule) => rule.type),
+    ["threshold", "threshold", "threshold", "field_compare", "field_compare", "quota", "quota", "threshold"],
+  );
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "sales_30d_min")?.value, 100);
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "positive_rate")?.value, 0.95);
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "stock_min")?.value, 500);
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "campaign_discount_min")?.value, 0.7);
+  assert.equal(ruleSet.rules.find((rule) => rule.id === "brand_day_mutex")?.value, true);
 });
 
 test("douyin fxg captured stock records map into ingest payload and business chance rules", () => {
