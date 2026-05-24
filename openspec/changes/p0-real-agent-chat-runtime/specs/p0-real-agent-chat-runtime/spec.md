@@ -23,3 +23,17 @@ Agent chat MUST 使用持久化 conversation runtime 保存用户消息、assist
 
 - **WHEN** chat runtime 处于真实模式
 - **THEN** runtime SHALL NOT 自动注入 fixture SKU、fixture rules 或模板演示回复。
+
+### Requirement: Prisma conversation repository seam
+
+Agent chat repository MUST persist conversation state through Prisma delegates for AgentSession、AgentMission、AgentRun、AgentMessage and AgentRunEvent when a real Prisma client is configured, and SHALL fail closed when those delegates are unavailable.
+
+#### Scenario: Persist conversation through Prisma delegates
+
+- **WHEN** RealAgentChatRuntime sends a user message with PrismaAgentConversationRepository and a model adapter
+- **THEN** Prisma delegates receive ordered writes for session、mission、run、user message、assistant message、user event、assistant event and run status.
+
+#### Scenario: Fail closed when Prisma delegates are absent
+
+- **WHEN** `/api/agent/chat` cannot load a Prisma client with required Agent conversation delegates
+- **THEN** API returns `AGENT.REAL_CHAT_NOT_CONFIGURED` and SHALL NOT use in-memory conversation persistence as production fallback.

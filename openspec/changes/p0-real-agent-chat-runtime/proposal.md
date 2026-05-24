@@ -7,12 +7,14 @@
 - 冻结真实 Agent chat runtime 的 P0 需求和验收边界。
 - 引入 Prisma-backed conversation repository contract，覆盖 session、mission、run、message、event、tool call 的最小持久化。
 - 将 `/api/agent/chat` 切到真实模式入口：配置缺失时 fail closed，不再静默使用 seed、memory 或模板作为生产默认路径。
+- 增加 Prisma conversation repository seam，使真实 chat runtime 可以通过已有 AgentSession、AgentMission、AgentRun、AgentMessage、AgentRunEvent 表持久化对话链路。
 
 ## Capabilities
 
 ### New Capabilities
 
 - `p0-real-agent-chat-runtime`: Agent chat MUST 使用持久化 conversation runtime 保存用户消息、assistant 消息、tool trace 和 run events，并 SHALL 在缺少真实 persistence 或 model adapter 时明确失败。
+- `p0-agent-conversation-prisma-repository`: Agent chat repository MUST write conversation records through Prisma delegates when configured, and SHALL fail closed when the Prisma client is absent.
 
 ## Impact
 
