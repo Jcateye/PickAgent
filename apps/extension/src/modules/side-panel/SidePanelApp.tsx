@@ -34,6 +34,7 @@ type AutomationResponse<T> = { ok: true; data: T } | { ok: false; error: string 
 
 interface DoudianStockAutomationResult {
   readonly sourceUrl: string
+  readonly source?: "current-page-dom" | "stock-api"
   readonly previews: Awaited<ReturnType<typeof collectDoudianStockPages>>
 }
 
@@ -188,6 +189,52 @@ export function SidePanelApp() {
     }
   }
 
+  const collectProductRowsFromPageDom = async () => {
+    try {
+      setRunState((state) => ({ ...state, status: "collecting_products", lastEvent: "START", lastError: undefined }))
+      const result = await sendToActiveTab<DoudianStockAutomationResult>({
+        type: "PICKAGENT_COLLECT_CURRENT_PAGE_DOM"
+      })
+      const previews = result.previews
+      const rows = previews.flatMap((preview) => preview.rows)
+      const lastPreview = previews[previews.length - 1]
+      setRunState((state) =>
+        refreshTaskStatistics({
+          ...state,
+          status: rows.length > 0 ? "ready" : "failed",
+          activePageType: rows.length > 0 ? "product-list" : "unsupported",
+          currentPage: Math.max(previews.length, 1),
+          totalPages: Math.max(previews.length, 1),
+          collectedProductRows: rows,
+          currentProductPreview: lastPreview,
+          lastRecognition: {
+            status: rows.length > 0 ? "collectible" : "unsupported",
+            confidence: rows.length > 0 ? 0.92 : 0,
+            platform: "抖店商家后台",
+            pageType: rows.length > 0 ? "current-page-dom" : "unsupported",
+            sourceKind: "product",
+            pageIndex: Math.max(previews.length, 1),
+            totalPages: Math.max(previews.length, 1),
+            reasons: rows.length > 0 ? ["当前页面 DOM 返回商品行", "采集数量应与当前页已渲染商品一致"] : ["当前页面 DOM 未识别到商品行"],
+            unsupportedReason: rows.length > 0 ? undefined : "当前页面 DOM 未识别到商品行；请先点调试当前页面查看摘要。"
+          },
+          lastEvent: rows.length > 0 ? "PAGE_COLLECTED" : "FAIL",
+          lastError: rows.length > 0 ? undefined : "当前页面 DOM 未识别到商品行；请先点调试当前页面查看摘要。",
+          checkpoint: undefined,
+          submitted: false,
+          submitReceipt: undefined
+        })
+      )
+    } catch (error) {
+      setRunState((state) => ({
+        ...state,
+        status: "failed",
+        lastEvent: "FAIL",
+        lastError: error instanceof Error ? error.message : "当前页面 DOM 采集失败；请确认已刷新抖店页面。"
+      }))
+    }
+  }
+
   const collectRealDoudianStock = async () => {
     try {
       setRunState((state) => ({ ...state, status: "collecting_products", lastEvent: "START", lastError: undefined }))
@@ -212,11 +259,11 @@ export function SidePanelApp() {
             status: rows.length > 0 ? "collectible" : "unsupported",
             confidence: rows.length > 0 ? 0.92 : 0,
             platform: "抖店商家后台",
-            pageType: rows.length > 0 ? "stock-manage-list" : "unsupported",
+            pageType: rows.length > 0 ? "stock-api-sku-list" : "unsupported",
             sourceKind: "product",
             pageIndex: Math.max(previews.length, 1),
             totalPages: Math.max(previews.length, 1),
-            reasons: rows.length > 0 ? ["抖店库存接口返回商品/SKU数据", "已调用库存诊断接口补充采集风险"] : ["抖店库存接口未返回可采集数据"],
+            reasons: rows.length > 0 ? ["抖店库存接口返回 SKU 维度数据", "这个数量可能大于当前页面商品数"] : ["抖店库存接口未返回可采集数据"],
             unsupportedReason: rows.length > 0 ? undefined : "抖店库存接口未返回商品/SKU数据。"
           },
           lastEvent: rows.length > 0 ? "PAGE_COLLECTED" : "FAIL",
@@ -231,7 +278,7 @@ export function SidePanelApp() {
         ...state,
         status: "failed",
         lastEvent: "FAIL",
-        lastError: error instanceof Error ? error.message : "真实抖店库存采集失败；请确认已登录抖店并授权插件访问。"
+        lastError: error instanceof Error ? error.message : "真实抖店库存接口采集失败；请确认已登录抖店并授权插件访问。"
       }))
     }
   }
@@ -392,8 +439,11 @@ export function SidePanelApp() {
                 <button className="secondary-button" type="button" onClick={() => void inspectCurrentPage()}>
                   调试当前页面
                 </button>
-                <button className="primary-button" type="button" onClick={() => void collectRealDoudianStock()}>
-                  真实采集库存页
+                <button className="primary-button" type="button" onClick={() => void collectProductRowsFromPageDom()}>
+                  采当前页面DOM
+                </button>
+                <button className="secondary-button" type="button" onClick={() => void collectRealDoudianStock()}>
+                  库存接口采SKU
                 </button>
                 <button className="secondary-button" type="button" onClick={() => setRunState(collectAllProductPages(createInitialTaskState(syntheticDoudianPages.length), syntheticDoudianPages, 1))}>
                   商品采集后暂停
