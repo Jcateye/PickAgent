@@ -1,7 +1,20 @@
-import { Plug, FileText, Download, CheckCircle2, RefreshCw } from 'lucide-react'
+import { ExternalLink, PanelRightOpen, Plug } from 'lucide-react'
 import styles from './popup.module.css'
 
 export function PopupApp() {
+  const openSidePanel = async () => {
+    const chromeApi = (globalThis as typeof globalThis & { chrome?: unknown }).chrome as
+      | {
+          tabs?: { query?: (queryInfo: { active: boolean; currentWindow: boolean }, callback: (tabs: Array<{ id?: number }>) => void) => void }
+          sidePanel?: { open?: (options: { tabId?: number }) => Promise<void> }
+        }
+      | undefined
+
+    chromeApi?.tabs?.query?.({ active: true, currentWindow: true }, (tabs) => {
+      void chromeApi.sidePanel?.open?.({ tabId: tabs[0]?.id })
+    })
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.pluginContainer}>
@@ -12,61 +25,28 @@ export function PopupApp() {
           </div>
           <div className={styles.statusIndicator}>
             <div className={styles.statusDot}></div>
-            已连接到 Console
+            localhost:3010
           </div>
         </div>
 
         <div className={styles.pluginBody}>
-          
           <div className={styles.infoBlock}>
-            <div className={styles.infoLabel}>当前页面环境</div>
-            <div className={styles.infoValue}>生意参谋 - 商品分析 (List页)</div>
+            <div className={styles.infoLabel}>真实提交通路</div>
+            <div className={styles.infoValue}>http://localhost:3010/api/ingest</div>
           </div>
 
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>匹配到采集任务 (1)</div>
-            <div className={styles.infoBlock} style={{ background: 'white', borderColor: 'var(--primary)' }}>
-              <div className={styles.taskItem}>
-                <FileText size={16} color="var(--primary)" style={{ marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--primary)' }}>#task_99120</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>天猫618大促补充数据 (目标: 1258条)</div>
-                </div>
-              </div>
-            </div>
+          <div className={styles.infoBlock}>
+            <div className={styles.infoLabel}>采集入口</div>
+            <div className={styles.infoValue}>在侧边栏执行抖店库存真实采集、预览和提交。</div>
           </div>
 
-          <button className={styles.collectBtn}>
-            <Download size={16} /> 开始采集本页数据 (100 / 1258)
+          <button className={styles.collectBtn} type="button" onClick={() => void openSidePanel()}>
+            <PanelRightOpen size={16} /> 打开采集侧边栏
           </button>
 
-          <div className={styles.mappingBox}>
-            <div className={styles.mappingHeader}>数据映射状态</div>
-            <div className={styles.mappingList}>
-              <div className={styles.mappingItem}>
-                <span>近30天实付销量</span>
-                <span className={styles.mappedKey}><CheckCircle2 size={14} /> pay_ord_itm_cnt</span>
-              </div>
-              <div className={styles.mappingItem}>
-                <span>近30天好评率</span>
-                <span className={styles.mappedKey}><CheckCircle2 size={14} /> good_review_rate</span>
-              </div>
-              <div className={styles.mappingItem}>
-                <span>同品牌活动报名记录</span>
-                <span style={{ color: 'var(--muted)' }}>当前页面未提供</span>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.syncStatus}>
-            <RefreshCw size={14} className="animate-spin" />
-            正在推送 100 条数据至 Agent...
-          </div>
-
-        </div>
-
-        <div className={styles.pluginFooter}>
-          <button className="secondaryButton" style={{ width: '100%', height: '32px' }}>断开连接</button>
+          <a className={styles.consoleLink} href="http://localhost:3010/sku-health" target="_blank" rel="noreferrer">
+            <ExternalLink size={15} /> 打开 SKU 健康页
+          </a>
         </div>
       </div>
     </div>
