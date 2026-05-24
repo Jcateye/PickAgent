@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-24] 新增 Dashboard/SKU 读模型 API
+
+- 模块：backend / contracts / frontend-api
+- 类型：功能
+- 摘要：为 Workstream C `dashboard-sku` 新增 SKU 列表与详情抽屉读模型契约、`SkuReadinessQueryService`、read model repository/assembler，并将 `/api/skus`、`/api/skus/{skuProfileId}` 切到显式 P0 auth context + 统一 envelope。列表支持平台、类目、健康状态、活动准入状态、证书状态、分页与排序；详情返回 readiness checklist、EvidenceRef、TraceableRef、相关规则和 Review 引用。
+- 影响范围：`apps/contracts/types/dashboardSkuReadModels.ts`、`apps/contracts/openapi/dashboardSkuReadModels.openapi.yaml`、`apps/backend/src/application/foundation/FinalApiPersistenceFoundation.ts`、`apps/frontend/src/app/api/skus/**`
+- 是否影响 contracts：是
+- 是否影响数据结构：否
+- 兼容性说明：不新增 migration，不执行自动改价、自动报名或自动修改商品信息；route handler 只做 parse/auth/service/envelope。
+- 关联任务 / 决策：Workstream C: Dashboard/SKU read models API
+
+---
+
 ### [2026-05-23] 补充最终设计缺口收敛方案
 
 - 模块：docs / architecture / openspec

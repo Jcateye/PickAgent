@@ -16,6 +16,15 @@ import {
   assertValidIngestPayload,
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
+import type {
+  DashboardSkuEligibilityStatus,
+  DashboardSkuHealthStatus,
+  DashboardSkuListItemDto,
+  DashboardSkuListQuery,
+  DashboardSkuReadinessDetailDto,
+  EvidenceRef,
+  TraceableRef,
+} from "../../../../contracts/types/dashboardSkuReadModels";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
 import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
@@ -70,6 +79,15 @@ export interface ReportRequestDto {
   type: "HEALTH" | "ACTIVITY";
   skuProfileIds: string[];
   simulationResultIds?: string[];
+}
+
+interface DashboardSkuReadModelRecord {
+  summary: SkuSummaryDto;
+  latestSnapshot: NormalizedSkuSnapshotDto | null;
+  latestDiagnosis: HealthDiagnosisDto | null;
+  latestSimulationResult: SimulationResultDto | null;
+  relatedReviews: ReviewItemDto[];
+  updatedAt: string;
 }
 
 const explicitDevBoundary: P0AuthContextDto = {
@@ -269,6 +287,41 @@ export class SkuQueryRepository {
         ...(latestSnapshot ? [evidence("snapshot", latestSnapshot.snapshotId, "采集事实", "当前 DTO 由 repository 读模型装配")] : []),
         ...(latestDiagnosis ? [evidence("diagnosis", latestDiagnosis.diagnosisId, "健康诊断", "当前 DTO 由 repository 读模型装配")] : []),
       ],
+    };
+  }
+
+  private belongsToTenant(boundary: P0AuthContextDto, entityId: string): boolean {
+    return this.store.tenantByEntityId.get(entityId) === boundary.tenantId;
+  }
+}
+
+export class DashboardSkuReadModelRepository {
+  constructor(private readonly store: FinalApiPersistenceStore) {}
+
+  async list(boundary: P0AuthContextDto): Promise<DashboardSkuReadModelRecord[]> {
+    return Array.from(this.store.projections.values())
+      .filter((item) => this.belongsToTenant(boundary, item.skuProfileId))
+      .map((summary) => this.toRecord(summary));
+  }
+
+  async detail(boundary: P0AuthContextDto, skuProfileId: string): Promise<DashboardSkuReadModelRecord | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(skuProfileId), skuProfileId);
+    const summary = this.store.projections.get(skuProfileId);
+    return summary ? this.toRecord(summary) : null;
+  }
+
+  private toRecord(summary: SkuSummaryDto): DashboardSkuReadModelRecord {
+    const latestSnapshot = Array.from(this.store.snapshots.values()).filter((item) => item.skuProfileId === summary.skuProfileId).at(-1) ?? null;
+    const latestDiagnosis = Array.from(this.store.diagnoses.values()).filter((item) => item.skuProfileId === summary.skuProfileId).at(-1) ?? null;
+    const latestSimulationResult = Array.from(this.store.simulationResults.values()).filter((item) => item.skuProfileId === summary.skuProfileId).at(-1) ?? null;
+    const relatedReviews = Array.from(this.store.reviews.values()).filter((item) => item.skuProfileId === summary.skuProfileId);
+    return {
+      summary,
+      latestSnapshot,
+      latestDiagnosis,
+      latestSimulationResult,
+      relatedReviews,
+      updatedAt: latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }
 
@@ -508,6 +561,55 @@ export class PrismaSkuQueryRepository extends SkuQueryRepository {
         ...(latestSnapshot ? [evidence("snapshot", latestSnapshot.snapshotId, "采集事实", "当前 DTO 由 Prisma projection 装配")] : []),
         ...(latestDiagnosis ? [evidence("diagnosis", latestDiagnosis.diagnosisId, "健康诊断", "当前 DTO 由 Prisma projection 装配")] : []),
       ],
+    };
+  }
+}
+
+export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModelRepository {
+  constructor(private readonly prisma: PrismaPersistenceClient) {
+    super(new FinalApiPersistenceStore());
+  }
+
+  async list(_boundary: P0AuthContextDto): Promise<DashboardSkuReadModelRecord[]> {
+    const rows = await this.prisma.currentSkuProjection.findMany({
+      include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    const records: DashboardSkuReadModelRecord[] = [];
+    for (const row of rows) {
+      records.push(await this.toRecordFromProjection(row));
+    }
+    return records;
+  }
+
+  async detail(_boundary: P0AuthContextDto, skuProfileId: string): Promise<DashboardSkuReadModelRecord | null> {
+    const row = await this.prisma.currentSkuProjection.findUnique({
+      where: { skuProfileId },
+      include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
+    });
+    return row ? this.toRecordFromProjection(row) : null;
+  }
+
+  private async toRecordFromProjection(row: Record<string, unknown>): Promise<DashboardSkuReadModelRecord> {
+    const summary = toSkuSummaryFromProjection(row);
+    const latestSnapshot = row.latestSnapshot ? toSnapshotDto(row.latestSnapshot as Record<string, unknown>) : null;
+    const latestDiagnosis = row.latestDiagnosis ? toDiagnosisDto(row.latestDiagnosis as Record<string, unknown>) : null;
+    const simulationRows = await this.prisma.activitySimulationResult.findMany({
+      where: { skuProfileId: summary.skuProfileId },
+      orderBy: { createdAt: "desc" },
+      take: 1,
+    });
+    const reviewRows = await this.prisma.reviewItem.findMany({
+      where: { skuProfileId: summary.skuProfileId },
+      orderBy: { createdAt: "desc" },
+    });
+    return {
+      summary,
+      latestSnapshot,
+      latestDiagnosis,
+      latestSimulationResult: simulationRows[0] ? toSimulationResultDto(simulationRows[0]) : null,
+      relatedReviews: reviewRows.map(toReviewItemDto),
+      updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }
 }
@@ -818,6 +920,29 @@ export class FinalReportService {
   }
 }
 
+export class SkuReadinessQueryService {
+  constructor(private readonly repository: DashboardSkuReadModelRepository) {}
+
+  async list(query: DashboardSkuListQuery, boundary: P0AuthContextDto): Promise<PageDto<DashboardSkuListItemDto>> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const filtered = (await this.repository.list(boundary)).filter((record) => matchesDashboardSkuQuery(record, query));
+    const sorted = sortDashboardSkuRecords(filtered, query);
+    const start = (page - 1) * pageSize;
+    return {
+      items: sorted.slice(start, start + pageSize).map(toDashboardSkuListItem),
+      page,
+      pageSize,
+      total: sorted.length,
+    };
+  }
+
+  async detail(skuProfileId: string, boundary: P0AuthContextDto): Promise<DashboardSkuReadinessDetailDto | null> {
+    const record = await this.repository.detail(boundary, skuProfileId);
+    return record ? toDashboardSkuDetail(record) : null;
+  }
+}
+
 function toSummary(profile: SkuProfileRecord, diagnosis: HealthDiagnosisDto): SkuSummaryDto {
   return {
     skuProfileId: profile.skuProfileId,
@@ -831,6 +956,183 @@ function toSummary(profile: SkuProfileRecord, diagnosis: HealthDiagnosisDto): Sk
     topIssues: diagnosis.issues.slice(0, 3),
     nextActions: diagnosis.nextActions.slice(0, 3),
   };
+}
+
+function matchesDashboardSkuQuery(record: DashboardSkuReadModelRecord, query: DashboardSkuListQuery): boolean {
+  const snapshot = record.latestSnapshot;
+  const q = query.q?.trim().toLowerCase();
+  if (q && ![record.summary.productName, record.summary.canonicalSkuKey, snapshot?.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(q))) return false;
+  if (query.platform && record.summary.platform !== query.platform) return false;
+  if (query.category && snapshot?.category !== query.category) return false;
+  if (query.healthStatus && toDashboardHealthStatus(record.summary.healthStatus) !== query.healthStatus) return false;
+  if (query.eligibilityStatus && record.latestSimulationResult?.eligibility !== query.eligibilityStatus) return false;
+  if (query.certificateStatus && snapshot?.certificateStatus !== query.certificateStatus) return false;
+  return true;
+}
+
+function sortDashboardSkuRecords(records: DashboardSkuReadModelRecord[], query: DashboardSkuListQuery): DashboardSkuReadModelRecord[] {
+  const direction = query.sortOrder === "asc" ? 1 : -1;
+  const sortBy = query.sortBy ?? "updatedAt";
+  return [...records].sort((left, right) => {
+    const leftValue = dashboardSortValue(left, sortBy);
+    const rightValue = dashboardSortValue(right, sortBy);
+    return leftValue < rightValue ? -1 * direction : leftValue > rightValue ? direction : 0;
+  });
+}
+
+function dashboardSortValue(record: DashboardSkuReadModelRecord, sortBy: NonNullable<DashboardSkuListQuery["sortBy"]>): number {
+  if (sortBy === "sales30d") return record.latestSnapshot?.sales30d ?? 0;
+  if (sortBy === "positiveRate") return record.latestSnapshot?.positiveRate ?? 0;
+  if (sortBy === "stock") return record.latestSnapshot?.stock ?? 0;
+  return Date.parse(record.updatedAt) || 0;
+}
+
+function toDashboardSkuListItem(record: DashboardSkuReadModelRecord): DashboardSkuListItemDto {
+  const healthStatus = toDashboardHealthStatus(record.summary.healthStatus);
+  const eligibilityStatus = record.latestSimulationResult?.eligibility;
+  return {
+    skuProfileId: record.summary.skuProfileId,
+    displaySku: record.summary.canonicalSkuKey,
+    productName: record.summary.productName,
+    category: record.latestSnapshot?.category,
+    sales30d: record.latestSnapshot?.sales30d,
+    positiveRate: record.latestSnapshot?.positiveRate,
+    stock: record.latestSnapshot?.stock,
+    healthStatus,
+    eligibilityStatus,
+    eligibilityLabel: eligibilityLabel(eligibilityStatus),
+    nextAction: nextDashboardSkuAction(healthStatus, eligibilityStatus),
+    evidenceCount: evidenceRefsForRecord(record).length,
+    updatedAt: record.updatedAt,
+  };
+}
+
+function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSkuReadinessDetailDto {
+  const evidenceRefs = evidenceRefsForRecord(record);
+  const healthStatus = toDashboardHealthStatus(record.summary.healthStatus);
+  const eligibilityStatus = record.latestSimulationResult?.eligibility;
+  return {
+    skuProfileId: record.summary.skuProfileId,
+    displaySku: record.summary.canonicalSkuKey,
+    productName: record.summary.productName,
+    category: record.latestSnapshot?.category,
+    platform: record.summary.platform,
+    storeId: record.summary.storeId,
+    statusSummary: {
+      healthStatus,
+      eligibilityStatus,
+      conclusion: statusConclusion(healthStatus, eligibilityStatus),
+      nextStep: nextDashboardSkuAction(healthStatus, eligibilityStatus).label,
+    },
+    readinessChecklist: readinessChecklist(record),
+    evidenceOverview: {
+      documentCount: evidenceRefs.filter((item) => item.sourceType === "sku_snapshot").length,
+      dataCheckPassedCount: readinessChecklist(record).filter((item) => item.status === "PASSED").length,
+      imageEvidenceCount: evidenceRefs.filter((item) => item.field?.toLowerCase().includes("image")).length,
+      manualConfirmationCount: record.relatedReviews.length,
+    },
+    latestSnapshot: record.latestSnapshot ? { ...record.latestSnapshot } : null,
+    latestDiagnosis: record.latestDiagnosis
+      ? {
+          diagnosisId: record.latestDiagnosis.diagnosisId,
+          healthStatus: toDashboardHealthStatus(record.latestDiagnosis.healthStatus),
+          healthScore: record.latestDiagnosis.healthScore,
+          dataQualityScore: record.latestDiagnosis.dataQualityScore,
+          issues: record.latestDiagnosis.issues,
+          nextActions: record.latestDiagnosis.nextActions,
+          diagnosedAt: record.latestDiagnosis.diagnosedAt,
+          evidenceRefs: evidenceRefs.filter((item) => item.sourceType === "health_diagnosis"),
+        }
+      : null,
+    relatedRules: record.latestSimulationResult ? [traceableRef("rule_set", record.latestSimulationResult.ruleSetId, "活动规则集")] : [],
+    relatedReviews: record.relatedReviews.map((item) => traceableRef("review_item", item.reviewItemId, item.question)),
+  };
+}
+
+function readinessChecklist(record: DashboardSkuReadModelRecord): DashboardSkuReadinessDetailDto["readinessChecklist"] {
+  const snapshotRefs = evidenceRefsForRecord(record).filter((item) => item.sourceType === "sku_snapshot");
+  const diagnosisRefs = evidenceRefsForRecord(record).filter((item) => item.sourceType === "health_diagnosis");
+  const simulationRefs = evidenceRefsForRecord(record).filter((item) => item.sourceType === "simulation_result" || item.sourceType === "rule_set");
+  return [
+    { id: "data_quality", label: "数据质量", status: record.summary.dataQualityScore >= 80 ? "PASSED" : "MISSING_DATA", evidenceRefs: diagnosisRefs.length ? diagnosisRefs : snapshotRefs },
+    { id: "health_status", label: "长期健康状态", status: toDashboardHealthStatus(record.summary.healthStatus) === "BLOCKED" ? "FAILED" : "PASSED", evidenceRefs: diagnosisRefs },
+    { id: "activity_eligibility", label: "活动准入状态", status: checklistEligibilityStatus(record.latestSimulationResult?.eligibility), evidenceRefs: simulationRefs.length ? simulationRefs : diagnosisRefs },
+  ];
+}
+
+function checklistEligibilityStatus(status: DashboardSkuEligibilityStatus | undefined): "PASSED" | "FAILED" | "MISSING_DATA" | "MANUAL_REVIEW" {
+  if (!status) return "MISSING_DATA";
+  if (status === "DIRECT_READY" || status === "REPAIRABLE_READY") return "PASSED";
+  if (status === "MANUAL_REVIEW") return "MANUAL_REVIEW";
+  return "FAILED";
+}
+
+function evidenceRefsForRecord(record: DashboardSkuReadModelRecord): EvidenceRef[] {
+  const refs: EvidenceRef[] = [];
+  if (record.latestSnapshot) {
+    refs.push({
+      ...traceableRef("sku_snapshot", record.latestSnapshot.snapshotId, "最新采集快照"),
+      sourceType: "sku_snapshot",
+      sourceId: record.latestSnapshot.snapshotId,
+      evidenceText: "SKU 详情由最新采集快照驱动",
+      collectedAt: record.latestSnapshot.collectedAt,
+    });
+  }
+  if (record.latestDiagnosis) {
+    refs.push({
+      ...traceableRef("health_diagnosis", record.latestDiagnosis.diagnosisId, "最新健康诊断"),
+      sourceType: "health_diagnosis",
+      sourceId: record.latestDiagnosis.diagnosisId,
+      evidenceText: record.latestDiagnosis.issues.join("；") || "健康诊断无阻塞问题",
+      collectedAt: record.latestDiagnosis.diagnosedAt,
+    });
+  }
+  if (record.latestSimulationResult) {
+    refs.push({
+      ...traceableRef("simulation_result", record.latestSimulationResult.simulationResultId, "最新活动准入模拟"),
+      sourceType: "simulation_result",
+      sourceId: record.latestSimulationResult.simulationResultId,
+      evidenceText: `活动准入状态：${record.latestSimulationResult.eligibility}`,
+    });
+    refs.push({
+      ...traceableRef("rule_set", record.latestSimulationResult.ruleSetId, "活动规则集"),
+      sourceType: "rule_set",
+      sourceId: record.latestSimulationResult.ruleSetId,
+      evidenceText: "活动准入结论由规则集模拟生成",
+    });
+  }
+  return refs;
+}
+
+function traceableRef(entityType: TraceableRef["entityType"], entityId: string, label: string): TraceableRef {
+  return { entityType, entityId, label, drawerTarget: `${entityType}:${entityId}` };
+}
+
+function toDashboardHealthStatus(status: HealthDiagnosisDto["healthStatus"]): DashboardSkuHealthStatus {
+  if (status === "READY") return "READY";
+  if (status === "BLOCKED") return "BLOCKED";
+  if (status === "UNKNOWN") return "RISKY";
+  return "REPAIRABLE";
+}
+
+function eligibilityLabel(status: DashboardSkuEligibilityStatus | undefined): string {
+  if (status === "DIRECT_READY") return "可直接加入";
+  if (status === "REPAIRABLE_READY") return "修复后可加入";
+  if (status === "MANUAL_REVIEW") return "需人工复核";
+  if (status === "BLOCKED") return "不可加入";
+  return "未模拟";
+}
+
+function nextDashboardSkuAction(healthStatus: DashboardSkuHealthStatus, eligibilityStatus: DashboardSkuEligibilityStatus | undefined): DashboardSkuListItemDto["nextAction"] {
+  if (eligibilityStatus === "DIRECT_READY") return { type: "JOIN_ACTIVITY", label: "加入候选清单" };
+  if (eligibilityStatus === "MANUAL_REVIEW") return { type: "MANUAL_REVIEW", label: "提交人工复核" };
+  if (eligibilityStatus === "BLOCKED" || healthStatus === "BLOCKED") return { type: "VIEW_BLOCKER", label: "查看阻塞原因", disabled: true };
+  if (eligibilityStatus === "REPAIRABLE_READY" || healthStatus === "REPAIRABLE" || healthStatus === "RISKY") return { type: "REPAIR_ISSUE", label: "查看修复项" };
+  return { type: "VIEW_DETAIL", label: "查看详情" };
+}
+
+function statusConclusion(healthStatus: DashboardSkuHealthStatus, eligibilityStatus: DashboardSkuEligibilityStatus | undefined): string {
+  return `${healthStatus} / ${eligibilityLabel(eligibilityStatus)}`;
 }
 
 function deterministicRules(sourceText: string): CanonicalRuleDto[] {
@@ -968,6 +1270,18 @@ function toReviewItemDto(row: Record<string, unknown>): ReviewItemDto {
   };
 }
 
+function toSimulationResultDto(row: Record<string, unknown>): SimulationResultDto {
+  return {
+    simulationResultId: String(row.id),
+    skuProfileId: String(row.skuProfileId),
+    ruleSetId: String(row.activityRuleSetId),
+    eligibility: String(row.eligibilityStatus) as SimulationEligibility,
+    failedRules: asArray(row.failedRulesJson) as CanonicalRuleDto[],
+    evidence: asArray(row.evidenceJson) as SimulationResultDto["evidence"],
+    repairSuggestions: asArray(row.repairPlanJson).map(String),
+  };
+}
+
 function toReviewSourceType(value: unknown): ReviewItemDto["sourceType"] {
   if (value === "health" || value === "simulation" || value === "agent") return value;
   return "agent";
@@ -983,19 +1297,23 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
     if (!options.prisma) throw new Error("Prisma persistence adapter requires a Prisma client. Pass { prisma } from the runtime bootstrap.");
     const tx = new PrismaTransactionManager(options.prisma, options.boundary);
     const skuQueryRepository = new PrismaSkuQueryRepository(options.prisma);
+    const dashboardSkuRepository = new PrismaDashboardSkuReadModelRepository(options.prisma);
     const ingestService = new FinalIngestService(tx, new PrismaIngestRepository(), skuQueryRepository);
+    const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository);
     const activityService = new FinalActivityService(new PrismaActivityRepository(options.prisma), skuQueryRepository);
     const memoryStore = new FinalApiPersistenceStore();
     const reviewService = new FinalReviewService(new PrismaReviewRepository(options.prisma));
     const reportService = new FinalReportService(new PrismaReportRepository(options.prisma), skuQueryRepository);
-    return { adapter, store: memoryStore, tx, ingestService, activityService, reviewService, reportService };
+    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService };
   }
   const store = new FinalApiPersistenceStore();
   const tx = new InMemoryTransactionManager(store);
   const skuQueryRepository = new SkuQueryRepository(store);
+  const dashboardSkuRepository = new DashboardSkuReadModelRepository(store);
   const ingestService = new FinalIngestService(tx, new IngestRepository(), skuQueryRepository);
+  const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository);
   const activityService = new FinalActivityService(new ActivityRepository(store), skuQueryRepository);
   const reviewService = new FinalReviewService(new ReviewRepository(store));
   const reportService = new FinalReportService(new ReportRepository(store), skuQueryRepository);
-  return { adapter, store, tx, ingestService, activityService, reviewService, reportService };
+  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService };
 }

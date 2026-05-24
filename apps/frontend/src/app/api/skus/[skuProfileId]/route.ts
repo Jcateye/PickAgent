@@ -1,12 +1,13 @@
-import { fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
 
 interface RouteContext {
   params: Promise<{ skuProfileId: string }>
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { skuProfileId } = await context.params
-  const detail = await finalApiRuntime.ingestService.getSkuDetail(skuProfileId)
-  if (!detail) return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId })
-  return ok(detail)
+  const requestId = request.headers.get('x-request-id') ?? undefined
+  const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileId, requireApiAuthContext(request, requestId))
+  if (!detail) return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
+  return ok(detail, requestId)
 }
