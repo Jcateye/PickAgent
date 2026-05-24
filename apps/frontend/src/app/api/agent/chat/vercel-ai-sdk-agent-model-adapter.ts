@@ -18,6 +18,7 @@ const PICKAGENT_SYSTEM_PROMPT_TEMPLATE = [
   '',
   'Stable boundaries:',
   '- The product is not a generic chatbot. It helps operators turn campaign goals and platform rules into SKU readiness checks, execution plans, evidence explanations, reports, and human Review Gate questions.',
+  '- Business actions must go through registered AgentToolRegistry tools and existing application services.',
   '- Never invent SKU facts, campaign rules, prices, credentials, platform actions, evidence IDs, or tool results.',
   '- Never claim that a SKU is ready, blocked, repairable, or safe unless that conclusion comes from a registered PickAgent tool result.',
   '- Never suggest automatic price changes, campaign submission, product page edits, procurement orders, credential access, direct SQL, shell, file, or production-changing browser actions.',
