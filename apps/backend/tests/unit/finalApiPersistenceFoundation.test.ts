@@ -116,6 +116,58 @@ test("sku readiness query exposes browser collection key metrics", async () => {
   assert.equal(detail?.keyMetrics.collectedAt, "2026-05-24T10:00:00.000Z");
 });
 
+test("sku readiness query supports fuzzy, multi-value and range filters for agent search", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  await runtime.ingestService.ingest({
+    connectorId: "doudian-browser-extension",
+    collectedAt: "2026-05-24T10:00:00.000Z",
+    rows: [
+      {
+        platform: "doudian",
+        storeId: "fxg.jinritemai.com",
+        externalSkuId: "3818388858177978472",
+        productName: "韩版夏季短袖上衣",
+        category: "女装",
+        stock: 98,
+        raw: {
+          extensionSourceKind: "current-page-dom",
+          domMetrics: { salesCount: 4, positiveRate: 1, qualityScore: 85, qualityLabel: "优秀" },
+        },
+      },
+      {
+        platform: "tmall",
+        storeId: "flagship",
+        externalSkuId: "SKU-LOW",
+        productName: "低库存测试商品",
+        category: "配饰",
+        stock: 3,
+        sales30d: 100,
+        positiveRate: 0.8,
+        raw: {},
+      },
+    ],
+  });
+
+  const boundary = {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  };
+  const fuzzy = await runtime.skuReadinessQueryService.list({ q: "短袖", platforms: ["doudian", "jd"], categories: ["女装"], minQualityScore: 80, minPositiveRate: 0.95 }, boundary);
+  assert.equal(fuzzy.total, 1);
+  assert.equal(fuzzy.items[0]?.qualityLabel, "优秀");
+
+  const lowStock = await runtime.skuReadinessQueryService.list({ maxStock: 5, maxPositiveRate: 0.9, productName: "测试", sortBy: "stock", sortOrder: "asc" }, boundary);
+  assert.equal(lowStock.total, 1);
+  assert.equal(lowStock.items[0]?.stock, 3);
+
+  const byTime = await runtime.skuReadinessQueryService.list({ collectedAtFrom: "2026-05-24T00:00:00.000Z", collectedAtTo: "2026-05-24T23:59:59.000Z", sourceKinds: ["current-page-dom"] }, boundary);
+  assert.equal(byTime.total, 1);
+  assert.equal(byTime.items[0]?.sourceKind, "current-page-dom");
+});
+
 test("final activity, review and report services share persistent repositories", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture);

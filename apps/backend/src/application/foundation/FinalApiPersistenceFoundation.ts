@@ -2554,13 +2554,33 @@ function toSummary(profile: SkuProfileRecord, diagnosis: HealthDiagnosisDto): Sk
 
 function matchesDashboardSkuQuery(record: DashboardSkuReadModelRecord, query: DashboardSkuListQuery): boolean {
   const snapshot = record.latestSnapshot;
+  const metrics = dashboardKeyMetrics(record);
   const q = query.q?.trim().toLowerCase();
-  if (q && ![record.summary.productName, record.summary.canonicalSkuKey, snapshot?.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(q))) return false;
-  if (query.platform && record.summary.platform !== query.platform) return false;
-  if (query.category && snapshot?.category !== query.category) return false;
+  if (q && !matchesAnyText([record.summary.productName, record.summary.canonicalSkuKey, record.summary.platform, record.summary.storeId, snapshot?.category, metrics.qualityLabel, metrics.sourceKind], q)) return false;
+  if (query.skuProfileId && !containsText(record.summary.skuProfileId, query.skuProfileId)) return false;
+  if (query.externalSkuId && !containsText(record.summary.canonicalSkuKey, query.externalSkuId)) return false;
+  if (query.productName && !containsText(record.summary.productName, query.productName)) return false;
+  if (query.storeId && !containsText(record.summary.storeId, query.storeId)) return false;
+  if (query.platform && !containsText(record.summary.platform, query.platform)) return false;
+  if (query.platforms && !matchesAnyOption(record.summary.platform, query.platforms)) return false;
+  if (query.category && !containsText(snapshot?.category, query.category)) return false;
+  if (query.categories && !matchesAnyOption(snapshot?.category, query.categories)) return false;
   if (query.healthStatus && toDashboardHealthStatus(record.summary.healthStatus) !== query.healthStatus) return false;
+  if (query.healthStatuses && !query.healthStatuses.includes(toDashboardHealthStatus(record.summary.healthStatus))) return false;
   if (query.eligibilityStatus && record.latestSimulationResult?.eligibility !== query.eligibilityStatus) return false;
-  if (query.certificateStatus && snapshot?.certificateStatus !== query.certificateStatus) return false;
+  if (query.eligibilityStatuses && (!record.latestSimulationResult?.eligibility || !query.eligibilityStatuses.includes(record.latestSimulationResult.eligibility))) return false;
+  if (query.certificateStatus && !containsText(snapshot?.certificateStatus, query.certificateStatus)) return false;
+  if (query.certificateStatuses && !matchesAnyOption(snapshot?.certificateStatus, query.certificateStatuses)) return false;
+  if (query.qualityLabel && !containsText(metrics.qualityLabel, query.qualityLabel)) return false;
+  if (query.qualityLabels && !matchesAnyOption(metrics.qualityLabel, query.qualityLabels)) return false;
+  if (query.sourceKind && !containsText(metrics.sourceKind, query.sourceKind)) return false;
+  if (query.sourceKinds && !matchesAnyOption(metrics.sourceKind, query.sourceKinds)) return false;
+  if (!inNumberRange(metrics.sales30d, query.minSales30d, query.maxSales30d)) return false;
+  if (!inNumberRange(metrics.positiveRate, query.minPositiveRate, query.maxPositiveRate)) return false;
+  if (!inNumberRange(metrics.stock, query.minStock, query.maxStock)) return false;
+  if (!inNumberRange(metrics.qualityScore, query.minQualityScore, query.maxQualityScore)) return false;
+  if (!inDateRange(metrics.collectedAt, query.collectedAtFrom, query.collectedAtTo)) return false;
+  if (!inDateRange(record.updatedAt, query.updatedAtFrom, query.updatedAtTo)) return false;
   return true;
 }
 
@@ -2575,10 +2595,43 @@ function sortDashboardSkuRecords(records: DashboardSkuReadModelRecord[], query: 
 }
 
 function dashboardSortValue(record: DashboardSkuReadModelRecord, sortBy: NonNullable<DashboardSkuListQuery["sortBy"]>): number {
-  if (sortBy === "sales30d") return record.latestSnapshot?.sales30d ?? 0;
-  if (sortBy === "positiveRate") return record.latestSnapshot?.positiveRate ?? 0;
-  if (sortBy === "stock") return record.latestSnapshot?.stock ?? 0;
+  const metrics = dashboardKeyMetrics(record);
+  if (sortBy === "sales30d") return metrics.sales30d ?? 0;
+  if (sortBy === "positiveRate") return metrics.positiveRate ?? 0;
+  if (sortBy === "stock") return metrics.stock ?? 0;
+  if (sortBy === "qualityScore") return metrics.qualityScore ?? 0;
+  if (sortBy === "collectedAt") return Date.parse(metrics.collectedAt ?? "") || 0;
   return Date.parse(record.updatedAt) || 0;
+}
+
+function matchesAnyText(values: Array<unknown>, needle: string): boolean {
+  return values.filter(Boolean).some((value) => String(value).toLowerCase().includes(needle));
+}
+
+function containsText(value: unknown, query: string): boolean {
+  return String(value ?? "").toLowerCase().includes(query.trim().toLowerCase());
+}
+
+function matchesAnyOption(value: unknown, options: readonly string[]): boolean {
+  const normalized = String(value ?? "").toLowerCase();
+  return options.some((option) => normalized === option.toLowerCase() || normalized.includes(option.toLowerCase()));
+}
+
+function inNumberRange(value: number | undefined, min: number | undefined, max: number | undefined): boolean {
+  if (min === undefined && max === undefined) return true;
+  if (value === undefined) return false;
+  if (min !== undefined && value < min) return false;
+  if (max !== undefined && value > max) return false;
+  return true;
+}
+
+function inDateRange(value: string | undefined, from: string | undefined, to: string | undefined): boolean {
+  if (!from && !to) return true;
+  const time = Date.parse(value ?? "");
+  if (!Number.isFinite(time)) return false;
+  if (from && time < Date.parse(from)) return false;
+  if (to && time > Date.parse(to)) return false;
+  return true;
 }
 
 function toDashboardSkuListItem(record: DashboardSkuReadModelRecord): DashboardSkuListItemDto {
