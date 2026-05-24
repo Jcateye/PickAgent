@@ -168,6 +168,10 @@ export function attachTaskSubmitReceipt(state: CollectionTaskState, receipt: Sub
   })
 }
 
+export function refreshTaskStatistics(state: CollectionTaskState): CollectionTaskState {
+  return buildTaskState(state)
+}
+
 export function buildProductIngestPayload(state: CollectionTaskState): IngestCollectionPayload {
   return {
     schemaVersion: "extension-ingest.v1",

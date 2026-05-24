@@ -14,6 +14,7 @@ import {
   defaultRealIngestEndpoint,
   emptySyntheticDoudianCommentPage,
   realIngestAdapterDependency,
+  refreshTaskStatistics,
   recognizeCommentPage,
   recognizeProductPage,
   resetTaskState,
@@ -128,31 +129,33 @@ export function SidePanelApp() {
       const previews = await collectDoudianStockPages({ sourceUrl, pageSize: 50, maxPages: 20 })
       const rows = previews.flatMap((preview) => preview.rows)
       const lastPreview = previews[previews.length - 1]
-      setRunState((state) => ({
-        ...state,
-        status: rows.length > 0 ? "ready" : "failed",
-        activePageType: rows.length > 0 ? "product-list" : "unsupported",
-        currentPage: Math.max(previews.length, 1),
-        totalPages: Math.max(previews.length, 1),
-        collectedProductRows: rows,
-        currentProductPreview: lastPreview,
-        lastRecognition: {
-          status: rows.length > 0 ? "collectible" : "unsupported",
-          confidence: rows.length > 0 ? 0.92 : 0,
-          platform: "抖店商家后台",
-          pageType: rows.length > 0 ? "stock-manage-list" : "unsupported",
-          sourceKind: "product",
-          pageIndex: Math.max(previews.length, 1),
+      setRunState((state) =>
+        refreshTaskStatistics({
+          ...state,
+          status: rows.length > 0 ? "ready" : "failed",
+          activePageType: rows.length > 0 ? "product-list" : "unsupported",
+          currentPage: Math.max(previews.length, 1),
           totalPages: Math.max(previews.length, 1),
-          reasons: rows.length > 0 ? ["抖店库存接口返回商品/SKU数据", "已调用库存诊断接口补充采集风险"] : ["抖店库存接口未返回可采集数据"],
-          unsupportedReason: rows.length > 0 ? undefined : "抖店库存接口未返回商品/SKU数据。"
-        },
-        lastEvent: rows.length > 0 ? "PAGE_COLLECTED" : "FAIL",
-        lastError: rows.length > 0 ? undefined : "真实抖店库存接口未返回可采集数据；请确认已登录并打开库存管理页。",
-        checkpoint: undefined,
-        submitted: false,
-        submitReceipt: undefined
-      }))
+          collectedProductRows: rows,
+          currentProductPreview: lastPreview,
+          lastRecognition: {
+            status: rows.length > 0 ? "collectible" : "unsupported",
+            confidence: rows.length > 0 ? 0.92 : 0,
+            platform: "抖店商家后台",
+            pageType: rows.length > 0 ? "stock-manage-list" : "unsupported",
+            sourceKind: "product",
+            pageIndex: Math.max(previews.length, 1),
+            totalPages: Math.max(previews.length, 1),
+            reasons: rows.length > 0 ? ["抖店库存接口返回商品/SKU数据", "已调用库存诊断接口补充采集风险"] : ["抖店库存接口未返回可采集数据"],
+            unsupportedReason: rows.length > 0 ? undefined : "抖店库存接口未返回商品/SKU数据。"
+          },
+          lastEvent: rows.length > 0 ? "PAGE_COLLECTED" : "FAIL",
+          lastError: rows.length > 0 ? undefined : "真实抖店库存接口未返回可采集数据；请确认已登录并打开库存管理页。",
+          checkpoint: undefined,
+          submitted: false,
+          submitReceipt: undefined
+        })
+      )
     } catch (error) {
       setRunState((state) => ({
         ...state,
