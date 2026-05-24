@@ -1,0 +1,52 @@
+openapi: 3.1.0
+info:
+  title: PickAgent Dashboard SKU Read Models API
+  version: 0.1.0
+paths:
+  /api/skus:
+    get:
+      summary: List dashboard SKU readiness read models
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, default: 20 }
+        - in: query
+          name: platform
+          schema: { type: string }
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: healthStatus
+          schema: { type: string, enum: [READY, REPAIRABLE, RISKY, BLOCKED] }
+        - in: query
+          name: eligibilityStatus
+          schema: { type: string, enum: [DIRECT_READY, REPAIRABLE_READY, MANUAL_REVIEW, BLOCKED] }
+        - in: query
+          name: certificateStatus
+          schema: { type: string }
+        - in: query
+          name: sortBy
+          schema: { type: string, enum: [sales30d, positiveRate, stock, updatedAt] }
+        - in: query
+          name: sortOrder
+          schema: { type: string, enum: [asc, desc] }
+      responses:
+        "200":
+          description: ApiEnvelope<PageDto<DashboardSkuListItemDto>>
+  /api/skus/{skuProfileId}:
+    get:
+      summary: Get dashboard SKU readiness detail drawer model
+      parameters:
+        - in: path
+          name: skuProfileId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: ApiEnvelope<DashboardSkuReadinessDetailDto>
+        "404":
+          description: SKU.NOT_FOUND

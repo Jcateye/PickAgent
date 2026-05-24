@@ -109,3 +109,41 @@ test("final activity, review and report services share persistent repositories",
   assert.equal(runtime.store.reports.get(report.reportId)?.reportId, report.reportId);
   assert.ok(report.evidenceSummary.length > 0);
 });
+
+test("dashboard SKU read models expose filterable list and evidence-backed detail", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture);
+  const ruleSet = await runtime.activityService.parse({
+    name: "618 活动准入规则",
+    platform: "tmall",
+    sourceText: businessFoundationActivityRuleText,
+  });
+  await runtime.activityService.simulate(ruleSet.ruleSetId, {
+    skuProfileIds: ingest.summaries.map((item) => item.skuProfileId),
+  });
+
+  const list = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10, platform: "tmall", sortBy: "updatedAt", sortOrder: "desc" }, tenantA);
+  assert.equal(list.total, 0, "explicit auth boundary must not fall back to dev tenant");
+
+  const devList = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10, eligibilityStatus: "DIRECT_READY" }, {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  });
+  assert.ok(devList.total >= 1);
+  assert.ok(devList.items.every((item) => item.nextAction.type === "JOIN_ACTIVITY"));
+  assert.ok(devList.items.every((item) => item.evidenceCount > 0));
+
+  const detail = await runtime.skuReadinessQueryService.detail(devList.items[0].skuProfileId, {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  });
+  assert.ok(detail);
+  assert.ok(detail.readinessChecklist.every((item) => item.evidenceRefs.length > 0));
+  assert.ok(detail.relatedRules.length > 0);
+});
