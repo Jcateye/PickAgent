@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-24] 支撑数据源连接器和浏览器插件采集面板
+
+- 模块：backend / frontend-api / contracts
+- 类型：功能
+- 摘要：新增连接器管理 DTO、ConnectorManagementService、BrowserConnectorService，以及 connectors、connector-runs、browser page detection、scan preview 的最小 API route；连接器同步运行会写入 Workflow 审计引用，scan preview 仅返回预览不写业务真相。
+- 影响范围：`apps/contracts/types/connectorBackend.ts`、`apps/backend/src/application/foundation/FinalApiPersistenceFoundation.ts`、`apps/frontend/src/app/api/connectors/**`、`apps/frontend/src/app/api/connector-runs/**`
+- 是否影响 contracts：是
+- 是否影响数据结构：否
+- 兼容性说明：复用现有 `Connector`、`ConnectorRun`、`WorkflowRun` 表，不新增 migration；敏感配置字段在 DTO 中脱敏。
+- 关联任务 / 决策：Workstream G / connector-browser-api
+
+---
+
 ### [2026-05-23] 补充最终设计缺口收敛方案
 
 - 模块：docs / architecture / openspec

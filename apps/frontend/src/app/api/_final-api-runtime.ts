@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
 import { createFinalApiPersistenceRuntime, type PrismaPersistenceClient, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import { createP0RuntimeConfig, P0AuthBoundaryError, requireP0AuthContext, type P0AuthContextDto } from '../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from '../../../../contracts/types/businessFoundation.fixture'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
@@ -33,6 +34,17 @@ export function fail(code: ApiEnvelope<never>['code'], message: string, status: 
 export function parsePositiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+export function authContextFromRequest(request: Request): P0AuthContextDto {
+  return requireP0AuthContext({ headers: Object.fromEntries(request.headers.entries()) }, createP0RuntimeConfig())
+}
+
+export function authFail(error: unknown) {
+  if (error instanceof P0AuthBoundaryError) {
+    return fail('COMMON.VALIDATION_ERROR', error.message, 401, error.audit)
+  }
+  return fail('COMMON.VALIDATION_ERROR', 'Auth boundary failed', 401)
 }
 
 function nextRequestId(): string {
