@@ -30,6 +30,22 @@ import { SecurityNote } from "../../shared/ui/SecurityNote"
 import { StatusBadge } from "../../shared/ui/StatusBadge"
 
 type PreviewTab = "products" | "comments"
+type AutomationResponse<T> = { ok: true; data: T } | { ok: false; error: string }
+
+interface DoudianStockAutomationResult {
+  readonly sourceUrl: string
+  readonly previews: Awaited<ReturnType<typeof collectDoudianStockPages>>
+}
+
+interface ChromeLike {
+  tabs?: {
+    query?: (queryInfo: { active: boolean; currentWindow: boolean }, callback: (tabs: Array<{ id?: number; url?: string }>) => void) => void
+    sendMessage?: <T>(tabId: number, message: unknown, callback: (response?: AutomationResponse<T>) => void) => void
+  }
+  runtime?: {
+    lastError?: { message?: string }
+  }
+}
 
 function recognitionTone(status: CollectablePageStatus | undefined) {
   if (status === "collectible") return "ready" as const
@@ -81,6 +97,40 @@ function mockCombinedReceipt(runState: CollectionTaskState): SubmitReceipt {
   }
 }
 
+function getChromeApi(): ChromeLike | undefined {
+  return (globalThis as typeof globalThis & { chrome?: ChromeLike }).chrome
+}
+
+function sendToActiveTab<T>(message: unknown): Promise<T> {
+  const chromeApi = getChromeApi()
+  return new Promise((resolve, reject) => {
+    chromeApi?.tabs?.query?.({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id
+      if (!tabId || !chromeApi.tabs?.sendMessage) {
+        reject(new Error("未找到当前抖店页面；请在抖店 tab 中打开采集侧边栏。"))
+        return
+      }
+
+      chromeApi.tabs.sendMessage<T>(tabId, message, (response) => {
+        const lastError = chromeApi.runtime?.lastError?.message
+        if (lastError) {
+          reject(new Error(`页面脚本未响应：${lastError}。请刷新抖店页面后重试。`))
+          return
+        }
+        if (!response) {
+          reject(new Error("页面脚本未返回采集结果；请确认插件已刷新并授权抖店域名。"))
+          return
+        }
+        if (!response.ok) {
+          reject(new Error(response.error))
+          return
+        }
+        resolve(response.data)
+      })
+    })
+  })
+}
+
 export function SidePanelApp() {
   const [activeProductPageIndex, setActiveProductPageIndex] = useState(0)
   const [activeCommentPageIndex, setActiveCommentPageIndex] = useState(0)
@@ -125,8 +175,12 @@ export function SidePanelApp() {
   const collectRealDoudianStock = async () => {
     try {
       setRunState((state) => ({ ...state, status: "collecting_products", lastEvent: "START", lastError: undefined }))
-      const sourceUrl = "https://fxg.jinritemai.com/ffa/g/stock-manage/list"
-      const previews = await collectDoudianStockPages({ sourceUrl, pageSize: 50, maxPages: 20 })
+      const result = await sendToActiveTab<DoudianStockAutomationResult>({
+        type: "PICKAGENT_COLLECT_DOUDIAN_STOCK",
+        pageSize: 50,
+        maxPages: 20
+      })
+      const previews = result.previews
       const rows = previews.flatMap((preview) => preview.rows)
       const lastPreview = previews[previews.length - 1]
       setRunState((state) =>
