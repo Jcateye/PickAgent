@@ -105,7 +105,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const toolRuntime = createSeededToolRuntime()
-const readOnlyTools = new Set(['getSkuSummary', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview'])
+const readOnlyTools = new Set(['getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
