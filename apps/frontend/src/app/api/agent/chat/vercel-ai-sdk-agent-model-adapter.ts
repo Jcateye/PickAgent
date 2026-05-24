@@ -24,7 +24,7 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
   constructor(options: VercelAiSdkAgentModelAdapterOptions) {
     this.model = options.modelName
     this.generate = options.generateText ?? generateText
-    this.languageModel = options.model ?? createOpenAI({ apiKey: options.apiKey, baseURL: options.baseURL })(options.modelName)
+    this.languageModel = options.model ?? createOpenAI({ apiKey: options.apiKey, baseURL: options.baseURL }).chat(options.modelName)
   }
 
   async complete(input: AgentModelAdapterInput): Promise<AgentModelAdapterOutput> {

@@ -36,14 +36,34 @@ Repository SHALL NOT create fixture SKU、fixture rules 或模板 assistant repl
 
 ## Vercel AI SDK Model Adapter
 
-`VercelAiSdkAgentModelAdapter` 使用 Vercel AI SDK Core 的 text generation API 和 OpenAI provider。Adapter SHALL:
+`VercelAiSdkAgentModelAdapter` 使用 Vercel AI SDK Core 的 text generation API 和 OpenAI provider chat model。Adapter SHALL:
 
 - 从明确配置的 provider model 生成 assistant reply
+- 对本地 LiteLLM OpenAI-compatible gateway 使用 chat completions compatible model path，而不是默认 Responses API path
 - 将 WorkbenchContext 和最近用户消息作为 messages/context 传入
 - 返回 model usage/metadata 供 `AgentMessage.contentJson` 与 `AgentRunEvent.payloadJson` 记录
 - 不内置关键词模板、fixture 回复或业务结论重算
 
 Adapter SHALL NOT 直接执行业务工具。后续工具调用必须经 `AgentToolExecutor` / `AgentToolRegistry`，并由 runtime 记录 tool event/evidence refs。
+
+## Local Prisma Client Loader
+
+本仓库 Prisma schema 使用 `provider = "prisma-client"` 并输出到 `apps/backend/src/generated/prisma`，不是默认 `@prisma/client` 入口。Route loader SHALL:
+
+- 在 `DATABASE_URL` 存在时从 generated client 加载 `PrismaClient`
+- 使用 PostgreSQL driver adapter 创建 client
+- 在 generated client、adapter、DATABASE_URL 缺失时返回 `AGENT.REAL_CHAT_NOT_CONFIGURED`
+- 在数据库缺表或 migration 未应用时返回清晰错误，不回退 memory/mock
+
+Generated client SHALL NOT be committed; local/demo setup should run `prisma generate` against `apps/backend/prisma/schema.prisma`.
+
+Local command:
+
+```bash
+DATABASE_URL="postgresql://..." pnpm --dir apps/backend prisma:generate
+```
+
+Model provider errors SHALL be returned as sanitized API failures. The route must not echo provider messages that include API key fragments, tokens, authorization headers, or credential hints.
 
 ## Failure Mode
 
@@ -58,3 +78,5 @@ Adapter SHALL NOT 直接执行业务工具。后续工具调用必须经 `AgentT
 - Repository test: Prisma delegates receive AgentSession、AgentMission、AgentRun、AgentMessage、AgentRunEvent writes in order
 - Model adapter test: AI SDK call returns assistant content and records provider/model metadata
 - Route test: missing model provider returns `AGENT.REAL_CHAT_NOT_CONFIGURED`
+- Local DB smoke: generated client can connect to Mac mini PostgreSQL when `DATABASE_URL` points to local database
+- Provider failure smoke: invalid provider key records a failed AgentRun but does not return credential fragments to the client

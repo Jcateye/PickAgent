@@ -1,0 +1,16 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "PickAgent backend schema and generated Prisma runtime dependencies.",
+  "main": "index.js",
+  "scripts": {
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.10.0",
+  "dependencies": {
+    "@prisma/client": "^7.8.0"
+  }
+}

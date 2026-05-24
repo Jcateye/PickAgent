@@ -93,7 +93,7 @@ run_backend_typecheck() {
   if [[ -d "$ROOT_DIR/apps/backend/src" ]]; then
     while IFS= read -r file; do
       backend_ts_files+=("$file")
-    done < <(find "$ROOT_DIR/apps/backend/src" -type f -name '*.ts' | sort)
+    done < <(find "$ROOT_DIR/apps/backend/src" -type f -name '*.ts' ! -path "$ROOT_DIR/apps/backend/src/generated/prisma/*" | sort)
   fi
 
   if ((${#backend_ts_files[@]})); then

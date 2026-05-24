@@ -9,6 +9,7 @@
 - 将 `/api/agent/chat` 切到真实模式入口：配置缺失时 fail closed，不再静默使用 seed、memory 或模板作为生产默认路径。
 - 增加 Prisma conversation repository seam，使真实 chat runtime 可以通过已有 AgentSession、AgentMission、AgentRun、AgentMessage、AgentRunEvent 表持久化对话链路。
 - 接入 Vercel AI SDK OpenAI provider 作为真实 `AgentModelAdapter`，在模型凭据缺失时继续 fail closed，不生成模板回复。
+- 接入本机 generated Prisma client loader 和 PostgreSQL driver adapter，使 Mac mini 本机数据库可作为真实 conversation repository。
 
 ## Capabilities
 
@@ -17,9 +18,10 @@
 - `p0-real-agent-chat-runtime`: Agent chat MUST 使用持久化 conversation runtime 保存用户消息、assistant 消息、tool trace 和 run events，并 SHALL 在缺少真实 persistence 或 model adapter 时明确失败。
 - `p0-agent-conversation-prisma-repository`: Agent chat repository MUST write conversation records through Prisma delegates when configured, and SHALL fail closed when the Prisma client is absent.
 - `p0-vercel-ai-agent-model-adapter`: Agent chat model adapter MUST call Vercel AI SDK provider for assistant replies when configured, and SHALL fail closed without a provider key/model.
+- `p0-local-prisma-client-loader`: Agent chat route MUST load the generated Prisma client and local PostgreSQL adapter when DATABASE_URL is present, and SHALL report missing migration separately from missing configuration.
 
 ## Impact
 
 - Affected systems: Agent chat API, Agent conversation runtime, Agent persistence boundary.
-- Dependencies: 用户已授权接入 Vercel AI SDK / provider；本 change 使用 `ai` 和 `@ai-sdk/openai`。
+- Dependencies: 用户已授权接入 Vercel AI SDK / provider；本 change 使用 `ai`、`@ai-sdk/openai`，并补齐 Prisma runtime dependencies for the confirmed Prisma/PostgreSQL stack.
 - Risk: L2。涉及 Agent chat 主路径和真实模式配置，不涉及生产外部平台写操作。

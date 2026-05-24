@@ -2,6 +2,7 @@ import { fail, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
+import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
 import type { AgentEvidenceRef, AgentLinkedEntity, AgentMessage, AgentReviewGate, AgentToolTrace, WorkbenchContext } from '@/modules/agent-copilot/types'
@@ -66,7 +67,12 @@ export async function POST(request: Request) {
         { missing: error.missing },
       )
     }
-    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent chat request failed', 400)
+    return fail(
+      'COMMON.VALIDATION_ERROR',
+      'Agent chat request failed before a completed assistant reply. Check persistence and model provider configuration.',
+      502,
+      { errorType: error instanceof Error ? error.name : 'UnknownError' },
+    )
   }
 }
 
@@ -78,6 +84,9 @@ function createRealAgentChatRuntime() {
 }
 
 function createConversationRepository() {
+  const local = createLocalPrismaConversationClient()
+  if (local.client) return new PrismaAgentConversationRepository(local.client)
+
   try {
     const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => unknown }
     const { PrismaClient } = requireFromNode('@prisma/client')

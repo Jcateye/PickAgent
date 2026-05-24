@@ -16,3 +16,9 @@
 - [x] 3.4 将 `/api/agent/chat` 接入真实 model adapter 配置边界。
 - [x] 3.5 补 model adapter 单测、缺模型配置 route 测试。
 - [x] 3.6 运行 OpenSpec、typecheck、测试、build，并提交中文 commit。
+- [x] 4.1 冻结 local generated Prisma client loader requirement 和验收标准。
+- [x] 4.2 安装并锁定 Prisma runtime / PostgreSQL adapter dependencies。
+- [x] 4.3 将 generated client loader 接入 `/api/agent/chat` repository 配置。
+- [x] 4.4 将 generated Prisma client 输出目录加入 gitignore，并记录 local generate 前置。
+- [x] 4.5 补 loader 配置测试和本机 DB smoke 证据。
+- [x] 4.6 运行 OpenSpec、typecheck、测试、build，并提交中文 commit。

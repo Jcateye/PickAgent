@@ -56,3 +56,27 @@ Agent chat model adapter MUST call a configured Vercel AI SDK provider to produc
 
 - **WHEN** the model response requires business data or actions
 - **THEN** business tool execution SHALL remain outside the model adapter and go through AgentToolExecutor / AgentToolRegistry before evidence or tool trace is recorded.
+
+### Requirement: Local Prisma client loader
+
+Agent chat route MUST load the generated Prisma client with a PostgreSQL driver adapter when `DATABASE_URL` is configured, and SHALL fail explicitly when the generated client, adapter, or database migration is unavailable.
+
+#### Scenario: Load local generated Prisma client
+
+- **WHEN** `DATABASE_URL` points to the Mac mini PostgreSQL database and generated Prisma client exists
+- **THEN** `/api/agent/chat` uses PrismaAgentConversationRepository backed by that client instead of in-memory persistence.
+
+#### Scenario: Missing generated client
+
+- **WHEN** generated Prisma client is absent
+- **THEN** API returns `AGENT.REAL_CHAT_NOT_CONFIGURED` and includes the missing generated client reason.
+
+#### Scenario: Missing Agent tables
+
+- **WHEN** generated Prisma client connects but Agent conversation tables are not migrated
+- **THEN** API SHALL return a clear persistence error and SHALL NOT switch to mock persistence.
+
+#### Scenario: Sanitized model provider failure
+
+- **WHEN** model provider rejects the request because credentials are invalid
+- **THEN** API SHALL return a sanitized failure and SHALL NOT include API key fragments, tokens, authorization headers, or provider credential text.
