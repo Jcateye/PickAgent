@@ -963,6 +963,7 @@ P2 可后置：
 8. `rules-settings-api`
    - RuleSet list/detail/version/enable/disable、workspace/tool policy settings。
    - 中文需求：支撑规则库和设置。
+   - 2026-05-24 状态：已补最小可验收 API route、contract DTO、application service、memory/prisma repository adapter 与单测；复用既有 P0 表，不新增 migration。工具策略更新会强制保留 L3 runtime tools denylist。
 
 ## 10. Definition of Done
 

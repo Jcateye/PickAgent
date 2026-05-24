@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
 import { createFinalApiPersistenceRuntime, type PrismaPersistenceClient, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import type { P0AuthContextDto } from '../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from '../../../../contracts/types/businessFoundation.fixture'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
@@ -33,6 +34,17 @@ export function fail(code: ApiEnvelope<never>['code'], message: string, status: 
 export function parsePositiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+export function authContextFromRequest(request: Request): P0AuthContextDto {
+  const headers = request.headers
+  return {
+    actorId: headers.get('x-pickagent-actor-id') ?? 'dev_actor',
+    tenantId: headers.get('x-pickagent-tenant-id') ?? 'dev_tenant',
+    sessionId: headers.get('x-pickagent-session-id') ?? 'dev_session',
+    surface: headers.get('x-pickagent-surface') ?? 'console-api',
+    requestId: headers.get('x-request-id') ?? nextRequestId()
+  }
 }
 
 function nextRequestId(): string {
