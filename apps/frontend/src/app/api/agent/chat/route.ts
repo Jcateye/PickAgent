@@ -1,9 +1,9 @@
-import { fail, ok } from '../../_final-api-runtime'
+import { fail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
-import { createBusinessFoundationRuntime } from '../../../../../../backend/src/application/foundation/BusinessFoundationServices'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
-import { businessFoundationSeedFixture } from '../../../../../../contracts/types/businessFoundation.fixture'
+import type { EvidenceLinkDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
+import type { DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
@@ -104,8 +104,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const toolRuntime = createSeededToolRuntime()
-const readOnlyTools = new Set(['getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview'])
+const readOnlyTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -141,7 +140,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
       return { toolCall, status: 'BLOCKED_BY_POLICY', summary: reason, data: null, evidenceRefs: [], linkedEntities: [], reviewGate: null }
     }
 
-    const execution = toolRuntime.agentToolRegistry.execute(toolName as never, safeInput)
+    const execution = await executeFinalApiTool(toolName, safeInput)
     const status = execution.status === 'SUCCEEDED' ? 'SUCCEEDED' : 'FAILED'
     const evidenceRefs = execution.evidence.map((item, index) => toConversationEvidence(toolName, item, index))
     const linkedEntities = execution.linkedEntity ? [toConversationLinkedEntity(toolName, execution.linkedEntity)] : []
@@ -174,10 +173,316 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
   }
 }
 
-function createSeededToolRuntime() {
-  const runtime = createBusinessFoundationRuntime()
-  runtime.ingestService.ingest(businessFoundationSeedFixture)
-  return runtime
+interface FinalApiToolExecution {
+  status: 'SUCCEEDED' | 'FAILED'
+  result: unknown
+  evidence: EvidenceLinkDto[]
+  linkedEntity?: { type: string; id: string }
+  trace: Array<{ summary: string }>
+}
+
+async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {
+  try {
+    if (toolName === 'getDashboardContext') {
+      const authContext = agentToolAuthContext()
+      const pageSize = numberOr(input.pageSize, 8)
+      const [healthSummary, skuCandidates, ruleSets, activities] = await Promise.all([
+        finalApiRuntime.ingestService.getHealthSummary(authContext),
+        finalApiRuntime.ingestService.listSkus(1, pageSize, authContext),
+        finalApiRuntime.ruleSetService.list(1, 5, authContext),
+        finalApiRuntime.activityService.list(1, 5, authContext),
+      ])
+      const result = {
+        page: 'Dashboard 总览',
+        query: { page: 1, pageSize },
+        healthSummary,
+        skuCandidates: skuCandidates.items.map(toSkuSummaryCandidate),
+        skuPage: { page: skuCandidates.page, pageSize: skuCandidates.pageSize, total: skuCandidates.total },
+        ruleSets: ruleSets.items.map((item) => ({
+          ruleSetId: item.ruleSetId,
+          name: item.name,
+          type: item.type,
+          source: item.source,
+          status: item.status,
+          version: item.version,
+          updatedAt: item.updatedAt,
+        })),
+        activities: activities.items.map((item) => ({
+          activityId: item.activityId,
+          name: item.name,
+          platform: item.platform,
+          status: item.status,
+          startAt: item.startAt,
+          endAt: item.endAt,
+        })),
+        recommendedNextTools: ['searchSkus', 'getSkuSummary', 'diagnoseSkuHealth', 'checkDataFreshness', 'simulateActivityReadiness'],
+      }
+      return succeeded(result, dashboardEvidence(result), `读取 Dashboard 上下文：${skuCandidates.total} 个 SKU 候选`, { type: 'dashboard', id: 'dashboard' })
+    }
+
+    if (toolName === 'searchSkus') {
+      const query = skuListQueryFromToolInput(input, 10)
+      const result = await finalApiRuntime.skuReadinessQueryService.list(query, agentToolAuthContext())
+      const payload = {
+        query,
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+        items: result.items.map(toSkuCandidate),
+      }
+      return succeeded(payload, skuListEvidence(payload.items), `查询 SKU：命中 ${result.total} 条`, result.items[0] ? { type: 'sku_profile', id: result.items[0].skuProfileId } : { type: 'dashboard', id: 'sku-search' })
+    }
+
+    if (toolName === 'listRuleSets') {
+      const result = await finalApiRuntime.ruleSetService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
+      return succeeded(result, [{ type: 'rule', entityId: 'rule-sets', label: '规则集列表', summary: `读取 ${result.items.length} 个规则集` }], `读取规则集：${result.items.length} 个`, result.items[0] ? { type: 'rule_set', id: result.items[0].ruleSetId } : { type: 'dashboard', id: 'rule-sets' })
+    }
+
+    if (toolName === 'listActivities') {
+      const result = await finalApiRuntime.activityService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'activities', label: '活动列表', summary: `读取 ${result.items.length} 个活动` }], `读取活动：${result.items.length} 个`, result.items[0] ? { type: 'activity', id: result.items[0].activityId } : { type: 'dashboard', id: 'activities' })
+    }
+
+    if (toolName === 'getSkuSummary') {
+      const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
+      return succeeded(detail, detail.evidence, `读取 SKU：${detail.productName}`, { type: 'sku_profile', id: detail.skuProfileId })
+    }
+
+    if (toolName === 'checkDataFreshness') {
+      const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
+      const maxAgeHours = numberOr(input.maxAgeHours, 24)
+      const collectedAt = detail.latestSnapshot?.collectedAt ?? null
+      const ageHours = collectedAt ? Math.max(0, Math.round(((Date.now() - new Date(collectedAt).getTime()) / 36_000) / 10)) : null
+      const isFresh = ageHours !== null && ageHours <= maxAgeHours
+      const result = {
+        skuProfileId: detail.skuProfileId,
+        snapshotId: detail.latestSnapshot?.snapshotId ?? null,
+        collectedAt,
+        checkedAt: new Date().toISOString(),
+        maxAgeHours,
+        ageHours,
+        isFresh,
+        reason: isFresh ? `当前快照 ${ageHours} 小时内采集，满足 freshness 要求` : '当前快照缺失或超过 freshness 要求',
+        evidence: detail.evidence,
+      }
+      return succeeded(result, detail.evidence, `数据新鲜度：${isFresh ? 'fresh' : 'stale'}`, { type: 'sku_profile', id: detail.skuProfileId })
+    }
+
+    if (toolName === 'diagnoseSkuHealth') {
+      const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
+      const result = detail.latestDiagnosis ?? {
+        skuProfileId: detail.skuProfileId,
+        healthStatus: detail.healthStatus,
+        healthScore: detail.healthScore,
+        dataQualityScore: detail.dataQualityScore,
+        issues: detail.topIssues,
+        nextActions: detail.nextActions,
+        evidence: detail.evidence,
+      }
+      return succeeded(result, detail.evidence, `健康状态：${detail.healthStatus}`, { type: 'sku_profile', id: detail.skuProfileId })
+    }
+
+    if (toolName === 'parseActivityRules') {
+      const sourceText = String(input.sourceText ?? input.ruleText ?? '')
+      if (!sourceText.trim()) throw new Error('sourceText is required')
+      const result = await finalApiRuntime.activityService.parse({
+        name: String(input.name ?? 'Agent 解析活动规则'),
+        platform: typeof input.platform === 'string' ? input.platform : undefined,
+        sourceText,
+      })
+      return succeeded(result, result.errors.length ? [] : [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `规则解析状态：${result.parseStatus}` }], `解析规则：${result.parseStatus}`, { type: 'rule_set', id: result.ruleSetId })
+    }
+
+    if (toolName === 'simulateActivityReadiness') {
+      const ruleSetId = String(input.ruleSetId ?? input.activityRuleSetId ?? '')
+      const skuProfileIds = stringArray(input.skuProfileIds)
+      if (!ruleSetId || skuProfileIds.length === 0) throw new Error('ruleSetId and skuProfileIds are required')
+      const result = await finalApiRuntime.activityService.simulate(ruleSetId, {
+        skuProfileIds,
+        whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
+      })
+      const evidence = result.results.flatMap((item) => item.evidence)
+      return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, { type: 'simulation_run', id: result.simulationRunId })
+    }
+
+    if (toolName === 'explainDecisionWithEvidence') {
+      const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
+      const result = {
+        skuProfileId: detail.skuProfileId,
+        summary: `${detail.productName} 当前健康状态为 ${detail.healthStatus}，健康分 ${detail.healthScore}。`,
+        recommendation: detail.nextActions.join('；') || '当前没有待处理动作',
+        evidence: detail.evidence,
+        nextActions: detail.nextActions,
+      }
+      return succeeded(result, detail.evidence, `解释决策：${detail.productName}`, { type: 'sku_profile', id: detail.skuProfileId })
+    }
+
+    if (toolName === 'generateReportPreview') {
+      const skuProfileIds = stringArray(input.skuProfileIds)
+      if (skuProfileIds.length === 0) throw new Error('skuProfileIds are required')
+      const result = await finalApiRuntime.reportService.generate({
+        type: input.type === 'HEALTH' ? 'HEALTH' : 'ACTIVITY',
+        skuProfileIds,
+        simulationResultIds: stringArray(input.simulationResultIds),
+      })
+      return succeeded(result, result.evidenceSummary, `生成报告预览：${result.title}`, { type: 'report', id: result.reportId })
+    }
+
+    throw new Error(`Unsupported tool: ${toolName}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '工具执行失败'
+    return { status: 'FAILED', result: { message }, evidence: [], trace: [{ summary: message }] }
+  }
+}
+
+function agentToolAuthContext() {
+  return {
+    actorId: 'agent_demo',
+    tenantId: 'dev_tenant',
+    sessionId: 'agent_demo_session',
+    surface: 'agent-chat-tool',
+    requestId: `agent_tool_${Date.now().toString(36)}`,
+  }
+}
+
+function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageSize: number): DashboardSkuListQuery {
+  return {
+    page: numberOr(input.page, 1),
+    pageSize: numberOr(input.pageSize, fallbackPageSize),
+    q: optionalString(input.q ?? input.query ?? input.keyword),
+    skuProfileId: optionalString(input.skuProfileId),
+    externalSkuId: optionalString(input.externalSkuId),
+    productName: optionalString(input.productName),
+    storeId: optionalString(input.storeId),
+    platform: optionalString(input.platform),
+    category: optionalString(input.category),
+    healthStatus: optionalString(input.healthStatus) as DashboardSkuListQuery['healthStatus'],
+    eligibilityStatus: optionalString(input.eligibilityStatus) as DashboardSkuListQuery['eligibilityStatus'],
+    certificateStatus: optionalString(input.certificateStatus),
+    qualityLabel: optionalString(input.qualityLabel),
+    sourceKind: optionalString(input.sourceKind),
+    minSales30d: optionalNumber(input.minSales30d),
+    maxSales30d: optionalNumber(input.maxSales30d),
+    minPositiveRate: optionalNumber(input.minPositiveRate),
+    maxPositiveRate: optionalNumber(input.maxPositiveRate),
+    minStock: optionalNumber(input.minStock),
+    maxStock: optionalNumber(input.maxStock),
+    minQualityScore: optionalNumber(input.minQualityScore),
+    maxQualityScore: optionalNumber(input.maxQualityScore),
+    activityId: optionalString(input.activityId),
+    sortBy: optionalString(input.sortBy) as DashboardSkuListQuery['sortBy'],
+    sortOrder: optionalString(input.sortOrder) as DashboardSkuListQuery['sortOrder'],
+  }
+}
+
+function toSkuCandidate(item: {
+  skuProfileId: string
+  displaySku: string
+  productName: string
+  category?: string
+  sales30d?: number
+  positiveRate?: number
+  qualityScore?: number
+  qualityLabel?: string
+  sourceKind?: string
+  stock?: number
+  healthStatus: string
+  eligibilityStatus?: string
+  eligibilityLabel: string
+  nextAction: { type: string; label: string; disabled?: boolean }
+  evidenceCount: number
+  updatedAt: string
+}) {
+  return {
+    skuProfileId: item.skuProfileId,
+    displaySku: item.displaySku,
+    productName: item.productName,
+    category: item.category,
+    metrics: {
+      sales30d: item.sales30d,
+      positiveRate: item.positiveRate,
+      qualityScore: item.qualityScore,
+      qualityLabel: item.qualityLabel,
+      sourceKind: item.sourceKind,
+      stock: item.stock,
+    },
+    healthStatus: item.healthStatus,
+    eligibilityStatus: item.eligibilityStatus,
+    eligibilityLabel: item.eligibilityLabel,
+    nextAction: item.nextAction,
+    evidenceCount: item.evidenceCount,
+    updatedAt: item.updatedAt,
+  }
+}
+
+function toSkuSummaryCandidate(item: SkuSummaryDto) {
+  return {
+    skuProfileId: item.skuProfileId,
+    displaySku: item.canonicalSkuKey,
+    productName: item.productName,
+    category: undefined,
+    metrics: {
+      healthScore: 'healthScore' in item ? item.healthScore : undefined,
+      dataQualityScore: 'dataQualityScore' in item ? item.dataQualityScore : undefined,
+    },
+    healthStatus: item.healthStatus,
+    eligibilityStatus: undefined,
+    eligibilityLabel: item.healthStatus,
+    nextAction: {
+      type: item.healthStatus === 'READY' ? 'VIEW_DETAIL' : 'REPAIR_ISSUE',
+      label: item.nextActions?.[0] ?? (item.healthStatus === 'READY' ? '查看详情' : '查看风险'),
+    },
+    topIssues: item.topIssues ?? [],
+    evidenceCount: 0,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function dashboardEvidence(result: { skuCandidates: Array<{ skuProfileId: string; productName: string; healthStatus: string }>; healthSummary: unknown }): EvidenceLinkDto[] {
+  return [
+    { type: 'tool_trace', entityId: 'dashboard-health-summary', label: 'Dashboard 健康汇总', summary: summarizeToolOutput(result.healthSummary, '已读取健康汇总') },
+    ...skuListEvidence(result.skuCandidates).slice(0, 5),
+  ]
+}
+
+function skuListEvidence(items: Array<{ skuProfileId: string; productName: string; healthStatus: string }>): EvidenceLinkDto[] {
+  return items.map((item) => ({
+    type: 'tool_trace',
+    entityId: item.skuProfileId,
+    label: item.productName,
+    summary: `SKU ${item.skuProfileId} 当前健康状态 ${item.healthStatus}`,
+  }))
+}
+
+async function getRequiredSkuDetail(skuProfileId: string): Promise<SkuDetailDto> {
+  if (!skuProfileId) throw new Error('skuProfileId is required')
+  const detail = await finalApiRuntime.ingestService.getSkuDetail(skuProfileId)
+  if (!detail) throw new Error(`SKU not found: ${skuProfileId}`)
+  return detail
+}
+
+function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string, linkedEntity?: { type: string; id: string }): FinalApiToolExecution {
+  return { status: 'SUCCEEDED', result, evidence, linkedEntity, trace: [{ summary }] }
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function toToolTrace(execution: AgentConversationToolExecution): AgentToolTrace {
@@ -244,7 +549,7 @@ function toConversationEvidence(toolName: string, item: { type: string; entityId
 function toConversationLinkedEntity(toolName: string, entity: { type: string; id: string }): AgentConversationLinkedEntity {
   return {
     id: `${toolName}-entity-${entity.id}`,
-    entityType: entity.type === 'report' ? 'workflow_run' : entity.type,
+    entityType: entity.type === 'report' ? 'workflow_run' : entity.type === 'dashboard' ? 'workflow_run' : entity.type,
     entityId: entity.id,
     label: entity.type,
     reason: `由 ${toolName} 工具返回`,
@@ -258,6 +563,7 @@ function summarizeToolOutput(value: unknown, fallback = '工具已执行'): stri
   if (!value || typeof value !== 'object') return fallback
   if ('productName' in value) return `SKU ${String((value as { productName?: unknown }).productName)} 摘要已读取`
   if ('healthStatus' in value) return `健康状态：${String((value as { healthStatus?: unknown }).healthStatus)}`
+  if ('isFresh' in value) return `数据新鲜度：${(value as { isFresh?: unknown }).isFresh ? 'fresh' : 'stale'}`
   if ('freshnessStatus' in value) return `数据新鲜度：${String((value as { freshnessStatus?: unknown }).freshnessStatus)}`
   if ('title' in value) return String((value as { title?: unknown }).title)
   return JSON.stringify(value).slice(0, 240)

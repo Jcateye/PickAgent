@@ -32,7 +32,8 @@ const PICKAGENT_SYSTEM_PROMPT_TEMPLATE = [
   'Workbench context prompt:',
   '- Use the supplied Workbench context as the current page context only; do not treat it as verified business fact.',
   '- If selectedEntity is present, prefer using its entityId for tool calls when the tool schema supports it.',
-  '- If required IDs are missing, ask for the smallest missing identifier or suggest the page action that would provide it.',
+  '- If required IDs are missing, first use discovery tools such as getDashboardContext, searchSkus, listRuleSets, or listActivities. Only ask the human after discovery tools cannot identify a safe candidate.',
+  '- On Dashboard, Agent Mission, or overview pages, call getDashboardContext before making SKU readiness, risk, or next-action judgments.',
   '',
   'Rule parsing prompt:',
   '- When the user provides campaign or platform rule text, convert it conceptually into Canonical Rule DSL categories: threshold, field_compare, boolean_block, data_required, quota, manual_review.',
@@ -84,6 +85,7 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
       .at(-1)?.contentText?.trim()
     if (!userMessage) throw new Error('Real Agent chat requires a user message')
     const toolExecutions: AgentConversationToolExecution[] = []
+    const prefetchedContext = await prefetchContextTools(input, userMessage, toolExecutions)
     const messages = input.messages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
       .map((message) => ({
@@ -91,48 +93,152 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
         content: message.contentText ?? '',
       }) as ModelMessage)
 
-    const result = await this.generate({
-      model: this.languageModel,
-      system: renderPickAgentSystemPrompt(input, userMessage, messages),
-      messages: [
-        ...messages.slice(0, -1),
-        {
-          role: 'user' as const,
-          content: `User message:\n${userMessage}`,
-        },
-      ],
-      tools: createPickAgentTools(input, toolExecutions),
-      toolChoice: 'auto',
-      stopWhen: stepCountIs(3),
-    })
+    try {
+      const result = await this.generate({
+        model: this.languageModel,
+        system: renderPickAgentSystemPrompt(input, userMessage, messages, prefetchedContext),
+        messages: [
+          ...messages.slice(0, -1),
+          {
+            role: 'user' as const,
+            content: prefetchedContext ? `User message:\n${userMessage}\n\nPrefetched PickAgent tool context:\n${prefetchedContext}` : `User message:\n${userMessage}`,
+          },
+        ],
+        tools: createPickAgentTools(input, toolExecutions),
+        toolChoice: 'auto',
+        stopWhen: stepCountIs(3),
+      })
 
-    return {
-      content: result.text,
-      usageJson: {
-        usage: result.usage,
-        totalUsage: result.totalUsage,
-        finishReason: result.finishReason,
-      },
-      metadataJson: {
-        provider: this.provider,
-        model: this.model,
-        responseId: result.response.id,
-        providerMetadata: result.providerMetadata ?? {},
-      },
-      toolExecutions,
+      return {
+        content: result.text,
+        usageJson: {
+          usage: result.usage,
+          totalUsage: result.totalUsage,
+          finishReason: result.finishReason,
+        },
+        metadataJson: {
+          provider: this.provider,
+          model: this.model,
+          responseId: result.response.id,
+          providerMetadata: result.providerMetadata ?? {},
+        },
+        toolExecutions,
+      }
+    } catch (error) {
+      return completeWithReadOnlyToolFallback(input, userMessage, toolExecutions, error)
     }
   }
 }
 
-function renderPickAgentSystemPrompt(input: AgentModelAdapterInput, userMessage: string, messages: ModelMessage[]): string {
+async function completeWithReadOnlyToolFallback(
+  input: AgentModelAdapterInput,
+  userMessage: string,
+  toolExecutions: AgentConversationToolExecution[],
+  error: unknown,
+): Promise<AgentModelAdapterOutput> {
+  const selectedEntity = input.context?.selectedEntity
+  if (!toolExecutions.length && shouldPrefetchDashboardContext(input, userMessage)) {
+    await prefetchContextTools(input, userMessage, toolExecutions)
+  }
+
+  const selectedEntityType = selectedEntity?.entityType ? String(selectedEntity.entityType) : ''
+  if (input.executeTool && (selectedEntityType === 'sku_profile' || selectedEntityType === 'sku') && selectedEntity?.entityId) {
+    for (const toolName of ['getSkuSummary', 'diagnoseSkuHealth', 'checkDataFreshness'] as const) {
+      const execution = await input.executeTool({
+        run: input.run,
+        mission: input.mission,
+        toolName,
+        inputJson: toolName === 'checkDataFreshness' ? { skuProfileId: selectedEntity.entityId, maxAgeHours: 24 } : { skuProfileId: selectedEntity.entityId },
+      })
+      toolExecutions.push(execution)
+    }
+  }
+
+  const businessSummary = toolExecutions.length
+    ? toolExecutions.map((execution) => `${execution.toolCall.toolName}: ${execution.summary}`).join('；')
+    : '当前没有足够上下文选择只读工具，请指定 SKU、规则文本或报告范围后重试。'
+  const errorMessage = error instanceof Error ? error.message : 'model provider call failed'
+
+  return {
+    content: [
+      '模型 provider 本次调用失败，我先用已注册的只读业务工具返回可验证结果。',
+      `用户问题：${userMessage}`,
+      `工具结果：${businessSummary}`,
+      '如果要继续自然语言多轮推理，需要修复模型 provider 配置；业务工具和证据链路已经可用。',
+    ].join('\n'),
+    usageJson: {},
+    metadataJson: {
+      provider: 'vercel-ai-sdk',
+      fallback: 'read_only_tool_fallback',
+      originalError: error instanceof Error ? error.name : 'UnknownError',
+      originalMessage: errorMessage.slice(0, 240),
+    },
+    toolExecutions,
+  }
+}
+
+async function prefetchContextTools(
+  input: AgentModelAdapterInput,
+  userMessage: string,
+  toolExecutions: AgentConversationToolExecution[],
+): Promise<string> {
+  if (!input.executeTool || !shouldPrefetchDashboardContext(input, userMessage)) return ''
+  const execution = await input.executeTool({
+    run: input.run,
+    mission: input.mission,
+    toolName: 'getDashboardContext',
+    inputJson: buildDashboardPrefetchInput(input, userMessage),
+  })
+  toolExecutions.push(execution)
+  return summarizePrefetchedToolExecutions([execution])
+}
+
+function shouldPrefetchDashboardContext(input: AgentModelAdapterInput, userMessage: string): boolean {
+  const context = input.context as { route?: string; surface?: string; selectedEntity?: { entityType?: string } } | undefined
+  const route = `${context?.route ?? ''} ${context?.surface ?? ''}`.toLowerCase()
+  const selectedEntityType = context?.selectedEntity?.entityType ?? ''
+  const text = userMessage.toLowerCase()
+  return (
+    route.includes('dashboard') ||
+    route.includes('agent-mission') ||
+    selectedEntityType === 'dashboard' ||
+    selectedEntityType === 'activityRuleSet' ||
+    /sku|ready|risk|风险|概览|dashboard|活动|报名|健康|证据|库存|销量|评分|修复/.test(text)
+  )
+}
+
+function buildDashboardPrefetchInput(input: AgentModelAdapterInput, userMessage: string): Record<string, unknown> {
+  const selectedEntity = input.context?.selectedEntity
+  return {
+    query: userMessage,
+    page: 1,
+    pageSize: 8,
+    activityId: selectedEntity?.entityType === 'activity' ? selectedEntity.entityId : undefined,
+  }
+}
+
+function summarizePrefetchedToolExecutions(executions: AgentConversationToolExecution[]): string {
+  return executions
+    .map((execution) => {
+      const data = execution.data ? JSON.stringify(execution.data).slice(0, 2800) : ''
+      return `${execution.toolCall.toolName} (${execution.status}): ${execution.summary}\n${data}`
+    })
+    .join('\n\n')
+}
+
+function renderPickAgentSystemPrompt(input: AgentModelAdapterInput, userMessage: string, messages: ModelMessage[], prefetchedContext = ''): string {
   return PICKAGENT_SYSTEM_PROMPT_TEMPLATE
     .replace('{{mission_objective}}', `Mission objective: ${input.mission.objective || userMessage}`)
-    .replace('{{workbench_context_json}}', `Workbench context JSON: ${JSON.stringify(input.context ?? {})}`)
+    .replace('{{workbench_context_json}}', `Workbench context JSON: ${JSON.stringify(input.context ?? {})}\nPrefetched tool context: ${prefetchedContext || 'None'}`)
     .replace('{{available_tools}}', `Available tools: ${PICKAGENT_AVAILABLE_TOOLS.join(', ')}`)
     .replace('{{conversation_summary}}', `Conversation summary: ${summarizeConversation(messages)}`)
 }
 
 const PICKAGENT_AVAILABLE_TOOLS = [
+  'getDashboardContext',
+  'searchSkus',
+  'listRuleSets',
+  'listActivities',
   'parseActivityRules',
   'getSkuSummary',
   'checkDataFreshness',
@@ -185,6 +291,26 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
     additionalProperties: true,
     properties: {
       skuProfileId: { type: 'string' },
+      q: { type: 'string' },
+      query: { type: 'string' },
+      keyword: { type: 'string' },
+      externalSkuId: { type: 'string' },
+      productName: { type: 'string' },
+      storeId: { type: 'string' },
+      category: { type: 'string' },
+      activityId: { type: 'string' },
+      healthStatus: { type: 'string', enum: ['READY', 'REPAIRABLE', 'RISKY', 'BLOCKED'] },
+      eligibilityStatus: { type: 'string', enum: ['DIRECT_READY', 'REPAIRABLE_READY', 'MANUAL_REVIEW', 'BLOCKED'] },
+      minSales30d: { type: 'number' },
+      maxSales30d: { type: 'number' },
+      minPositiveRate: { type: 'number' },
+      maxPositiveRate: { type: 'number' },
+      minStock: { type: 'number' },
+      maxStock: { type: 'number' },
+      sortBy: { type: 'string', enum: ['sales30d', 'positiveRate', 'stock', 'qualityScore', 'collectedAt', 'updatedAt'] },
+      sortOrder: { type: 'string', enum: ['asc', 'desc'] },
+      page: { type: 'number' },
+      pageSize: { type: 'number' },
       ruleSetId: { type: 'string' },
       simulationResultId: { type: 'string' },
       name: { type: 'string' },
@@ -198,6 +324,26 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
     },
   })
   return {
+    getDashboardContext: tool({
+      description: '读取当前 Dashboard/Agent Mission 所需上下文：健康汇总、SKU 候选、规则集、活动列表。没有明确 skuProfileId 时必须优先调用。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getDashboardContext', inputJson),
+    }),
+    searchSkus: tool({
+      description: '按自然语言或结构化条件查询 SKU 候选。支持 query/q、productName、externalSkuId、category、platform、healthStatus、eligibilityStatus、库存/销量/评分区间、排序和分页。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('searchSkus', inputJson),
+    }),
+    listRuleSets: tool({
+      description: '读取可用活动规则集列表，用于用户只说活动/规则但没有 ruleSetId 的场景。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listRuleSets', inputJson),
+    }),
+    listActivities: tool({
+      description: '读取活动列表，用于用户只说活动名或当前活动上下文不足的场景。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listActivities', inputJson),
+    }),
     parseActivityRules: tool({
       description: '把活动或平台规则文本解析为 Canonical Rule DSL。需要 sourceText，可选 name/platform。用于规则结构化、歧义识别和 manual_review 提示。',
       inputSchema: objectSchema,

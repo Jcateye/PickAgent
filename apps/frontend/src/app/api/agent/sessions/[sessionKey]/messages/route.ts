@@ -26,10 +26,42 @@ export async function GET(request: Request, context: RouteContext) {
         status: message.status === 'completed' || message.status === 'COMPLETED' ? 'completed' : 'streaming',
         runId: message.runId,
         createdAt: message.createdAt,
+        turn: toRecoveredTurn(message.contentJson, message.runId),
       })),
     })
   } catch (error) {
-    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent session message recovery failed', 400, { sessionKey })
+    const message = error instanceof Error ? error.message : 'Agent session message recovery failed'
+    if (message.includes("Can't reach database server") || message.includes('ECONNREFUSED')) {
+      return ok({ items: [] })
+    }
+    return fail('COMMON.VALIDATION_ERROR', message, 400, { sessionKey })
+  }
+}
+
+function toRecoveredTurn(contentJson: Record<string, unknown>, runId: string | null) {
+  const toolExecutions = Array.isArray(contentJson.toolExecutions) ? contentJson.toolExecutions : []
+  if (!toolExecutions.length) return undefined
+  return {
+    runId: runId ?? '',
+    fallbackUsed: false,
+    thoughts: ['从历史消息恢复工具链摘要。'],
+    toolTrace: toolExecutions.map((item) => {
+      const value = item as Record<string, unknown>
+      const toolCallId = String(value.toolCallId ?? value.toolName ?? 'tool')
+      return {
+        id: toolCallId,
+        toolName: String(value.toolName ?? 'tool'),
+        status: value.status === 'FAILED' ? 'failed' : value.status === 'WAITING_FOR_APPROVAL' ? 'waiting_for_approval' : 'succeeded',
+        riskLevel: 'L1',
+        reviewPolicy: value.reviewGateId ? 'review_gate' : 'none',
+        inputSummary: '',
+        outputSummary: String(value.summary ?? ''),
+        evidenceRefs: Array.isArray(value.evidenceRefIds) ? value.evidenceRefIds.map(String) : [],
+      }
+    }),
+    evidenceRefs: [],
+    linkedEntities: [],
+    reviewGate: null,
   }
 }
 
