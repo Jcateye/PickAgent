@@ -139,6 +139,8 @@ h4 {
 
 .navSection {
   display: grid;
+  align-content: start;
+  grid-auto-rows: max-content;
   gap: 6px;
 }
 
