@@ -48,13 +48,28 @@ import type {
   ReviewListQueryDto,
   ReviewWorkbenchStatus,
 } from "../../../../contracts/types/reviewReportCenter";
+import type {
+  BrowserPageDetectionDto,
+  BrowserPageDetectionRequestDto,
+  BrowserScanPreviewDto,
+  BrowserScanPreviewRequestDto,
+  ConnectorDetailDto,
+  ConnectorListItemDto,
+  ConnectorRunDetailDto,
+  ConnectorRunSummaryDto,
+  CreateConnectorDto,
+  CreateConnectorSyncRunDto,
+  PageDto as ConnectorPageDto,
+  TraceableRef as ConnectorTraceableRef,
+  UpdateConnectorDto,
+} from "../../../../contracts/types/connectorBackend";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
-import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
+import { assertTenantBoundary, redactSensitiveValue, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
 declare const process: { env: Record<string, string | undefined> };
 
 export interface ApiEnvelope<T> {
-  code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND" | "REPORT.NOT_FOUND" | "AGENT.REAL_CHAT_NOT_CONFIGURED";
+  code: "OK" | string;
   message: string;
   data: T | null;
   requestId: string;
@@ -174,6 +189,8 @@ export interface PrismaPersistenceClient {
   workflowStep: PrismaDelegate;
   report?: PrismaDelegate;
   reportVersion?: PrismaDelegate;
+  connector: PrismaDelegate;
+  connectorRun: PrismaDelegate;
 }
 
 export class FinalApiPersistenceStore {
@@ -194,8 +211,37 @@ export class FinalApiPersistenceStore {
   readonly reportVersions = new Map<string, ReportVersionDto[]>();
   readonly reportExports = new Map<string, ReportExportJobDto>();
   readonly reportSubscriptions = new Map<string, ReportSubscriptionDto>();
+  readonly connectors = new Map<string, ConnectorRecordDto>();
+  readonly connectorRuns = new Map<string, ConnectorRunRecordDto>();
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
   readonly tenantByEntityId = new Map<string, string>();
+}
+
+interface ConnectorRecordDto {
+  connectorId: string;
+  code: string;
+  name: string;
+  kind: string;
+  platform?: string;
+  config: Record<string, unknown>;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ConnectorRunRecordDto {
+  connectorRunId: string;
+  connectorId: string;
+  workflowRunId?: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  rowCount: number;
+  qualityScore?: number;
+  warnings: string[];
+  summary: Record<string, unknown>;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TransactionContext {
@@ -645,6 +691,176 @@ export class ReportRepository {
   getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(id), id);
     return this.store.simulationResults.get(id) ?? null;
+  }
+}
+
+export class ConnectorRepositoryV2 {
+  constructor(private readonly store: FinalApiPersistenceStore) {}
+
+  list(boundary: P0AuthContextDto, page = 1, pageSize = 20): ConnectorPageDto<ConnectorListItemDto> | Promise<ConnectorPageDto<ConnectorListItemDto>> {
+    const records = Array.from(this.store.connectors.values())
+      .filter((item) => this.store.tenantByEntityId.get(item.connectorId) === boundary.tenantId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    const start = (page - 1) * pageSize;
+    return { items: records.slice(start, start + pageSize).map((item) => this.toMemoryListItem(item)), page, pageSize, total: records.length };
+  }
+
+  get(boundary: P0AuthContextDto, connectorId: string): ConnectorDetailDto | null | Promise<ConnectorDetailDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorId), connectorId);
+    const connector = this.store.connectors.get(connectorId);
+    if (!connector) return null;
+    const recentRuns = this.runsForConnector(connectorId).slice(0, 5).map(toConnectorRunSummary);
+    return { ...this.toMemoryListItem(connector), config: connector.config, permissions: permissionsFromConfig(connector.config), recentRuns };
+  }
+
+  create(boundary: P0AuthContextDto, input: CreateConnectorDto): ConnectorDetailDto | Promise<ConnectorDetailDto> {
+    const now = new Date().toISOString();
+    const connector: ConnectorRecordDto = {
+      connectorId: nextId("connector"),
+      code: input.code,
+      name: input.name,
+      kind: input.kind,
+      platform: input.platform,
+      config: sanitizeConnectorConfig(input.config ?? {}),
+      status: normalizeConnectorStatus(input.status),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.store.connectors.set(connector.connectorId, connector);
+    this.store.tenantByEntityId.set(connector.connectorId, boundary.tenantId);
+    return { ...this.toMemoryListItem(connector), config: connector.config, permissions: permissionsFromConfig(connector.config), recentRuns: [] };
+  }
+
+  update(boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): ConnectorDetailDto | Promise<ConnectorDetailDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorId), connectorId);
+    const current = this.store.connectors.get(connectorId);
+    if (!current) throw new Error(`Connector not found: ${connectorId}`);
+    const updated: ConnectorRecordDto = {
+      ...current,
+      name: input.name ?? current.name,
+      platform: input.platform === null ? undefined : input.platform ?? current.platform,
+      config: input.config ? sanitizeConnectorConfig(input.config) : current.config,
+      status: input.status ? normalizeConnectorStatus(input.status) : current.status,
+      updatedAt: new Date().toISOString(),
+    };
+    this.store.connectors.set(connectorId, updated);
+    const recentRuns = this.runsForConnector(connectorId).slice(0, 5).map(toConnectorRunSummary);
+    return { ...this.toMemoryListItem(updated), config: updated.config, permissions: permissionsFromConfig(updated.config), recentRuns };
+  }
+
+  createRun(boundary: P0AuthContextDto, connectorId: string, input: CreateConnectorSyncRunDto): ConnectorRunDetailDto | Promise<ConnectorRunDetailDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorId), connectorId);
+    const connector = this.store.connectors.get(connectorId);
+    if (!connector) throw new Error(`Connector not found: ${connectorId}`);
+    const now = new Date().toISOString();
+    const run: ConnectorRunRecordDto = {
+      connectorRunId: nextId("connector_run"),
+      connectorId,
+      status: "SUCCEEDED",
+      rowCount: input.rowCount ?? 0,
+      qualityScore: input.qualityScore,
+      warnings: input.warnings ?? [],
+      summary: input.summary ?? {},
+      startedAt: now,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "connector_sync",
+      status: "SUCCEEDED",
+      subjectType: "connector",
+      subjectId: connectorId,
+      input: { connectorId, actorId: boundary.actorId, tenantId: boundary.tenantId, surface: boundary.surface },
+      output: { connectorRunId: run.connectorRunId, rowCount: run.rowCount, qualityScore: run.qualityScore },
+      createdAt: now,
+    };
+    run.workflowRunId = audit.workflowRunId;
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.connectorRuns.set(run.connectorRunId, run);
+    this.store.tenantByEntityId.set(run.connectorRunId, boundary.tenantId);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+    return toConnectorRunDetail(run, connector);
+  }
+
+  listRuns(boundary: P0AuthContextDto, connectorId: string, page = 1, pageSize = 20): ConnectorPageDto<ConnectorRunSummaryDto> | Promise<ConnectorPageDto<ConnectorRunSummaryDto>> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorId), connectorId);
+    const records = this.runsForConnector(connectorId);
+    const start = (page - 1) * pageSize;
+    return { items: records.slice(start, start + pageSize).map(toConnectorRunSummary), page, pageSize, total: records.length };
+  }
+
+  getRun(boundary: P0AuthContextDto, connectorRunId: string): ConnectorRunDetailDto | null | Promise<ConnectorRunDetailDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorRunId), connectorRunId);
+    const run = this.store.connectorRuns.get(connectorRunId);
+    if (!run) return null;
+    const connector = this.store.connectors.get(run.connectorId);
+    if (!connector) return null;
+    return toConnectorRunDetail(run, connector);
+  }
+
+  private runsForConnector(connectorId: string): ConnectorRunRecordDto[] {
+    return Array.from(this.store.connectorRuns.values()).filter((item) => item.connectorId === connectorId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  private toMemoryListItem(record: ConnectorRecordDto): ConnectorListItemDto {
+    const latestRun = this.runsForConnector(record.connectorId)[0];
+    return {
+      connectorId: record.connectorId,
+      code: record.code,
+      name: record.name,
+      kind: record.kind,
+      platform: record.platform,
+      status: normalizeConnectorStatus(record.status),
+      permissionSummary: permissionSummary(record.config),
+      configSummary: connectorConfigSummary(record.config),
+      latestRun: latestRun ? toConnectorRunSummary(latestRun) : undefined,
+      traceRef: connectorTraceRef("connector", record.connectorId, record.name),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+}
+
+export class BrowserConnectorService {
+  detectPage(input: BrowserPageDetectionRequestDto): BrowserPageDetectionDto {
+    const url = input.url.toLowerCase();
+    const sample = `${input.title ?? ""} ${input.htmlTextSample ?? ""}`.toLowerCase();
+    const platform = url.includes("tmall") || sample.includes("tmall") || sample.includes("天猫") ? "tmall" : url.includes("douyin") || sample.includes("抖音") ? "douyin" : undefined;
+    const pageType = /sku|item|商品|product/.test(`${url} ${sample}`) ? "SKU_LIST" : "UNKNOWN";
+    const supported = Boolean(platform) && pageType !== "UNKNOWN";
+    return {
+      supported,
+      pageType,
+      platform,
+      confidence: supported ? 0.82 : 0.35,
+      reason: supported ? "识别为可采集商品页面，scan preview 仍只返回预览不写业务真相" : "未识别到受支持的平台商品结构",
+      traceRef: connectorTraceRef("connector", "browser-page-detection", "浏览器页面识别"),
+    };
+  }
+
+  scanPreview(input: BrowserScanPreviewRequestDto): BrowserScanPreviewDto {
+    const detected = this.detectPage({ url: input.url, htmlTextSample: JSON.stringify(input.rows.slice(0, 2)) });
+    const rowCount = input.rows.length;
+    const fieldMappings = inferFieldMappings(input.rows);
+    const warnings = [
+      ...(rowCount === 0 ? ["未扫描到可提交行"] : []),
+      ...(detected.supported ? [] : ["页面类型未确认，需人工确认字段映射"]),
+      ...(fieldMappings.some((item) => item.confidence < 0.7) ? ["存在低置信度字段映射"] : []),
+    ];
+    const qualityScore = Math.max(0, Math.min(100, Math.round((detected.confidence * 50) + Math.min(fieldMappings.length, 6) * 8 - warnings.length * 8)));
+    return {
+      connectorId: input.connectorId,
+      detected,
+      rowCount,
+      qualityScore,
+      warnings,
+      fieldMappings,
+      sampleRows: input.rows.slice(0, 5).map((row) => redactSensitiveValue(row) as Record<string, unknown>),
+      ingestReady: rowCount > 0 && warnings.length === 0,
+      traceRefs: [detected.traceRef],
+    };
   }
 }
 
@@ -1241,6 +1457,83 @@ export class PrismaReportRepository extends ReportRepository {
   }
 }
 
+export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
+  constructor(private readonly prisma: PrismaPersistenceClient) {
+    super(new FinalApiPersistenceStore());
+  }
+
+  async list(_boundary: P0AuthContextDto, page = 1, pageSize = 20): Promise<ConnectorPageDto<ConnectorListItemDto>> {
+    const rows = await this.prisma.connector.findMany({ orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize });
+    const total = await this.prisma.connector.count();
+    const items = await Promise.all(rows.map((row) => this.toPrismaListItem(row)));
+    return { items, page, pageSize, total };
+  }
+
+  async get(_boundary: P0AuthContextDto, connectorId: string): Promise<ConnectorDetailDto | null> {
+    const row = await this.prisma.connector.findUnique({ where: { id: connectorId } });
+    if (!row) return null;
+    const runs = await this.prisma.connectorRun.findMany({ where: { connectorId }, orderBy: { createdAt: "desc" }, take: 5 });
+    const record = toConnectorRecord(row);
+    return { ...(await this.toPrismaListItem(row)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: runs.map((item) => toConnectorRunSummary(toConnectorRunRecord(item))) };
+  }
+
+  async create(_boundary: P0AuthContextDto, input: CreateConnectorDto): Promise<ConnectorDetailDto> {
+    const created = await this.prisma.connector.create({ data: { code: input.code, name: input.name, kind: input.kind, platform: input.platform, configJson: sanitizeConnectorConfig(input.config ?? {}), status: normalizeConnectorStatus(input.status).toLowerCase() } });
+    const record = toConnectorRecord(created);
+    return { ...(await this.toPrismaListItem(created)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: [] };
+  }
+
+  async update(_boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): Promise<ConnectorDetailDto> {
+    const updated = await this.prisma.connector.update({ where: { id: connectorId }, data: { name: input.name, platform: input.platform, configJson: input.config ? sanitizeConnectorConfig(input.config) : undefined, status: input.status ? normalizeConnectorStatus(input.status).toLowerCase() : undefined } });
+    const runs = await this.prisma.connectorRun.findMany({ where: { connectorId }, orderBy: { createdAt: "desc" }, take: 5 });
+    const record = toConnectorRecord(updated);
+    return { ...(await this.toPrismaListItem(updated)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: runs.map((item) => toConnectorRunSummary(toConnectorRunRecord(item))) };
+  }
+
+  async createRun(boundary: P0AuthContextDto, connectorId: string, input: CreateConnectorSyncRunDto): Promise<ConnectorRunDetailDto> {
+    const now = new Date();
+    const workflowRunId = nextUuid();
+    await this.prisma.workflowRun.create({ data: { id: workflowRunId, workflowType: "connector_sync", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { connectorId, actorId: boundary.actorId, tenantId: boundary.tenantId, surface: boundary.surface }, outputJson: { rowCount: input.rowCount ?? 0, qualityScore: input.qualityScore }, startedAt: now, completedAt: now } });
+    const created = await this.prisma.connectorRun.create({ data: { connectorId, workflowRunId, status: "succeeded", rowCount: input.rowCount ?? 0, qualityScore: input.qualityScore, warningsJson: input.warnings ?? [], summaryJson: input.summary ?? {}, startedAt: now, completedAt: now } });
+    const connector = await this.prisma.connector.findUnique({ where: { id: connectorId } });
+    if (!connector) throw new Error(`Connector not found: ${connectorId}`);
+    return toConnectorRunDetail(toConnectorRunRecord(created), toConnectorRecord(connector));
+  }
+
+  async listRuns(_boundary: P0AuthContextDto, connectorId: string, page = 1, pageSize = 20): Promise<ConnectorPageDto<ConnectorRunSummaryDto>> {
+    const rows = await this.prisma.connectorRun.findMany({ where: { connectorId }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize });
+    const total = await this.prisma.connectorRun.count({ where: { connectorId } });
+    return { items: rows.map((row) => toConnectorRunSummary(toConnectorRunRecord(row))), page, pageSize, total };
+  }
+
+  async getRun(_boundary: P0AuthContextDto, connectorRunId: string): Promise<ConnectorRunDetailDto | null> {
+    const row = await this.prisma.connectorRun.findUnique({ where: { id: connectorRunId } });
+    if (!row) return null;
+    const connector = await this.prisma.connector.findUnique({ where: { id: String(row.connectorId) } });
+    if (!connector) return null;
+    return toConnectorRunDetail(toConnectorRunRecord(row), toConnectorRecord(connector));
+  }
+
+  private async toPrismaListItem(row: Record<string, unknown>): Promise<ConnectorListItemDto> {
+    const record = toConnectorRecord(row);
+    const latestRun = (await this.prisma.connectorRun.findMany({ where: { connectorId: record.connectorId }, orderBy: { createdAt: "desc" }, take: 1 }))[0];
+    return {
+      connectorId: record.connectorId,
+      code: record.code,
+      name: record.name,
+      kind: record.kind,
+      platform: record.platform,
+      status: normalizeConnectorStatus(record.status),
+      permissionSummary: permissionSummary(record.config),
+      configSummary: connectorConfigSummary(record.config),
+      latestRun: latestRun ? toConnectorRunSummary(toConnectorRunRecord(latestRun)) : undefined,
+      traceRef: connectorTraceRef("connector", record.connectorId, record.name),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+}
+
 function toPrismaHealthStatus(status: HealthDiagnosisDto["healthStatus"]): string {
   if (status === "READY") return "READY";
   if (status === "BLOCKED") return "BLOCKED";
@@ -1566,6 +1859,39 @@ export class SkuReadinessQueryService {
   async detail(skuProfileId: string, boundary: P0AuthContextDto): Promise<DashboardSkuReadinessDetailDto | null> {
     const record = await this.repository.detail(boundary, skuProfileId);
     return record ? toDashboardSkuDetail(record) : null;
+  }
+}
+
+export class ConnectorManagementService {
+  constructor(private readonly repository: ConnectorRepositoryV2) {}
+
+  list(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorPageDto<ConnectorListItemDto>> | ConnectorPageDto<ConnectorListItemDto> {
+    return this.repository.list(boundary, page, pageSize);
+  }
+
+  get(connectorId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorDetailDto | null> | ConnectorDetailDto | null {
+    return this.repository.get(boundary, connectorId);
+  }
+
+  create(input: CreateConnectorDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorDetailDto> | ConnectorDetailDto {
+    validateCreateConnector(input);
+    return this.repository.create(boundary, input);
+  }
+
+  update(connectorId: string, input: UpdateConnectorDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorDetailDto> | ConnectorDetailDto {
+    return this.repository.update(boundary, connectorId, input);
+  }
+
+  createSyncRun(connectorId: string, input: CreateConnectorSyncRunDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorRunDetailDto> | ConnectorRunDetailDto {
+    return this.repository.createRun(boundary, connectorId, input);
+  }
+
+  listRuns(connectorId: string, page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorPageDto<ConnectorRunSummaryDto>> | ConnectorPageDto<ConnectorRunSummaryDto> {
+    return this.repository.listRuns(boundary, connectorId, page, pageSize);
+  }
+
+  getRun(connectorRunId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorRunDetailDto | null> | ConnectorRunDetailDto | null {
+    return this.repository.getRun(boundary, connectorRunId);
   }
 }
 
@@ -2056,6 +2382,10 @@ function traceRef(entityType: TraceableRef["entityType"], entityId: string, labe
   return { entityType, entityId, label, drawerTarget: `${entityType}:${entityId}` };
 }
 
+function connectorTraceRef(entityType: ConnectorTraceableRef["entityType"], entityId: string, label: string): ConnectorTraceableRef {
+  return { entityType, entityId, label, drawerTarget: `${entityType}:${entityId}` };
+}
+
 function evidenceRefFromLink(link: SimulationResultDto["evidence"][number]): EvidenceRef {
   const entityTypeByEvidenceType: Record<typeof link.type, TraceableRef["entityType"]> = {
     snapshot: "sku_snapshot",
@@ -2196,6 +2526,115 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function validateCreateConnector(input: CreateConnectorDto): void {
+  if (!input.code || !input.name || !input.kind) throw new Error("code, name and kind are required");
+}
+
+function normalizeConnectorStatus(value: unknown): ConnectorListItemDto["status"] {
+  const upper = String(value ?? "ACTIVE").toUpperCase();
+  if (upper === "INACTIVE" || upper === "NEEDS_AUTH" || upper === "FAILED" || upper === "DISABLED") return upper;
+  return "ACTIVE";
+}
+
+function normalizeConnectorRunStatus(value: unknown): ConnectorRunSummaryDto["status"] {
+  const upper = String(value ?? "PENDING").toUpperCase();
+  if (upper === "RUNNING" || upper === "SUCCEEDED" || upper === "FAILED") return upper;
+  return "PENDING";
+}
+
+function sanitizeConnectorConfig(config: Record<string, unknown>): Record<string, unknown> {
+  return redactSensitiveValue(config) as Record<string, unknown>;
+}
+
+function permissionsFromConfig(config: Record<string, unknown>): Array<{ key: string; label: string; granted: boolean }> {
+  const permissions = Array.isArray(config.permissions) ? config.permissions.map(String) : [];
+  return [
+    { key: "read_product", label: "读取商品信息", granted: permissions.includes("read_product") || permissions.length === 0 },
+    { key: "read_inventory", label: "读取库存信息", granted: permissions.includes("read_inventory") || permissions.length === 0 },
+    { key: "write_product", label: "修改商品信息", granted: false },
+  ];
+}
+
+function permissionSummary(config: Record<string, unknown>): string {
+  const granted = permissionsFromConfig(config).filter((item) => item.granted).length;
+  return `已授权 ${granted} 项，只读采集，不保存 cookie/token`;
+}
+
+function connectorConfigSummary(config: Record<string, unknown>): string {
+  const source = typeof config.source === "string" ? config.source : "manual";
+  const cadence = typeof config.cadence === "string" ? config.cadence : "on_demand";
+  return `${source} / ${cadence}`;
+}
+
+function toConnectorRunSummary(run: ConnectorRunRecordDto): ConnectorRunSummaryDto {
+  return {
+    connectorRunId: run.connectorRunId,
+    connectorId: run.connectorId,
+    status: normalizeConnectorRunStatus(run.status),
+    rowCount: run.rowCount,
+    qualityScore: run.qualityScore,
+    warnings: run.warnings,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    workflowRunRef: run.workflowRunId ? connectorTraceRef("workflow_run", run.workflowRunId, "connector_sync 审计") : undefined,
+    traceRef: connectorTraceRef("connector_run", run.connectorRunId, `采集运行 ${run.connectorRunId}`),
+  };
+}
+
+function toConnectorRunDetail(run: ConnectorRunRecordDto, connector: ConnectorRecordDto): ConnectorRunDetailDto {
+  return { ...toConnectorRunSummary(run), summary: run.summary, connectorRef: connectorTraceRef("connector", connector.connectorId, connector.name) };
+}
+
+function toConnectorRecord(row: Record<string, unknown>): ConnectorRecordDto {
+  return {
+    connectorId: String(row.id),
+    code: String(row.code ?? ""),
+    name: String(row.name ?? ""),
+    kind: String(row.kind ?? ""),
+    platform: typeof row.platform === "string" ? row.platform : undefined,
+    config: isRecord(row.configJson) ? row.configJson : {},
+    status: String(row.status ?? "active"),
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? ""),
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt ?? ""),
+  };
+}
+
+function toConnectorRunRecord(row: Record<string, unknown>): ConnectorRunRecordDto {
+  return {
+    connectorRunId: String(row.id),
+    connectorId: String(row.connectorId),
+    workflowRunId: typeof row.workflowRunId === "string" ? row.workflowRunId : undefined,
+    status: normalizeConnectorRunStatus(row.status),
+    rowCount: Number(row.rowCount ?? 0),
+    qualityScore: row.qualityScore === null || row.qualityScore === undefined ? undefined : Number(row.qualityScore),
+    warnings: asArray(row.warningsJson).map(String),
+    summary: isRecord(row.summaryJson) ? row.summaryJson : {},
+    startedAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : typeof row.startedAt === "string" ? row.startedAt : undefined,
+    completedAt: row.completedAt instanceof Date ? row.completedAt.toISOString() : typeof row.completedAt === "string" ? row.completedAt : undefined,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? ""),
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt ?? ""),
+  };
+}
+
+function inferFieldMappings(rows: Array<Record<string, unknown>>): Array<{ sourceField: string; targetField: string; confidence: number }> {
+  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  const targets: Record<string, string> = {
+    sku: "externalSkuId",
+    skuId: "externalSkuId",
+    itemId: "externalSkuId",
+    title: "productName",
+    productName: "productName",
+    name: "productName",
+    stock: "stock",
+    inventory: "stock",
+    sales30d: "sales30d",
+    sales: "sales30d",
+    positiveRate: "positiveRate",
+    certificateStatus: "certificateStatus",
+  };
+  return keys.slice(0, 12).map((key) => ({ sourceField: key, targetField: targets[key] ?? key, confidence: targets[key] ? 0.9 : 0.55 }));
+}
+
 export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" | "prisma"; prisma?: PrismaPersistenceClient; boundary?: PersistenceBoundary } = {}) {
   const adapter = options.adapter ?? (process.env.PICKAGENT_PERSISTENCE_ADAPTER === "memory" ? "memory" : process.env.PICKAGENT_PERSISTENCE_ADAPTER === "prisma" || process.env.NODE_ENV === "production" || process.env.DATABASE_URL ? "prisma" : "memory");
   if (adapter === "prisma") {
@@ -2209,7 +2648,9 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
     const memoryStore = new FinalApiPersistenceStore();
     const reviewService = new FinalReviewService(new PrismaReviewRepository(options.prisma));
     const reportService = new FinalReportService(new PrismaReportRepository(options.prisma), skuQueryRepository);
-    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService };
+    const connectorService = new ConnectorManagementService(new PrismaConnectorRepositoryV2(options.prisma));
+    const browserConnectorService = new BrowserConnectorService();
+    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService };
   }
   const store = new FinalApiPersistenceStore();
   const tx = new InMemoryTransactionManager(store);
@@ -2220,5 +2661,7 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
   const activityService = new FinalActivityService(new ActivityRepository(store), skuQueryRepository);
   const reviewService = new FinalReviewService(new ReviewRepository(store));
   const reportService = new FinalReportService(new ReportRepository(store), skuQueryRepository);
-  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService };
+  const connectorService = new ConnectorManagementService(new ConnectorRepositoryV2(store));
+  const browserConnectorService = new BrowserConnectorService();
+  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService };
 }
