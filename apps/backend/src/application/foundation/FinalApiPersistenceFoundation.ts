@@ -1,6 +1,7 @@
 import {
   type ActivityRuleSetDto,
   type CanonicalRuleDto,
+  type EvidenceLinkDto,
   type HealthDiagnosisDto,
   type IngestPayloadDto,
   type IngestRowDto,
@@ -16,13 +17,28 @@ import {
   assertValidIngestPayload,
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
+import type {
+  EvidenceRef,
+  ReportDetailDto,
+  ReportExportJobDto,
+  ReportExportRequestDto,
+  ReportListItemDto,
+  ReportSubscriptionDto,
+  ReportSubscriptionRequestDto,
+  ReportVersionDto,
+  ReviewDetailDto,
+  ReviewListItemDto,
+  ReviewListQueryDto,
+  ReviewWorkbenchStatus,
+  TraceableRef,
+} from "../../../../contracts/types/reviewReportCenter";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
 import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
 declare const process: { env: Record<string, string | undefined> };
 
 export interface ApiEnvelope<T> {
-  code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND" | "AGENT.REAL_CHAT_NOT_CONFIGURED";
+  code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND" | "REPORT.NOT_FOUND" | "AGENT.REAL_CHAT_NOT_CONFIGURED";
   message: string;
   data: T | null;
   requestId: string;
@@ -64,6 +80,7 @@ export interface ReviewDecisionRequestDto {
   decision: ReviewDecision;
   decisionBy: string;
   decisionComment?: string;
+  modifiedPayload?: Record<string, unknown>;
 }
 
 export interface ReportRequestDto {
@@ -128,6 +145,8 @@ export interface PrismaPersistenceClient {
   activitySimulationResult: PrismaDelegate;
   reviewItem: PrismaDelegate;
   workflowRun: PrismaDelegate;
+  report?: PrismaDelegate;
+  reportVersion?: PrismaDelegate;
 }
 
 export class FinalApiPersistenceStore {
@@ -141,6 +160,10 @@ export class FinalApiPersistenceStore {
   readonly simulationResults = new Map<string, SimulationResultDto>();
   readonly reviews = new Map<string, ReviewItemDto>();
   readonly reports = new Map<string, ReportPreviewDto>();
+  readonly reportDetails = new Map<string, ReportDetailDto>();
+  readonly reportVersions = new Map<string, ReportVersionDto[]>();
+  readonly reportExports = new Map<string, ReportExportJobDto>();
+  readonly reportSubscriptions = new Map<string, ReportSubscriptionDto>();
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
   readonly tenantByEntityId = new Map<string, string>();
 }
@@ -305,8 +328,18 @@ export class ActivityRepository {
 export class ReviewRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  list(boundary: P0AuthContextDto): ReviewItemDto[] | Promise<ReviewItemDto[]> {
-    return Array.from(this.store.reviews.values()).filter((item) => this.store.tenantByEntityId.get(item.reviewItemId) === boundary.tenantId);
+  list(boundary: P0AuthContextDto, query: ReviewListQueryDto = {}): ReviewItemDto[] | Promise<ReviewItemDto[]> {
+    const q = query.q?.trim().toLowerCase();
+    return Array.from(this.store.reviews.values()).filter((item) => {
+      if (this.store.tenantByEntityId.get(item.reviewItemId) !== boundary.tenantId) return false;
+      const assembled = toReviewListItem(item);
+      if (query.tab && assembled.status !== query.tab) return false;
+      if (query.type && assembled.type !== query.type) return false;
+      if (query.riskLevel && assembled.riskLevel !== query.riskLevel) return false;
+      if (query.status && assembled.status !== query.status) return false;
+      if (q && !`${assembled.title} ${assembled.summary} ${item.question}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
   }
 
   create(boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): ReviewItemDto[] | Promise<ReviewItemDto[]> {
@@ -315,8 +348,46 @@ export class ReviewRepository {
       const review: ReviewItemDto = { ...item, reviewItemId: nextId("review"), status: "OPEN" };
       this.store.reviews.set(review.reviewItemId, review);
       this.store.tenantByEntityId.set(review.reviewItemId, boundary.tenantId);
+      const audit: WorkflowAuditRecord = {
+        workflowRunId: nextId("workflow"),
+        workflowType: "review_create",
+        status: "SUCCEEDED",
+        subjectType: "review_item",
+        subjectId: review.reviewItemId,
+        input: { actorId: boundary.actorId, sourceType: item.sourceType, sourceId: item.sourceId },
+        output: { reviewItemId: review.reviewItemId, status: review.status },
+        createdAt: new Date().toISOString(),
+      };
+      this.store.workflowAudits.set(audit.workflowRunId, audit);
+      this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
       return review;
     });
+  }
+
+  getById(boundary: P0AuthContextDto, reviewItemId: string): ReviewItemDto | null | Promise<ReviewItemDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
+    return this.store.reviews.get(reviewItemId) ?? null;
+  }
+
+  update(boundary: P0AuthContextDto, reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>): ReviewItemDto | Promise<ReviewItemDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
+    const current = this.store.reviews.get(reviewItemId);
+    if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
+    const updated = { ...current, ...patch };
+    this.store.reviews.set(reviewItemId, updated);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "review_update",
+      status: "SUCCEEDED",
+      subjectType: "review_item",
+      subjectId: reviewItemId,
+      input: { actorId: boundary.actorId, patch },
+      output: { reviewItemId, status: updated.status },
+      createdAt: new Date().toISOString(),
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+    return updated;
   }
 
   decide(boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): ReviewItemDto | Promise<ReviewItemDto> {
@@ -326,7 +397,31 @@ export class ReviewRepository {
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "CHANGES_REQUESTED" } as const;
     const updated: ReviewItemDto = { ...current, status: statusByDecision[request.decision], decision: request.decision, decisionBy: request.decisionBy, decisionComment: request.decisionComment, decidedAt: new Date().toISOString() };
     this.store.reviews.set(reviewItemId, updated);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "review_decision",
+      status: "SUCCEEDED",
+      subjectType: "review_item",
+      subjectId: reviewItemId,
+      input: { actorId: boundary.actorId, decision: request.decision, modifiedPayload: request.modifiedPayload },
+      output: { reviewItemId, status: updated.status },
+      createdAt: updated.decidedAt ?? new Date().toISOString(),
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return updated;
+  }
+
+  approvalHistory(boundary: P0AuthContextDto, reviewItemId: string): ReviewDetailDto["approvalHistory"] | Promise<ReviewDetailDto["approvalHistory"]> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
+    return Array.from(this.store.workflowAudits.values())
+      .filter((audit) => audit.subjectType === "review_item" && audit.subjectId === reviewItemId)
+      .map((audit) => ({
+        actor: String(audit.input.actorId ?? "system"),
+        action: audit.workflowType,
+        comment: typeof audit.input.decision === "string" ? String(audit.input.decision) : undefined,
+        createdAt: audit.createdAt,
+      }));
   }
 }
 
@@ -337,6 +432,63 @@ export class ReportRepository {
     this.store.reports.set(report.reportId, report);
     this.store.tenantByEntityId.set(report.reportId, boundary.tenantId);
     return report;
+  }
+
+  saveDetail(boundary: P0AuthContextDto, detail: ReportDetailDto): ReportDetailDto | Promise<ReportDetailDto> {
+    this.store.reportDetails.set(detail.reportId, detail);
+    this.store.tenantByEntityId.set(detail.reportId, boundary.tenantId);
+    const version: ReportVersionDto = { ...detail, versionId: nextId("report_version") };
+    this.store.reportVersions.set(detail.reportId, [version, ...(this.store.reportVersions.get(detail.reportId) ?? [])]);
+    this.store.tenantByEntityId.set(version.versionId, boundary.tenantId);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "report_snapshot",
+      status: "SUCCEEDED",
+      subjectType: "report",
+      subjectId: detail.reportId,
+      input: { actorId: boundary.actorId, title: detail.title },
+      output: { reportId: detail.reportId, versionId: version.versionId, version: version.version },
+      createdAt: detail.generatedAt,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+    return detail;
+  }
+
+  list(boundary: P0AuthContextDto): ReportDetailDto[] | Promise<ReportDetailDto[]> {
+    return Array.from(this.store.reportDetails.values()).filter((item) => this.store.tenantByEntityId.get(item.reportId) === boundary.tenantId);
+  }
+
+  getById(boundary: P0AuthContextDto, reportId: string): ReportDetailDto | null | Promise<ReportDetailDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    return this.store.reportDetails.get(reportId) ?? null;
+  }
+
+  listVersions(boundary: P0AuthContextDto, reportId: string): ReportVersionDto[] | Promise<ReportVersionDto[]> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    return this.store.reportVersions.get(reportId) ?? [];
+  }
+
+  getVersion(boundary: P0AuthContextDto, reportId: string, versionId: string): ReportVersionDto | null | Promise<ReportVersionDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    return (this.store.reportVersions.get(reportId) ?? []).find((item) => item.versionId === versionId) ?? null;
+  }
+
+  createExport(boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): ReportExportJobDto | Promise<ReportExportJobDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    const key = request.idempotencyKey ? `${reportId}:${request.idempotencyKey}` : "";
+    const existing = key ? this.store.reportExports.get(key) : undefined;
+    if (existing) return existing;
+    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, requestedAt: new Date().toISOString() };
+    this.store.reportExports.set(key || job.exportJobId, job);
+    return job;
+  }
+
+  saveSubscription(boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): ReportSubscriptionDto | Promise<ReportSubscriptionDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
+    this.store.reportSubscriptions.set(reportId, subscription);
+    return subscription;
   }
 
   getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
@@ -583,9 +735,18 @@ export class PrismaReviewRepository extends ReviewRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async list(_boundary: P0AuthContextDto): Promise<ReviewItemDto[]> {
+  async list(_boundary: P0AuthContextDto, query: ReviewListQueryDto = {}): Promise<ReviewItemDto[]> {
     const rows = await this.prisma.reviewItem.findMany({ orderBy: { createdAt: "desc" } });
-    return rows.map(toReviewItemDto);
+    const q = query.q?.trim().toLowerCase();
+    return rows.map(toReviewItemDto).filter((item) => {
+      const assembled = toReviewListItem(item);
+      if (query.tab && assembled.status !== query.tab) return false;
+      if (query.type && assembled.type !== query.type) return false;
+      if (query.riskLevel && assembled.riskLevel !== query.riskLevel) return false;
+      if (query.status && assembled.status !== query.status) return false;
+      if (q && !`${assembled.title} ${assembled.summary} ${item.question}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
   }
 
   async create(_boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
@@ -611,6 +772,36 @@ export class PrismaReviewRepository extends ReviewRepository {
     return created;
   }
 
+  async getById(_boundary: P0AuthContextDto, reviewItemId: string): Promise<ReviewItemDto | null> {
+    const row = await this.prisma.reviewItem.findUnique({ where: { id: reviewItemId } });
+    return row ? toReviewItemDto(row) : null;
+  }
+
+  async update(_boundary: P0AuthContextDto, reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>): Promise<ReviewItemDto> {
+    const updated = await this.prisma.reviewItem.update({
+      where: { id: reviewItemId },
+      data: {
+        question: patch.question,
+        agentRecommendation: patch.recommendation,
+        riskLevel: patch.riskLevel,
+      },
+    });
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "review_update",
+        status: "SUCCEEDED",
+        subjectType: "review_item",
+        subjectId: reviewItemId,
+        inputJson: patch,
+        outputJson: { reviewItemId },
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    return toReviewItemDto(updated);
+  }
+
   async decide(_boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "MODIFIED" } as const;
     const updated = await this.prisma.reviewItem.update({
@@ -623,7 +814,30 @@ export class PrismaReviewRepository extends ReviewRepository {
         decidedAt: new Date(),
       },
     });
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "review_decision",
+        status: "SUCCEEDED",
+        subjectType: "review_item",
+        subjectId: reviewItemId,
+        inputJson: { decision: request.decision, decisionBy: request.decisionBy, modifiedPayload: request.modifiedPayload },
+        outputJson: { reviewItemId, status: statusByDecision[request.decision] },
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
     return toReviewItemDto(updated);
+  }
+
+  async approvalHistory(_boundary: P0AuthContextDto, reviewItemId: string): Promise<ReviewDetailDto["approvalHistory"]> {
+    const rows = await this.prisma.workflowRun.findMany({ where: { subjectType: "review_item", subjectId: reviewItemId }, orderBy: { startedAt: "asc" } });
+    return rows.map((row) => ({
+      actor: String((row.inputJson as Record<string, unknown> | undefined)?.decisionBy ?? (row.inputJson as Record<string, unknown> | undefined)?.actorId ?? "system"),
+      action: String(row.workflowType),
+      comment: typeof (row.inputJson as Record<string, unknown> | undefined)?.decision === "string" ? String((row.inputJson as Record<string, unknown>).decision) : undefined,
+      createdAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? ""),
+    }));
   }
 }
 
@@ -646,6 +860,77 @@ export class PrismaReportRepository extends ReportRepository {
       },
     });
     return report;
+  }
+
+  async saveDetail(_boundary: P0AuthContextDto, detail: ReportDetailDto): Promise<ReportDetailDto> {
+    if (!this.prisma.report || !this.prisma.reportVersion) return detail;
+    const versionId = nextUuid();
+    await this.prisma.report.create({
+      data: {
+        id: detail.reportId,
+        title: detail.title,
+        reportType: "ACTIVITY",
+        status: detail.status,
+        latestVersionId: versionId,
+        exportStatus: "NONE",
+        subscriptionJson: {},
+        summaryJson: detail.summary,
+        createdBy: "api",
+      },
+    });
+    await this.prisma.reportVersion.create({
+      data: {
+        id: versionId,
+        reportId: detail.reportId,
+        version: 1,
+        status: detail.status,
+        sectionsJson: detail,
+        evidenceRefsJson: detail.evidenceSummary,
+        exportArtifactsJson: {},
+        createdBy: "api",
+      },
+    });
+    return detail;
+  }
+
+  async list(_boundary: P0AuthContextDto): Promise<ReportDetailDto[]> {
+    if (!this.prisma.report) return [];
+    const rows = await this.prisma.report.findMany({ orderBy: { createdAt: "desc" } });
+    return rows.map(toReportDetailFromRow);
+  }
+
+  async getById(_boundary: P0AuthContextDto, reportId: string): Promise<ReportDetailDto | null> {
+    if (!this.prisma.report) return null;
+    const row = await this.prisma.report.findUnique({ where: { id: reportId } });
+    return row ? toReportDetailFromRow(row) : null;
+  }
+
+  async listVersions(_boundary: P0AuthContextDto, reportId: string): Promise<ReportVersionDto[]> {
+    if (!this.prisma.reportVersion) return [];
+    const rows = await this.prisma.reportVersion.findMany({ where: { reportId }, orderBy: { version: "desc" } });
+    return rows.map(toReportVersionFromRow);
+  }
+
+  async getVersion(_boundary: P0AuthContextDto, reportId: string, versionId: string): Promise<ReportVersionDto | null> {
+    if (!this.prisma.reportVersion) return null;
+    const row = await this.prisma.reportVersion.findUnique({ where: { id: versionId } });
+    if (!row || String(row.reportId) !== reportId) return null;
+    return toReportVersionFromRow(row);
+  }
+
+  async createExport(_boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
+    if (this.prisma.report) {
+      await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
+    }
+    return { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING", format: request.format, requestedAt: new Date().toISOString() };
+  }
+
+  async saveSubscription(_boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): Promise<ReportSubscriptionDto> {
+    const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
+    if (this.prisma.report) {
+      await this.prisma.report.update({ where: { id: reportId }, data: { subscriptionJson: subscription } });
+    }
+    return subscription;
   }
 
   async getSimulationResult(_boundary: P0AuthContextDto, id: string): Promise<SimulationResultDto | null> {
@@ -779,17 +1064,33 @@ export class FinalActivityService {
 export class FinalReviewService {
   constructor(private readonly repository: ReviewRepository) {}
 
-  async list(boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReviewItemDto>> {
-    const items = await this.repository.list(boundary);
-    return { items, page: 1, pageSize: items.length || 20, total: items.length };
+  async list(query: ReviewListQueryDto = {}, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReviewListItemDto>> {
+    const rawItems = await this.repository.list(boundary, query);
+    const page = query.page && query.page > 0 ? query.page : 1;
+    const pageSize = query.pageSize && query.pageSize > 0 ? query.pageSize : 20;
+    const items = rawItems.map(toReviewListItem);
+    const start = (page - 1) * pageSize;
+    return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
+  }
+
+  async getDetail(reviewItemId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewDetailDto | null> {
+    const item = await this.repository.getById(boundary, reviewItemId);
+    if (!item) return null;
+    return toReviewDetail(item, await this.repository.approvalHistory(boundary, reviewItemId));
   }
 
   async create(items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewItemDto[]> {
     return this.repository.create(boundary, items);
   }
 
-  async decide(reviewItemId: string, request: ReviewDecisionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewItemDto> {
-    return this.repository.decide(boundary, reviewItemId, request);
+  async update(reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewDetailDto> {
+    const item = await this.repository.update(boundary, reviewItemId, patch);
+    return toReviewDetail(item, await this.repository.approvalHistory(boundary, reviewItemId));
+  }
+
+  async decide(reviewItemId: string, request: ReviewDecisionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReviewDetailDto> {
+    const item = await this.repository.decide(boundary, reviewItemId, request);
+    return toReviewDetail(item, await this.repository.approvalHistory(boundary, reviewItemId));
   }
 }
 
@@ -814,7 +1115,43 @@ export class FinalReportService {
       ],
       evidenceSummary: [...details.flatMap((item) => item.evidence), ...simulationEvidence],
     };
-    return this.repository.save(boundary, report);
+    await this.repository.save(boundary, report);
+    await this.repository.saveDetail(boundary, toReportDetail(report, details, simulations, []));
+    return report;
+  }
+
+  async list(boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReportListItemDto>> {
+    const items = (await this.repository.list(boundary)).map((detail) => ({
+      reportId: detail.reportId,
+      title: detail.title,
+      version: detail.version,
+      status: detail.status,
+      generatedAt: detail.generatedAt,
+      sourceRun: detail.sourceRun,
+      exportStatus: "NONE" as const,
+    }));
+    return { items, page: 1, pageSize: items.length || 20, total: items.length };
+  }
+
+  async getDetail(reportId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportDetailDto | null> {
+    return this.repository.getById(boundary, reportId);
+  }
+
+  async listVersions(reportId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReportVersionDto>> {
+    const items = await this.repository.listVersions(boundary, reportId);
+    return { items, page: 1, pageSize: items.length || 20, total: items.length };
+  }
+
+  async getVersion(reportId: string, versionId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportVersionDto | null> {
+    return this.repository.getVersion(boundary, reportId, versionId);
+  }
+
+  async export(reportId: string, request: ReportExportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportExportJobDto> {
+    return this.repository.createExport(boundary, reportId, request);
+  }
+
+  async saveSubscription(reportId: string, request: ReportSubscriptionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportSubscriptionDto> {
+    return this.repository.saveSubscription(boundary, reportId, request);
   }
 }
 
@@ -878,6 +1215,145 @@ function repairSuggestion(rule: CanonicalRuleDto): string {
   if (rule.field === "stock") return "补货到活动门槛以上后重跑模拟";
   if (rule.field === "certificateStatus") return "补齐有效证书后提交人工复核";
   return `修复规则失败项：${rule.message}`;
+}
+
+function toReviewListItem(item: ReviewItemDto): ReviewListItemDto {
+  const status = toWorkbenchReviewStatus(item.status);
+  const type = item.sourceType === "simulation" ? "ACTIVITY_CONFLICT" : item.sourceType === "health" ? "CERTIFICATE" : "AGENT_REVIEW_GATE";
+  const riskLevel = item.riskLevel === "L2" ? "HIGH" : item.riskLevel === "L1" ? "MEDIUM" : "LOW";
+  return {
+    reviewItemId: item.reviewItemId,
+    priority: riskLevel === "HIGH" ? "P1" : "P2",
+    type,
+    title: item.question || "待人工确认的 Review 项",
+    summary: item.recommendation || "需要运营在 Review 工作台确认后继续。",
+    status,
+    riskLevel,
+    assignee: { name: "运营审批组", team: "Ops Review" },
+    dueAt: item.decidedAt,
+    evidenceSummary: item.evidence.map((ref) => ref.label).filter(Boolean).join(" / ") || "已关联可追溯证据",
+  };
+}
+
+function toReviewDetail(item: ReviewItemDto, approvalHistory: ReviewDetailDto["approvalHistory"]): ReviewDetailDto {
+  const listItem = toReviewListItem(item);
+  const evidenceRefs = item.evidence.map(toEvidenceRef);
+  const sourceRef = toTraceableRef(item.sourceType === "simulation" ? "simulation_result" : item.sourceType === "health" ? "health_diagnosis" : "agent_run", item.sourceId, "Review 来源对象");
+  return {
+    ...listItem,
+    recommendation: {
+      actionType: item.sourceType === "simulation" ? "CONFIRM_RULE" : item.sourceType === "health" ? "UPLOAD_CERTIFICATE" : "CONFIRM_MAPPING",
+      content: item.recommendation || "先确认证据链和影响范围，再推进后续 workflow。",
+      expectedEffect: "只推进审批链路或生成建议，不自动改价、报名或修改商品信息。",
+      metrics: [{ label: "证据数", value: evidenceRefs.length }],
+    },
+    riskIfIgnored: listItem.riskLevel === "HIGH" ? "可能导致不合规 SKU 继续进入活动准备。" : "可能造成准入结论与实际证据不一致。",
+    evidenceRefs,
+    relatedRules: item.sourceType === "simulation" ? [toTraceableRef("rule_set", item.sourceId, "相关活动规则")] : [],
+    relatedRun: sourceRef,
+    approvalHistory,
+  };
+}
+
+function toWorkbenchReviewStatus(status: ReviewItemDto["status"]): ReviewWorkbenchStatus {
+  if (status === "APPROVED") return "APPROVED";
+  if (status === "REJECTED") return "REJECTED";
+  if (status === "CHANGES_REQUESTED") return "MODIFIED";
+  return "PENDING";
+}
+
+function toTraceableRef(entityType: TraceableRef["entityType"], entityId: string, label: string): TraceableRef {
+  return { entityType, entityId, label, drawerTarget: `${entityType}:${entityId}` };
+}
+
+function toEvidenceRef(ref: EvidenceLinkDto): EvidenceRef {
+  const entityTypeByEvidenceType: Record<EvidenceLinkDto["type"], TraceableRef["entityType"]> = {
+    snapshot: "sku_snapshot",
+    diagnosis: "health_diagnosis",
+    rule: "rule_set",
+    simulation: "simulation_result",
+    review: "review_item",
+    report: "report",
+    tool_trace: "agent_tool_call",
+  };
+  const entityType = entityTypeByEvidenceType[ref.type];
+  return {
+    ...toTraceableRef(entityType, ref.entityId, ref.label || ref.summary || "证据"),
+    sourceType: entityType,
+    sourceId: ref.entityId,
+    evidenceText: ref.summary || ref.label,
+  };
+}
+
+function toReportDetail(report: ReportPreviewDto, details: SkuDetailDto[], simulations: SimulationResultDto[], reviews: ReviewItemDto[]): ReportDetailDto {
+  const passedSku = simulations.filter((item) => item.eligibility === "DIRECT_READY").length || details.filter((item) => item.healthStatus === "READY").length;
+  const repairableSku = simulations.filter((item) => item.eligibility === "REPAIRABLE_READY").length || details.filter((item) => item.healthStatus === "WARNING").length;
+  const blockedSku = simulations.filter((item) => item.eligibility === "BLOCKED").length || details.filter((item) => item.healthStatus === "BLOCKED").length;
+  const evidenceSummary = report.evidenceSummary.map(toEvidenceRef);
+  return {
+    reportId: report.reportId,
+    title: report.title,
+    version: "v1",
+    status: report.status,
+    generatedAt: new Date().toISOString(),
+    tabs: ["SUMMARY", "TASKS", "RULES", "EVIDENCE", "REPAIRS"],
+    sourceRun: simulations[0] ? toTraceableRef("simulation_result", simulations[0].simulationResultId, "报告来源模拟") : undefined,
+    summary: {
+      totalSku: details.length,
+      passedSku,
+      repairableSku,
+      blockedSku,
+      categoryDistribution: buildCategoryDistribution(details, simulations),
+      majorRisks: buildMajorRisks(details, simulations),
+      repairSuggestions: buildRepairSuggestions(details, simulations),
+      reviewResult: {
+        total: reviews.length,
+        completed: reviews.filter((item) => item.status !== "OPEN").length,
+        approved: reviews.filter((item) => item.status === "APPROVED").length,
+        rejected: reviews.filter((item) => item.status === "REJECTED").length,
+      },
+    },
+    evidenceSummary,
+  };
+}
+
+function buildCategoryDistribution(details: SkuDetailDto[], simulations: SimulationResultDto[]): ReportDetailDto["summary"]["categoryDistribution"] {
+  const bySku = new Map(simulations.map((item) => [item.skuProfileId, item]));
+  const groups = new Map<string, { passed: number; repairable: number; blocked: number }>();
+  for (const detail of details) {
+    const category = detail.latestSnapshot?.category ?? "未分类";
+    const group = groups.get(category) ?? { passed: 0, repairable: 0, blocked: 0 };
+    const eligibility = bySku.get(detail.skuProfileId)?.eligibility;
+    if (eligibility === "DIRECT_READY" || (!eligibility && detail.healthStatus === "READY")) group.passed += 1;
+    else if (eligibility === "BLOCKED" || detail.healthStatus === "BLOCKED") group.blocked += 1;
+    else group.repairable += 1;
+    groups.set(category, group);
+  }
+  return Array.from(groups.entries()).map(([category, group]) => {
+    const total = group.passed + group.repairable + group.blocked || 1;
+    return { category, ...group, passRate: group.passed / total };
+  });
+}
+
+function buildMajorRisks(details: SkuDetailDto[], simulations: SimulationResultDto[]): ReportDetailDto["summary"]["majorRisks"] {
+  const issues = [...details.flatMap((item) => item.topIssues), ...simulations.flatMap((item) => item.failedRules.map((rule) => rule.message))];
+  const total = Math.max(details.length, 1);
+  return Array.from(new Set(issues)).slice(0, 5).map((issue) => ({
+    riskType: issue,
+    affectedSku: issues.filter((item) => item === issue).length,
+    ratio: issues.filter((item) => item === issue).length / total,
+    sampleIssue: issue,
+  }));
+}
+
+function buildRepairSuggestions(details: SkuDetailDto[], simulations: SimulationResultDto[]): ReportDetailDto["summary"]["repairSuggestions"] {
+  const suggestions = [...details.flatMap((item) => item.nextActions), ...simulations.flatMap((item) => item.repairSuggestions)];
+  return Array.from(new Set(suggestions)).slice(0, 5).map((suggestion, index) => ({
+    priority: index === 0 ? "P0" : index === 1 ? "P1" : "P2",
+    suggestion,
+    affectedSku: suggestions.filter((item) => item === suggestion).length,
+    estimatedLift: "需重跑模拟确认",
+  }));
 }
 
 function asArray(value: unknown): unknown[] {
@@ -971,6 +1447,61 @@ function toReviewItemDto(row: Record<string, unknown>): ReviewItemDto {
 function toReviewSourceType(value: unknown): ReviewItemDto["sourceType"] {
   if (value === "health" || value === "simulation" || value === "agent") return value;
   return "agent";
+}
+
+function toReportDetailFromRow(row: Record<string, unknown>): ReportDetailDto {
+  const summary = isRecord(row.summaryJson) ? row.summaryJson : {};
+  return {
+    reportId: String(row.id),
+    title: String(row.title ?? "报告"),
+    version: typeof row.latestVersionId === "string" ? row.latestVersionId : "v1",
+    status: toReportStatus(row.status),
+    generatedAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? new Date().toISOString()),
+    tabs: ["SUMMARY", "TASKS", "RULES", "EVIDENCE", "REPAIRS"],
+    summary: normalizeReportSummary(summary),
+    evidenceSummary: [],
+  };
+}
+
+function toReportVersionFromRow(row: Record<string, unknown>): ReportVersionDto {
+  const sections = isRecord(row.sectionsJson) ? row.sectionsJson : {};
+  const detail = isReportDetailShape(sections) ? (sections as unknown as ReportDetailDto) : toReportDetailFromRow({ id: row.reportId, title: "报告版本", status: row.status, summaryJson: {}, createdAt: row.createdAt });
+  return {
+    ...detail,
+    reportId: String(row.reportId),
+    versionId: String(row.id),
+    version: `v${Number(row.version ?? 1)}`,
+    status: toReportStatus(row.status),
+    generatedAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? detail.generatedAt),
+    evidenceSummary: asArray(row.evidenceRefsJson) as EvidenceRef[],
+  };
+}
+
+function normalizeReportSummary(value: Record<string, unknown>): ReportDetailDto["summary"] {
+  return {
+    totalSku: Number(value.totalSku ?? 0),
+    passedSku: Number(value.passedSku ?? 0),
+    repairableSku: Number(value.repairableSku ?? 0),
+    blockedSku: Number(value.blockedSku ?? 0),
+    categoryDistribution: asArray(value.categoryDistribution) as ReportDetailDto["summary"]["categoryDistribution"],
+    majorRisks: asArray(value.majorRisks) as ReportDetailDto["summary"]["majorRisks"],
+    repairSuggestions: asArray(value.repairSuggestions) as ReportDetailDto["summary"]["repairSuggestions"],
+    reviewResult: isRecord(value.reviewResult) ? {
+      total: Number(value.reviewResult.total ?? 0),
+      completed: Number(value.reviewResult.completed ?? 0),
+      approved: Number(value.reviewResult.approved ?? 0),
+      rejected: Number(value.reviewResult.rejected ?? 0),
+    } : { total: 0, completed: 0, approved: 0, rejected: 0 },
+  };
+}
+
+function toReportStatus(value: unknown): ReportDetailDto["status"] {
+  if (value === "GENERATING" || value === "COMPLETED" || value === "FAILED") return value;
+  return "PREVIEW";
+}
+
+function isReportDetailShape(value: Record<string, unknown>): boolean {
+  return typeof value.reportId === "string" && typeof value.title === "string" && isRecord(value.summary);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

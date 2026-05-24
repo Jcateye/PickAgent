@@ -1,0 +1,25 @@
+import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+
+import type { ReviewItemDto } from '../../../../../../contracts/types/businessFoundation'
+
+interface RouteContext {
+  params: Promise<{ reviewItemId: string }>
+}
+
+export async function GET(request: Request, context: RouteContext) {
+  const { reviewItemId } = await context.params
+  const detail = await finalApiRuntime.reviewService.getDetail(reviewItemId, authContextFromRequest(request))
+  if (!detail) return fail('REVIEW.NOT_FOUND', 'Review item not found', 404, { reviewItemId })
+  return ok(detail)
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  const { reviewItemId } = await context.params
+  const payload = (await request.json().catch(() => null)) as Partial<Pick<ReviewItemDto, 'question' | 'recommendation' | 'riskLevel'>> | null
+  if (!payload || typeof payload !== 'object') return fail('COMMON.VALIDATION_ERROR', 'patch payload is required', 400)
+  try {
+    return ok(await finalApiRuntime.reviewService.update(reviewItemId, payload, authContextFromRequest(request)))
+  } catch (error) {
+    return fail('REVIEW.NOT_FOUND', error instanceof Error ? error.message : 'Review item not found', 404, { reviewItemId })
+  }
+}
