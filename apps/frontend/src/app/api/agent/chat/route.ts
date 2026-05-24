@@ -75,7 +75,12 @@ export async function POST(request: Request) {
       'COMMON.VALIDATION_ERROR',
       'Agent chat request failed before a completed assistant reply. Check persistence and model provider configuration.',
       502,
-      { errorType: error instanceof Error ? error.name : 'UnknownError' },
+      {
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorCode: typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : undefined,
+        errorMeta: typeof error === 'object' && error && 'meta' in error ? (error as { meta?: unknown }).meta as Record<string, unknown> : undefined,
+      },
     )
   }
 }
