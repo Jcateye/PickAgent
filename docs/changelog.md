@@ -17,6 +17,19 @@
 
 ---
 
+### [2026-05-24] 落地活动管理执行路径 API
+
+- 模块：backend / frontend api / contracts
+- 类型：功能
+- 摘要：新增 Activity 管理 DTO、ActivityManagement service 聚合能力和 `/api/activities` 资源路由，支持活动创建/更新、规则解析绑定、6 步执行路径、活动 run 审计、活动维度 simulation 运行与详情查询。
+- 影响范围：`apps/contracts/types/activityManagement.ts`、`apps/backend/src/application/foundation/FinalApiPersistenceFoundation.ts`、`apps/frontend/src/app/api/activities/**`
+- 是否影响 contracts：是
+- 是否影响数据结构：否
+- 兼容性说明：不新增 migration；P0 使用已有 `activities`、`activity_rule_sets`、`activity_simulation_runs/results` 与 `workflow_runs`。旧的规则集维度 simulation route 已收敛为活动维度 route。
+- 关联任务 / 决策：Workstream D Activity management, rules execution path and simulation API
+
+---
+
 ### [2026-05-23] 补充最终设计缺口收敛方案
 
 - 模块：docs / architecture / openspec

@@ -833,7 +833,15 @@ interface WorkspaceSettingsDto {
 - `GET /api/skus`
 - `GET /api/skus/{skuProfileId}`
 - `POST /api/activities/parse`
-- `POST /api/activities/{activityRuleSetId}/simulations`
+- `GET /api/activities`
+- `POST /api/activities`
+- `GET /api/activities/{activityId}`
+- `PATCH /api/activities/{activityId}`
+- `GET /api/activities/{activityId}/execution-plan`
+- `POST /api/activities/{activityId}/rule-sets/parse`
+- `POST /api/activities/{activityId}/runs`
+- `POST /api/activities/{activityId}/simulations`
+- `GET /api/activities/{activityId}/simulations/{simulationRunId}`
 - `GET /api/reviews`
 - `POST /api/reviews`
 - `POST /api/reviews/{reviewItemId}/decision`
@@ -848,12 +856,6 @@ interface WorkspaceSettingsDto {
 
 - `GET /api/workbench/shell`
 - `GET /api/dashboard/overview`
-- `GET /api/activities`
-- `POST /api/activities`
-- `GET /api/activities/{activityId}`
-- `GET /api/activities/{activityId}/execution-plan`
-- `POST /api/activities/{activityId}/rule-sets/parse`
-- `POST /api/activities/{activityId}/runs`
 - `GET /api/agent/missions`
 - `GET /api/agent/missions/{missionId}`
 - `GET /api/agent/runs/{runId}`

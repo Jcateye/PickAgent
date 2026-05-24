@@ -16,6 +16,17 @@ import {
   assertValidIngestPayload,
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
+import {
+  type ActivityDto,
+  type ActivityExecutionPlanDto,
+  type ActivitySimulationRunDetailDto,
+  type CreateActivityRequestDto,
+  type EvidenceRef,
+  type ParseActivityRuleSetRequestDto,
+  type RequiredFieldStatus,
+  type TraceableRef,
+  type UpdateActivityRequestDto,
+} from "../../../../contracts/types/activityManagement";
 import { HealthAssessmentService, NormalizationService } from "./BusinessFoundationServices";
 import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRuntimeConfig";
 
@@ -123,16 +134,21 @@ export interface PrismaPersistenceClient {
   skuSnapshot: PrismaDelegate;
   skuHealthDiagnosis: PrismaDelegate;
   currentSkuProjection: PrismaDelegate;
+  activity: PrismaDelegate;
   activityRuleSet: PrismaDelegate;
   activitySimulationRun: PrismaDelegate;
   activitySimulationResult: PrismaDelegate;
   reviewItem: PrismaDelegate;
   workflowRun: PrismaDelegate;
+  workflowStep: PrismaDelegate;
 }
 
 export class FinalApiPersistenceStore {
   readonly profilesByCanonicalKey = new Map<string, SkuProfileRecord>();
   readonly profilesById = new Map<string, SkuProfileRecord>();
+  readonly activities = new Map<string, ActivityDto>();
+  readonly activityRuleSetByActivityId = new Map<string, string>();
+  readonly latestSimulationRunByActivityId = new Map<string, string>();
   readonly snapshots = new Map<string, NormalizedSkuSnapshotDto>();
   readonly diagnoses = new Map<string, HealthDiagnosisDto>();
   readonly projections = new Map<string, SkuSummaryDto>();
@@ -280,6 +296,71 @@ export class SkuQueryRepository {
 export class ActivityRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
+  listActivities(boundary: P0AuthContextDto, page = 1, pageSize = 20): PageDto<ActivityDto> | Promise<PageDto<ActivityDto>> {
+    const items = Array.from(this.store.activities.values()).filter((item) => this.store.tenantByEntityId.get(item.activityId) === boundary.tenantId);
+    const start = (page - 1) * pageSize;
+    return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
+  }
+
+  getActivity(boundary: P0AuthContextDto, activityId: string): ActivityDto | null | Promise<ActivityDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(activityId), activityId);
+    return this.store.activities.get(activityId) ?? null;
+  }
+
+  async createActivity(boundary: P0AuthContextDto, input: CreateActivityRequestDto): Promise<ActivityDto> {
+    const now = new Date().toISOString();
+    const activity: ActivityDto = {
+      activityId: nextId("activity"),
+      name: input.name,
+      platform: input.platform,
+      categoryScope: input.categoryScope,
+      productScopeText: input.productScopeText ?? "全部当前 SKU",
+      status: "DRAFT",
+      startAt: input.startAt,
+      endAt: input.endAt,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.store.activities.set(activity.activityId, activity);
+    this.store.tenantByEntityId.set(activity.activityId, boundary.tenantId);
+    const audit = await this.recordWorkflowAudit(boundary, "activity_create", activity.activityId, { input }, { activityId: activity.activityId });
+    const audited = { ...activity, latestRunId: audit.entityId };
+    this.store.activities.set(activity.activityId, audited);
+    return audited;
+  }
+
+  async updateActivity(boundary: P0AuthContextDto, activityId: string, input: UpdateActivityRequestDto): Promise<ActivityDto> {
+    const current = this.getActivity(boundary, activityId) as ActivityDto | null;
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const updated: ActivityDto = {
+      ...current,
+      ...stripUndefined({
+        name: input.name,
+        platform: input.platform,
+        categoryScope: input.categoryScope,
+        productScopeText: input.productScopeText,
+        status: input.status,
+        startAt: input.startAt === null ? undefined : input.startAt,
+        endAt: input.endAt === null ? undefined : input.endAt,
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+    this.store.activities.set(activityId, updated);
+    const audit = await this.recordWorkflowAudit(boundary, "activity_update", activityId, { input }, { activityId });
+    const audited = { ...updated, latestRunId: audit.entityId };
+    this.store.activities.set(activityId, audited);
+    return audited;
+  }
+
+  bindRuleSetToActivity(boundary: P0AuthContextDto, activityId: string, ruleSetId: string): ActivityDto | Promise<ActivityDto> {
+    const current = this.getActivity(boundary, activityId) as ActivityDto | null;
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const updated = { ...current, currentRuleSetId: ruleSetId, updatedAt: new Date().toISOString() };
+    this.store.activities.set(activityId, updated);
+    this.store.activityRuleSetByActivityId.set(activityId, ruleSetId);
+    return updated;
+  }
+
   saveRuleSet(boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): ActivityRuleSetDto | Promise<ActivityRuleSetDto> {
     this.store.ruleSets.set(ruleSet.ruleSetId, ruleSet);
     this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
@@ -299,6 +380,27 @@ export class ActivityRepository {
       this.store.tenantByEntityId.set(result.simulationResultId, boundary.tenantId);
     }
     return run;
+  }
+
+  bindSimulationRunToActivity(boundary: P0AuthContextDto, activityId: string, simulationRunId: string): ActivityDto | Promise<ActivityDto> {
+    const current = this.getActivity(boundary, activityId) as ActivityDto | null;
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const updated = { ...current, latestRunId: simulationRunId, status: "RUNNING" as const, updatedAt: new Date().toISOString() };
+    this.store.activities.set(activityId, updated);
+    this.store.latestSimulationRunByActivityId.set(activityId, simulationRunId);
+    return updated;
+  }
+
+  getSimulationRun(boundary: P0AuthContextDto, simulationRunId: string): ActivitySimulationRunDto | null | Promise<ActivitySimulationRunDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(simulationRunId), simulationRunId);
+    return this.store.simulationRuns.get(simulationRunId) ?? null;
+  }
+
+  recordWorkflowAudit(boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): TraceableRef | Promise<TraceableRef> {
+    const workflowRunId = nextId("workflow");
+    this.store.workflowAudits.set(workflowRunId, { workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, input, output, createdAt: new Date().toISOString() });
+    this.store.tenantByEntityId.set(workflowRunId, boundary.tenantId);
+    return traceRef("workflow_run", workflowRunId, "Workflow audit");
   }
 }
 
@@ -517,6 +619,61 @@ export class PrismaActivityRepository extends ActivityRepository {
     super(new FinalApiPersistenceStore());
   }
 
+  async listActivities(_boundary: P0AuthContextDto, page = 1, pageSize = 20): Promise<PageDto<ActivityDto>> {
+    const rows = await this.prisma.activity.findMany({ orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize });
+    const total = await this.prisma.activity.count();
+    return { items: rows.map(toActivityDto), page, pageSize, total };
+  }
+
+  async getActivity(_boundary: P0AuthContextDto, activityId: string): Promise<ActivityDto | null> {
+    const row = await this.prisma.activity.findUnique({ where: { id: activityId } });
+    return row ? toActivityDto(row) : null;
+  }
+
+  async createActivity(boundary: P0AuthContextDto, input: CreateActivityRequestDto): Promise<ActivityDto> {
+    const activityId = nextUuid();
+    const row = await this.prisma.activity.create({
+      data: {
+        id: activityId,
+        name: input.name,
+        platform: input.platform,
+        scopeJson: { categoryScope: input.categoryScope ?? [], productScopeText: input.productScopeText ?? "全部当前 SKU" },
+        status: "draft",
+        startsAt: input.startAt ? new Date(input.startAt) : undefined,
+        endsAt: input.endAt ? new Date(input.endAt) : undefined,
+        createdBy: boundary.actorId,
+      },
+    });
+    const audit = await this.recordWorkflowAudit(boundary, "activity_create", activityId, { input }, { activityId });
+    await this.prisma.activity.update({ where: { id: activityId }, data: { latestWorkflowRunId: audit.entityId } });
+    return { ...toActivityDto(row), latestRunId: audit.entityId };
+  }
+
+  async updateActivity(boundary: P0AuthContextDto, activityId: string, input: UpdateActivityRequestDto): Promise<ActivityDto> {
+    const current = await this.getActivity(boundary, activityId);
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const row = await this.prisma.activity.update({
+      where: { id: activityId },
+      data: stripUndefined({
+        name: input.name,
+        platform: input.platform,
+        status: input.status?.toLowerCase(),
+        scopeJson: input.categoryScope || input.productScopeText ? { categoryScope: input.categoryScope ?? current.categoryScope ?? [], productScopeText: input.productScopeText ?? current.productScopeText } : undefined,
+        startsAt: input.startAt ? new Date(input.startAt) : input.startAt === null ? null : undefined,
+        endsAt: input.endAt ? new Date(input.endAt) : input.endAt === null ? null : undefined,
+      }),
+    });
+    const audit = await this.recordWorkflowAudit(boundary, "activity_update", activityId, { input }, { activityId });
+    await this.prisma.activity.update({ where: { id: activityId }, data: { latestWorkflowRunId: audit.entityId } });
+    return { ...toActivityDto(row), latestRunId: audit.entityId };
+  }
+
+  async bindRuleSetToActivity(boundary: P0AuthContextDto, activityId: string, ruleSetId: string): Promise<ActivityDto> {
+    const row = await this.prisma.activity.update({ where: { id: activityId }, data: { currentRuleSetId: ruleSetId } });
+    await this.recordWorkflowAudit(boundary, "activity_rule_parse", activityId, { ruleSetId }, { activityId, ruleSetId });
+    return toActivityDto(row);
+  }
+
   async saveRuleSet(_boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): Promise<ActivityRuleSetDto> {
     await this.prisma.activityRuleSet.create({
       data: {
@@ -575,6 +732,44 @@ export class PrismaActivityRepository extends ActivityRepository {
       });
     }
     return run;
+  }
+
+  async bindSimulationRunToActivity(boundary: P0AuthContextDto, activityId: string, simulationRunId: string): Promise<ActivityDto> {
+    const row = await this.prisma.activity.update({ where: { id: activityId }, data: { status: "running", summaryJson: { latestSimulationRunId: simulationRunId } } });
+    await this.recordWorkflowAudit(boundary, "activity_simulation", activityId, { simulationRunId }, { activityId, simulationRunId });
+    return { ...toActivityDto(row), latestRunId: simulationRunId };
+  }
+
+  async getSimulationRun(_boundary: P0AuthContextDto, simulationRunId: string): Promise<ActivitySimulationRunDto | null> {
+    const row = await this.prisma.activitySimulationRun.findUnique({ where: { id: simulationRunId }, include: { results: true } });
+    if (!row) return null;
+    const results = asArray(row.results).map((result) => ({
+      simulationResultId: String((result as Record<string, unknown>).id),
+      skuProfileId: String((result as Record<string, unknown>).skuProfileId),
+      ruleSetId: String((result as Record<string, unknown>).activityRuleSetId),
+      eligibility: String((result as Record<string, unknown>).eligibilityStatus) as SimulationEligibility,
+      failedRules: asArray((result as Record<string, unknown>).failedRulesJson) as CanonicalRuleDto[],
+      evidence: asArray((result as Record<string, unknown>).evidenceJson) as SimulationResultDto["evidence"],
+      repairSuggestions: asArray((result as Record<string, unknown>).repairPlanJson).map(String),
+    }));
+    return {
+      simulationRunId: String(row.id),
+      activityRuleSetId: String(row.activityRuleSetId),
+      status: "SUCCEEDED",
+      scope: asScope(row.scopeJson),
+      results,
+      startedAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? row.createdAt ?? ""),
+      completedAt: row.completedAt instanceof Date ? row.completedAt.toISOString() : String(row.completedAt ?? row.updatedAt ?? ""),
+    };
+  }
+
+  async recordWorkflowAudit(_boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): Promise<TraceableRef> {
+    const workflowRunId = nextUuid();
+    const now = new Date();
+    await this.prisma.workflowRun.create({
+      data: { id: workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, inputJson: input, outputJson: output, startedAt: now, completedAt: now },
+    });
+    return traceRef("workflow_run", workflowRunId, "Workflow audit");
   }
 }
 
@@ -721,6 +916,62 @@ export class FinalIngestService {
 export class FinalActivityService {
   constructor(private readonly repository: ActivityRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
+  list(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ActivityDto>> {
+    return Promise.resolve(this.repository.listActivities(boundary, page, pageSize));
+  }
+
+  async detail(activityId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto | null> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    if (!activity) return null;
+    return this.buildExecutionPlan(activity, boundary);
+  }
+
+  create(input: CreateActivityRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityDto> {
+    if (!input.name?.trim()) throw new Error("Activity name is required");
+    return Promise.resolve(this.repository.createActivity(boundary, input));
+  }
+
+  update(activityId: string, input: UpdateActivityRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityDto> {
+    return Promise.resolve(this.repository.updateActivity(boundary, activityId, input));
+  }
+
+  async parseForActivity(activityId: string, input: ParseActivityRuleSetRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    if (!activity) throw new Error(`Activity not found: ${activityId}`);
+    const ruleSet = await this.parse({ name: input.name ?? `${activity.name} 规则`, platform: activity.platform, sourceText: input.sourceText, rules: input.rules }, boundary);
+    const updated = await this.repository.bindRuleSetToActivity(boundary, activityId, ruleSet.ruleSetId);
+    return this.buildExecutionPlan(updated, boundary);
+  }
+
+  async executionPlan(activityId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto | null> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    if (!activity) return null;
+    return this.buildExecutionPlan(activity, boundary);
+  }
+
+  async startRun(activityId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    if (!activity) throw new Error(`Activity not found: ${activityId}`);
+    const audit = await this.repository.recordWorkflowAudit(boundary, "activity_execution_path", activityId, { activityId }, { status: "planned" });
+    return { ...(await this.buildExecutionPlan({ ...activity, latestRunId: audit.entityId, status: "RUNNING" }, boundary)), runId: audit.entityId };
+  }
+
+  async simulateForActivity(activityId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDetailDto> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    if (!activity?.currentRuleSetId) throw new Error("Activity rule set is required before simulation");
+    const run = await this.simulate(activity.currentRuleSetId, request, boundary);
+    await this.repository.bindSimulationRunToActivity(boundary, activityId, run.simulationRunId);
+    const plan = await this.buildExecutionPlan({ ...activity, latestRunId: run.simulationRunId, status: "RUNNING" }, boundary);
+    return this.toSimulationDetail(activityId, run, plan);
+  }
+
+  async simulationDetail(activityId: string, simulationRunId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDetailDto | null> {
+    const activity = await this.repository.getActivity(boundary, activityId);
+    const run = await this.repository.getSimulationRun(boundary, simulationRunId);
+    if (!activity || !run) return null;
+    return this.toSimulationDetail(activityId, run, await this.buildExecutionPlan(activity, boundary));
+  }
+
   async parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityRuleSetDto> {
     const rules = input.rules ?? deterministicRules(input.sourceText);
     const ruleSet: ActivityRuleSetDto = {
@@ -773,6 +1024,48 @@ export class FinalActivityService {
       startedAt,
       completedAt: new Date().toISOString(),
     });
+  }
+
+  private async buildExecutionPlan(activity: ActivityDto, boundary: P0AuthContextDto): Promise<ActivityExecutionPlanDto> {
+    const ruleSet = activity.currentRuleSetId ? await this.repository.getRuleSet(boundary, activity.currentRuleSetId) : null;
+    const rules = ruleSet?.rules ?? [];
+    const requiredFields = rules.flatMap((rule) => extractRequiredFields(rule)).filter((field, index, items) => items.findIndex((item) => item.field === field.field) === index);
+    const pendingConfirmations = [
+      ...rules.filter((rule) => rule.type === "manual_review").map((rule) => ({ type: "RULE_AMBIGUITY" as const, title: rule.message, actionLabel: "进入 Review 确认" })),
+      ...requiredFields.filter((item) => item.status !== "READY").map((item) => ({ type: item.status === "AMBIGUOUS_MAPPING" ? "FIELD_MAPPING" as const : "DATA_SOURCE" as const, title: `${item.label} 需要确认`, actionLabel: "补齐数据或确认映射" })),
+    ];
+    const ruleTrace = ruleSet ? traceRef("rule_set", ruleSet.ruleSetId, ruleSet.name) : undefined;
+    return {
+      activityId: activity.activityId,
+      runId: activity.latestRunId,
+      ruleSet: {
+        ruleSetId: ruleSet?.ruleSetId ?? "",
+        version: "v1",
+        parseStatus: ruleSet?.parseStatus ?? "NEEDS_REVIEW",
+        confidence: ruleSet?.confidence ?? 0,
+        rules,
+      },
+      steps: buildPlanSteps(Boolean(ruleSet), requiredFields, activity.latestRunId, ruleTrace),
+      requiredFields,
+      dataSources: [{ connectorId: "connector_current_projection", name: "Current SKU Projection", status: "AVAILABLE", lastSyncedAt: activity.updatedAt }],
+      pendingConfirmations,
+      relatedRuns: activity.latestRunId ? [traceRef(activity.latestRunId.startsWith("workflow") ? "workflow_run" : "simulation_run", activity.latestRunId, "最近活动运行")] : [],
+    };
+  }
+
+  private toSimulationDetail(activityId: string, run: ActivitySimulationRunDto, plan: ActivityExecutionPlanDto): ActivitySimulationRunDetailDto {
+    return {
+      activityId,
+      simulationRunId: run.simulationRunId,
+      activityRuleSetId: run.activityRuleSetId,
+      status: run.status,
+      scope: run.scope,
+      results: run.results,
+      plan: plan.steps,
+      evidenceRefs: run.results.flatMap((result) => result.evidence.map((item) => evidenceRefFromLink(item))),
+      startedAt: run.startedAt,
+      completedAt: run.completedAt,
+    };
   }
 }
 
@@ -971,6 +1264,91 @@ function toReviewItemDto(row: Record<string, unknown>): ReviewItemDto {
 function toReviewSourceType(value: unknown): ReviewItemDto["sourceType"] {
   if (value === "health" || value === "simulation" || value === "agent") return value;
   return "agent";
+}
+
+function traceRef(entityType: TraceableRef["entityType"], entityId: string, label: string): TraceableRef {
+  return { entityType, entityId, label, drawerTarget: `${entityType}:${entityId}` };
+}
+
+function evidenceRefFromLink(link: SimulationResultDto["evidence"][number]): EvidenceRef {
+  const entityTypeByEvidenceType: Record<typeof link.type, TraceableRef["entityType"]> = {
+    snapshot: "sku_snapshot",
+    diagnosis: "health_diagnosis",
+    rule: "rule_set",
+    simulation: "simulation_result",
+    review: "review_item",
+    report: "report",
+    tool_trace: "agent_tool_call",
+  };
+  const entityType = entityTypeByEvidenceType[link.type];
+  return {
+    ...traceRef(entityType, link.entityId, link.label),
+    sourceType: entityType,
+    sourceId: link.entityId,
+    evidenceText: link.summary,
+  };
+}
+
+function extractRequiredFields(rule: CanonicalRuleDto): ActivityExecutionPlanDto["requiredFields"] {
+  if (!rule.field && rule.type !== "manual_review") return [];
+  if (rule.type === "manual_review") {
+    return [{ field: "manual_confirmation", label: "人工确认", status: "AMBIGUOUS_MAPPING", dataSource: "Review 工作台" }];
+  }
+  const labelByField: Record<string, string> = {
+    stock: "活动库存",
+    campaignPrice: "活动价",
+    certificateStatus: "资质状态",
+    sales30d: "近 30 天销量",
+    positiveRate: "好评率",
+    joinedBrandDay: "品牌日参与状态",
+  };
+  return [{ field: rule.field!, label: labelByField[rule.field!] ?? rule.field!, status: fieldAvailability(rule.field!), dataSource: "Current SKU Projection", freshness: "latest" }];
+}
+
+function fieldAvailability(field: string): RequiredFieldStatus {
+  if (field === "manual_confirmation") return "AMBIGUOUS_MAPPING";
+  if (field === "certificateStatus") return "EXTERNAL_DEPENDENCY";
+  return "READY";
+}
+
+function buildPlanSteps(hasRuleSet: boolean, requiredFields: ActivityExecutionPlanDto["requiredFields"], runId: string | undefined, ruleTrace: TraceableRef | undefined): ActivityExecutionPlanDto["steps"] {
+  const hasBlockingField = requiredFields.some((item) => item.status !== "READY");
+  return [
+    { stepKey: "parse_rules", title: "解析活动规则", status: hasRuleSet ? "DONE" : "WAITING", owner: "SYSTEM", toolName: "parseActivityRules", traceRef: ruleTrace },
+    { stepKey: "structure_rule_dsl", title: "结构化 Rule DSL", status: hasRuleSet ? "DONE" : "WAITING", owner: "SYSTEM", traceRef: ruleTrace },
+    { stepKey: "extract_required_fields", title: "提取必需字段", status: hasRuleSet ? "DONE" : "WAITING", owner: "SYSTEM", outputSummary: `${requiredFields.length} 个字段` },
+    { stepKey: "check_data_availability", title: "检查数据可用性", status: hasRuleSet ? (hasBlockingField ? "WAITING" : "DONE") : "WAITING", owner: hasBlockingField ? "OPERATOR" : "SYSTEM" },
+    { stepKey: "simulate_readiness", title: "运行准入模拟", status: runId?.startsWith("simulation") ? "DONE" : hasRuleSet && !hasBlockingField ? "WAITING" : "WAITING", owner: "SYSTEM", toolName: "simulateActivityReadiness" },
+    { stepKey: "generate_checklist", title: "生成执行清单", status: runId?.startsWith("simulation") ? "DONE" : "WAITING", owner: "AGENT" },
+  ];
+}
+
+function toActivityDto(row: Record<string, unknown>): ActivityDto {
+  const scope = isRecord(row.scopeJson) ? row.scopeJson : {};
+  const summary = isRecord(row.summaryJson) ? row.summaryJson : {};
+  return {
+    activityId: String(row.id),
+    name: String(row.name ?? ""),
+    platform: typeof row.platform === "string" ? row.platform : undefined,
+    categoryScope: asArray(scope.categoryScope).map(String),
+    productScopeText: typeof scope.productScopeText === "string" ? scope.productScopeText : "全部当前 SKU",
+    status: String(row.status ?? "draft").toUpperCase() as ActivityDto["status"],
+    startAt: row.startsAt instanceof Date ? row.startsAt.toISOString() : typeof row.startsAt === "string" ? row.startsAt : undefined,
+    endAt: row.endsAt instanceof Date ? row.endsAt.toISOString() : typeof row.endsAt === "string" ? row.endsAt : undefined,
+    currentRuleSetId: typeof row.currentRuleSetId === "string" ? row.currentRuleSetId : undefined,
+    latestRunId: typeof summary.latestSimulationRunId === "string" ? summary.latestSimulationRunId : typeof row.latestWorkflowRunId === "string" ? row.latestWorkflowRunId : undefined,
+    createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? ""),
+    updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt ?? ""),
+  };
+}
+
+function asScope(value: unknown): ActivitySimulationRunDto["scope"] {
+  if (!isRecord(value)) return { skuProfileIds: [] };
+  return { skuProfileIds: asArray(value.skuProfileIds).map(String), whatIf: isRecord(value.whatIf) ? value.whatIf as SimulationRequestDto["whatIf"] : undefined };
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
