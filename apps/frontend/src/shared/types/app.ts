@@ -1,19 +1,29 @@
 export type AppPageKey =
-  | 'dashboard'
-  | 'connectors'
-  | 'sku-health'
-  | 'activities'
-  | 'reviews'
-  | 'reports'
-  | 'agent-chat'
-  | 'workflows'
+  | 'overview'
+  | 'sku-list'
+  | 'activity-management'
+  | 'tasks-runs'
+  | 'review-console'
+  | 'report-center'
+  | 'data-sources'
+  | 'rule-library'
+  | 'settings'
+  | 'activity-execution'
+  | 'rule-execution'
+  | 'sku-access'
+  | 'review-approvals'
+  | 'run-console'
+  | 'agent-mission'
+  | 'extension-preview'
 
-export interface AppPageDefinition {
-  key: AppPageKey
-  href: `/${string}`
-  title: string
-  description: string
-  navLabel: string
+export interface AppNavMenu {
+  key: string
+  label: string
   icon: string
-  category: 'primary' | 'secondary'
+  href?: string
+  children?: {
+    key: string
+    label: string
+    href: string
+  }[]
 }

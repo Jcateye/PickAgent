@@ -1,0 +1,389 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 76px);
+  background: var(--surface-soft);
+}
+
+.topBar {
+  padding: 16px 24px;
+  background: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.topBarTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.topBarSub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btnAction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.btnPrimary {
+  background: var(--primary);
+  color: white;
+  border: none;
+}
+
+.mainBody {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
+  gap: 24px;
+}
+
+/* Left Sidebar - Reports List */
+.reportListPanel {
+  width: 280px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.listHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reportItem {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.reportItem.active {
+  background: rgba(36, 107, 255, 0.05);
+  border-left: 3px solid var(--primary);
+}
+
+.itemTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.itemBadge {
+  background: #16a34a;
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.itemMeta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+/* Center Panel */
+.centerPanel {
+  flex: 1;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.centerHeader {
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.reportTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.reportTitle {
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tagCompleted {
+  font-size: 12px;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 400;
+}
+
+.reportMetaText {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: 24px;
+}
+
+.centerTabs {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  padding: 16px 0;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+}
+
+.tab.active {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.centerBody {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.statCard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.statValue small {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.statChange {
+  font-size: 12px;
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.diffUp { color: #dc2626; }
+.diffDown { color: #16a34a; }
+
+.donutSection {
+  display: flex;
+  gap: 24px;
+}
+
+.donutChart {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 16px solid #f1f5f9;
+  border-top-color: #16a34a;
+  border-right-color: #d97706;
+  border-bottom-color: #e11d48;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.dataTable {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.dataRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  align-items: center;
+}
+
+.dataRow.head {
+  background: var(--surface-soft);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.barWrapper {
+  width: 60px;
+  height: 6px;
+  background: var(--surface-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: #16a34a;
+}
+
+.reviewSection {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/* Right Sidebar - Widgets */
+.rightPanel {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.widgetCard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.widgetTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.versionSelect {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.exportFormatGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.formatBtn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.formatBtn.active {
+  background: rgba(36, 107, 255, 0.05);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.infoRow {
+  display: flex;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.infoLabel {
+  width: 80px;
+  color: var(--muted);
+}
+
+.infoValue {
+  flex: 1;
+  color: var(--fg);
+}

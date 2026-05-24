@@ -1,76 +1,75 @@
-import type { AppPageDefinition } from '@/shared/types/app'
+import type { AppNavMenu } from '@/shared/types/app'
 
-export const appPages: AppPageDefinition[] = [
+export const appMenus: AppNavMenu[] = [
   {
-    key: 'dashboard',
-    href: '/dashboard',
-    title: 'Dashboard 总览',
-    description: '查看主控台当前总体状态、风险摘要和人工介入入口。',
-    navLabel: 'Dashboard',
-    icon: '◫',
-    category: 'primary',
+    key: 'overview',
+    label: '概览',
+    icon: 'Home',
+    href: '/overview',
   },
   {
-    key: 'agent-chat',
-    href: '/agent-chat',
-    title: 'Agent Mission Chat',
-    description: '承接目标输入、计划生成、系统工具调用、长任务执行和 Review Gate。',
-    navLabel: 'Agent Mission',
-    icon: '✦',
-    category: 'primary',
+    key: 'sku-list',
+    label: 'SKU 列表',
+    icon: 'FileText',
+    href: '/sku-access', // Prototype 3 / Image 2
   },
   {
-    key: 'connectors',
-    href: '/connectors',
-    title: 'Connectors',
-    description: '查看平台连接、插件采集边界和接入状态壳层。',
-    navLabel: 'Connectors',
-    icon: '⌁',
-    category: 'primary',
+    key: 'activity-management',
+    label: '活动管理',
+    icon: 'CalendarCheck',
+    href: '/rule-execution', // Prototype 2 / Image 3 (也可以加上 /activity-execution)
   },
   {
-    key: 'sku-health',
-    href: '/sku-health',
-    title: 'SKU 健康',
-    description: '在列表与详情布局中承接 SKU 健康查询与诊断视图。',
-    navLabel: 'SKU 健康',
-    icon: '▦',
-    category: 'primary',
+    key: 'tasks-runs',
+    label: '任务与运行',
+    icon: 'ListTodo',
+    children: [
+      {
+        key: 'agent-mission',
+        label: 'Agent Mission',
+        href: '/agent-mission', // Prototype 7 / Image 4
+      }
+    ]
   },
   {
-    key: 'activities',
-    href: '/activities',
-    title: '活动规则与准入模拟',
-    description: '承接规则录入、解析和模拟结果的页面结构。',
-    navLabel: 'Activities',
-    icon: '⎘',
-    category: 'primary',
+    key: 'review-console',
+    label: 'Review工作台',
+    icon: 'ShieldCheck',
+    href: '/review-approvals', // Image 5
   },
   {
-    key: 'reviews',
-    href: '/reviews',
-    title: 'Review 工作台',
-    description: '承接人工审批门、证据查看与操作区。',
-    navLabel: 'Reviews',
-    icon: '✓',
-    category: 'primary',
+    key: 'report-center',
+    label: '报告中心',
+    icon: 'BarChart3',
+    href: '/report-center', // Image 6
   },
   {
-    key: 'reports',
-    href: '/reports',
-    title: '报告页',
-    description: '承接报告预览、操作栏和证据关联摘要。',
-    navLabel: 'Reports',
-    icon: '☰',
-    category: 'primary',
+    key: 'data-sources',
+    label: '数据源',
+    icon: 'Database',
+    href: '/data-sources', // Image 7
   },
   {
-    key: 'workflows',
-    href: '/workflows',
-    title: 'Workflows',
-    description: '承接工作流摘要时间线与步骤明细容器。',
-    navLabel: 'Workflows',
-    icon: '↻',
-    category: 'secondary',
+    key: 'rule-library',
+    label: '规则库',
+    icon: 'BookOpen',
+    href: '/rule-library', // Image 8
   },
+  {
+    key: 'settings',
+    label: '设置',
+    icon: 'Settings',
+    children: [
+      {
+        key: 'run-console',
+        label: '运行日志',
+        href: '/run-console', // Prototype 5
+      },
+      {
+        key: 'settings-home',
+        label: '系统设置',
+        href: '/settings',
+      }
+    ]
+  }
 ]

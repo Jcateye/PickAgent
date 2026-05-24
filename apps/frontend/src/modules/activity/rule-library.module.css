@@ -1,0 +1,339 @@
+.layout {
+  display: flex;
+  height: calc(100vh - 76px);
+  background: white;
+  border-top: 1px solid var(--line);
+}
+
+.leftSidebar {
+  width: 320px;
+  background: var(--surface-soft);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.searchRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.searchInput {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.searchInput input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+}
+
+.btnAdd {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.tab {
+  color: var(--muted);
+  cursor: pointer;
+  padding-bottom: 8px;
+  position: relative;
+}
+
+.tab.active {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.ruleList {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.ruleCard {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ruleCard:hover {
+  background: rgba(36, 107, 255, 0.02);
+}
+
+.ruleCard.active {
+  background: rgba(36, 107, 255, 0.05);
+  border-left: 3px solid var(--primary);
+}
+
+.ruleTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.ruleTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.4;
+}
+
+.statusBadge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.statusActive {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.statusDraft {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.ruleMetaRow {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.ruleAuthorRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  align-items: center;
+}
+
+.versionBadge {
+  background: white;
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.pagination {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pageControls {
+  display: flex;
+  gap: 8px;
+}
+
+.pageBtn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Right Panel */
+.mainPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
+}
+
+.panelHeader {
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.headerTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.mainTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+}
+
+.headerMetaRow {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panelTabs {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.panelTab {
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+}
+
+.panelTab.active {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.panelTab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.editorContainer {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.codeArea {
+  flex: 1;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-y: auto;
+}
+
+.codeLine {
+  display: flex;
+}
+
+.lineNumber {
+  width: 40px;
+  color: #858585;
+  text-align: right;
+  padding-right: 16px;
+  user-select: none;
+}
+
+.codeContent {
+  white-space: pre;
+}
+
+.tokenKey { color: #9cdcfe; }
+.tokenString { color: #ce9178; }
+.tokenPunctuation { color: #d4d4d4; }
+.tokenNumber { color: #b5cea8; }
+
+.outlineSidebar {
+  width: 260px;
+  border-left: 1px solid var(--line);
+  background: var(--surface-soft);
+  display: flex;
+  flex-direction: column;
+}
+
+.outlineHeader {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  border-bottom: 1px solid var(--line);
+}
+
+.outlineBody {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.outlineNode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.outlineNode:hover {
+  color: var(--primary);
+}
+
+.outlineIndent {
+  margin-left: 20px;
+}

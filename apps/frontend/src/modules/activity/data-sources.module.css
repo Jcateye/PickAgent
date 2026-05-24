@@ -1,0 +1,335 @@
+.layout {
+  display: flex;
+  height: calc(100vh - 76px);
+  background: var(--surface-soft);
+}
+
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
+.pageDesc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.connectorList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.connectorCard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.connectorCard:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.connectorCard.selected {
+  border-color: var(--primary);
+  background: rgba(36, 107, 255, 0.02);
+}
+
+.connectorInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.connectorIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 20px;
+}
+
+.cChrome { background: #ea4335; } /* Placeholder for Chrome colors */
+.cErp { background: #2563eb; }
+.cApi { background: #0ea5e9; }
+.cCsv { background: #16a34a; }
+
+.connectorName {
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.statusTag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.statusActive {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.statusPaused {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.connectorMeta {
+  display: flex;
+  gap: 32px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.connectorActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recentRunsTable {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1fr 1fr 1fr 1fr;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  align-items: center;
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+.dotGreen { background: #16a34a; }
+.dotRed { background: #dc2626; }
+.dotOrange { background: #d97706; }
+
+/* Right Panel */
+.rightPanel {
+  width: 360px;
+  background: white;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.panelHeader {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.panelTitle {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.panelTabs {
+  display: flex;
+  gap: 24px;
+}
+
+.panelTab {
+  font-size: 14px;
+  color: var(--muted);
+  cursor: pointer;
+  padding-bottom: 8px;
+  position: relative;
+}
+
+.panelTab.active {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.panelTab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.panelBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.blockTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.configList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.configRow {
+  display: flex;
+  font-size: 13px;
+}
+
+.configLabel {
+  width: 100px;
+  color: var(--muted);
+}
+
+.configValue {
+  flex: 1;
+  color: var(--fg);
+}
+
+.authCards {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.authCard {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+.authVal {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.authLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.recentRunsSmall {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.runItem {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.runItem .success {
+  color: #16a34a;
+}
+
+.alertBox {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alertIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

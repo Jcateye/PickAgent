@@ -1,0 +1,195 @@
+.layout {
+  display: flex;
+  height: calc(100vh - 76px);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 280px;
+  background: white;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.runList {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.runItem {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.runItem:hover {
+  background: var(--surface-soft);
+}
+
+.runItem.active {
+  background: rgba(36, 107, 255, 0.04);
+  border-left: 3px solid var(--primary);
+}
+
+.runIdRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.runMetaRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.statusSuccess { color: var(--ready); }
+.statusFailed { color: var(--blocked); }
+.statusRunning { color: var(--primary); }
+
+.mainArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f8f9fa; /* Slightly darker than white to contrast terminal */
+}
+
+.mainHeader {
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.runTitleInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.runTitle {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.runBadges {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.badgeSuccess {
+  background: rgba(31, 157, 98, 0.1);
+  color: var(--ready);
+  border-color: rgba(31, 157, 98, 0.2);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.tabsBar {
+  display: flex;
+  background: white;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab.active {
+  color: var(--primary);
+  font-weight: 500;
+  border-bottom-color: var(--primary);
+}
+
+.terminalContainer {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.terminalBox {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 16px;
+  color: #d4d4d4;
+  font-family: 'SF Mono', Consolas, Menlo, Monaco, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-height: 100%;
+}
+
+.logLine {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.logTime {
+  color: #858585;
+  white-space: nowrap;
+}
+
+.logTag {
+  color: #569cd6; /* Blueish */
+  min-width: 60px;
+}
+
+.logTagSystem { color: #c586c0; } /* Purple */
+.logTagData { color: #4ec9b0; } /* Teal */
+.logTagPlugin { color: #dcdcaa; } /* Yellowish */
+.logTagAgent { color: #ce9178; } /* Orange/Brown */
+
+.logContent {
+  flex: 1;
+}
+
+.logSuccess { color: #b5cea8; } /* Green */
+.logError { color: #f44747; } /* Red */
+
+.jsonPayload {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 12px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+  display: inline-block;
+  color: #9cdcfe;
+  width: 100%;
+  max-width: 600px;
+}

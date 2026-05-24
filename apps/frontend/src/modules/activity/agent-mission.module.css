@@ -1,0 +1,199 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 76px);
+  background: white;
+}
+
+.missionHeader {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  z-index: 10;
+}
+
+.chatArea {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  scroll-behavior: smooth;
+}
+
+.messageRow {
+  display: flex;
+  gap: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.messageRow.user {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.avatarUser {
+  background: var(--surface-soft);
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+
+.avatarAgent {
+  background: var(--primary);
+  color: white;
+}
+
+.messageContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: calc(100% - 48px);
+}
+
+.messageBubble {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.messageRow.user .messageBubble {
+  background: var(--surface-soft);
+  color: var(--fg);
+  border-bottom-right-radius: 4px;
+}
+
+.messageRow.agent .messageBubble {
+  background: transparent;
+  color: var(--fg);
+  padding: 0;
+}
+
+.toolCallBlock {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.toolIcon {
+  color: var(--primary);
+}
+
+.toolResult {
+  font-size: 13px;
+  color: var(--ready);
+  background: rgba(31, 157, 98, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.reviewWidget {
+  border: 1px solid rgba(255, 139, 0, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 139, 0, 0.05);
+  margin-top: 12px;
+}
+
+.reviewWidgetHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 8px;
+}
+
+.reviewWidgetDesc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.inputArea {
+  padding: 24px;
+  background: white;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+
+.inputBox {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  width: 100%;
+  max-width: 800px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 16px;
+}
+
+.inputBox:focus-within {
+  border-color: var(--primary);
+}
+
+.chatTextarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  min-height: 24px;
+  max-height: 200px;
+  line-height: 1.5;
+}
+
+.sendBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.sendBtn:hover {
+  opacity: 0.9;
+}

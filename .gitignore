@@ -13,3 +13,5 @@ apps/frontend/test-results/
 .agents/
 output/playwright/
 output/.playwright-cli/
+output/*.png
+output/**/*.png

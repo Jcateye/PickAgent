@@ -2,11 +2,25 @@
 
 import { usePathname } from 'next/navigation'
 
-import { appPages } from '@/shared/config/app-pages'
+import { appMenus } from '@/shared/config/app-pages'
 
 export function Topbar() {
   const pathname = usePathname()
-  const currentPage = appPages.find((page) => page.href === pathname)
+  
+  let currentTitle = '主控台'
+  for (const menu of appMenus) {
+    if (menu.href === pathname) {
+      currentTitle = menu.label
+      break
+    }
+    if (menu.children) {
+      const child = menu.children.find(c => c.href === pathname)
+      if (child) {
+        currentTitle = child.label
+        break
+      }
+    }
+  }
 
   return (
     <header className="topbar">
@@ -27,7 +41,7 @@ export function Topbar() {
           证据链侧栏
         </button>
         <button className="primaryButton" type="button" disabled>
-          {currentPage?.title ?? '主控台'}
+          {currentTitle}
         </button>
       </div>
     </header>

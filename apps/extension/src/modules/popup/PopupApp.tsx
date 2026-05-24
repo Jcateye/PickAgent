@@ -1,69 +1,74 @@
-import { popupData } from "../../shared/data/plugin-ui"
-import { KeyFactCard } from "../../shared/ui/KeyFactCard"
-import { SecurityNote } from "../../shared/ui/SecurityNote"
-import { StatusBadge } from "../../shared/ui/StatusBadge"
+import { Plug, FileText, Download, CheckCircle2, RefreshCw } from 'lucide-react'
+import styles from './popup.module.css'
 
 export function PopupApp() {
   return (
-    <div className="plugin-root popup-root">
-      <section className="popup-card">
-        <header className="popup-card__top">
-          <div className="popup-card__brand">
-            <div className="popup-card__brand-left">
-              <div className="logo-badge">SR</div>
-              <div>
-                <h1 className="popup-card__title">SKU Ready Agent</h1>
-                <p className="popup-card__subtitle">浏览器插件 · 当前页面就绪</p>
-              </div>
-            </div>
-            <span className="dark-pill">已连接</span>
+    <div className={styles.layout}>
+      <div className={styles.pluginContainer}>
+        <div className={styles.pluginHeader}>
+          <div className={styles.pluginTitle}>
+            <Plug size={18} />
+            SKU Ready 采集器
           </div>
-          <div className="popup-card__mini-grid">
-            <div className="popup-card__mini-panel">
-              <div className="popup-card__mini-label">平台识别</div>
-              <div className="popup-card__mini-value">{popupData.platform}</div>
-            </div>
-            <div className="popup-card__mini-panel">
-              <div className="popup-card__mini-label">店铺</div>
-              <div className="popup-card__mini-value">{popupData.store}</div>
-            </div>
+          <div className={styles.statusIndicator}>
+            <div className={styles.statusDot}></div>
+            已连接到 Console
           </div>
-        </header>
-
-        <div className="popup-card__body">
-          <div className="popup-status-card">
-            <div className="popup-status-card__row">
-              <div className="popup-status-card__status-line">
-                <StatusBadge tone={popupData.pageStatusTone}>{popupData.pageStatusLabel}</StatusBadge>
-                <strong className="popup-status-card__headline">{popupData.pageStatusText}</strong>
-              </div>
-              <span className="muted-text">{popupData.confidence}</span>
-            </div>
-
-            <div className="info-grid info-grid--two">
-              {popupData.keyFacts.map((item) => (
-                <KeyFactCard key={item.label} label={item.label} value={item.value} />
-              ))}
-            </div>
-
-            <SecurityNote title={popupData.securityTitle} text={popupData.securityText} />
-
-            <div className="popup-card__actions">
-              <button className="primary-button" type="button">
-                {popupData.primaryAction}
-              </button>
-              <button className="secondary-button" type="button">
-                {popupData.secondaryAction}
-              </button>
-            </div>
-          </div>
-
-          <footer className="popup-card__footer">
-            <span>{popupData.recentRunLabel}</span>
-            <span>{popupData.version}</span>
-          </footer>
         </div>
-      </section>
+
+        <div className={styles.pluginBody}>
+          
+          <div className={styles.infoBlock}>
+            <div className={styles.infoLabel}>当前页面环境</div>
+            <div className={styles.infoValue}>生意参谋 - 商品分析 (List页)</div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>匹配到采集任务 (1)</div>
+            <div className={styles.infoBlock} style={{ background: 'white', borderColor: 'var(--primary)' }}>
+              <div className={styles.taskItem}>
+                <FileText size={16} color="var(--primary)" style={{ marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--primary)' }}>#task_99120</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)' }}>天猫618大促补充数据 (目标: 1258条)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button className={styles.collectBtn}>
+            <Download size={16} /> 开始采集本页数据 (100 / 1258)
+          </button>
+
+          <div className={styles.mappingBox}>
+            <div className={styles.mappingHeader}>数据映射状态</div>
+            <div className={styles.mappingList}>
+              <div className={styles.mappingItem}>
+                <span>近30天实付销量</span>
+                <span className={styles.mappedKey}><CheckCircle2 size={14} /> pay_ord_itm_cnt</span>
+              </div>
+              <div className={styles.mappingItem}>
+                <span>近30天好评率</span>
+                <span className={styles.mappedKey}><CheckCircle2 size={14} /> good_review_rate</span>
+              </div>
+              <div className={styles.mappingItem}>
+                <span>同品牌活动报名记录</span>
+                <span style={{ color: 'var(--muted)' }}>当前页面未提供</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.syncStatus}>
+            <RefreshCw size={14} className="animate-spin" />
+            正在推送 100 条数据至 Agent...
+          </div>
+
+        </div>
+
+        <div className={styles.pluginFooter}>
+          <button className="secondaryButton" style={{ width: '100%', height: '32px' }}>断开连接</button>
+        </div>
+      </div>
     </div>
   )
 }

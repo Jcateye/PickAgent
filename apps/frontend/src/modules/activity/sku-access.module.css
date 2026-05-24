@@ -1,0 +1,312 @@
+.layout {
+  display: flex;
+  height: calc(100vh - 76px); /* minus topbar */
+  overflow: hidden;
+}
+
+.mainArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.sidePanel {
+  width: 400px;
+  background: white;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.03);
+}
+
+.filterBar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.filterItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.filterSelect {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 13px;
+  background: white;
+  color: var(--fg);
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: white;
+  gap: 8px;
+  flex: 1;
+  max-width: 280px;
+}
+
+.searchBox input {
+  border: none;
+  outline: none;
+  font-size: 13px;
+  width: 100%;
+}
+
+.summaryCards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.summaryCard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.summaryCard.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cardHeader .iconReady { color: var(--ready); }
+.cardHeader .iconRepair { color: #d4a017; } /* using gold for repairable */
+.cardHeader .iconReview { color: #ff8b00; } /* orange for manual review */
+.cardHeader .iconBlocked { color: var(--blocked); }
+
+.cardValue {
+  font-size: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cardPct {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.tableToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.tableToolbarLeft {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.tableToolbarRight {
+  display: flex;
+  gap: 8px;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.dataTable th {
+  color: var(--muted);
+  font-weight: 500;
+  background: var(--surface-soft);
+}
+
+.rowActive {
+  background: rgba(36, 107, 255, 0.04);
+}
+
+.productCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.productName {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.productDesc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tagReady { color: var(--ready); border: 1px solid rgba(31, 157, 98, 0.2); background: rgba(31, 157, 98, 0.05); padding: 2px 8px; border-radius: 4px; }
+.tagRepair { color: #d4a017; border: 1px solid rgba(212, 160, 23, 0.2); background: rgba(212, 160, 23, 0.05); padding: 2px 8px; border-radius: 4px; }
+.tagReview { color: #ff8b00; border: 1px solid rgba(255, 139, 0, 0.2); background: rgba(255, 139, 0, 0.05); padding: 2px 8px; border-radius: 4px; }
+.tagBlocked { color: var(--blocked); border: 1px solid rgba(214, 69, 69, 0.2); background: rgba(214, 69, 69, 0.05); padding: 2px 8px; border-radius: 4px; }
+
+/* Drawer Styles */
+.drawerHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drawerTitle {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.drawerProductInfo {
+  padding: 20px;
+  display: flex;
+  gap: 16px;
+}
+
+.productImg {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.productImgPlaceholder {
+  width: 40px;
+  height: 40px;
+  background: #333;
+  border-radius: 4px;
+}
+
+.productMeta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.drawerTabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  padding: 0 20px;
+}
+
+.drawerTab {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.drawerTab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 500;
+}
+
+.drawerContent {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+  background: var(--surface-soft);
+}
+
+.drawerPanel {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.drawerPanelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.drawerStatRow {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.drawerStatLabel {
+  color: var(--muted);
+}
+
+.drawerStatValue {
+  color: var(--fg);
+}
+
+.drawerEvidenceList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drawerEvidenceItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.drawerFooter {
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+}
+
+.drawerFooter button {
+  flex: 1;
+}
