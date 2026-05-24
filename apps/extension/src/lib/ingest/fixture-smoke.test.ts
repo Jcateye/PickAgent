@@ -220,6 +220,42 @@ assert.equal(foundationPayload.rows[0]?.storeId, "fxg.jinritemai.com")
 assert.equal(foundationPayload.rows[0]?.stock, payload.rows[0]?.availableStock ?? undefined)
 assert.equal(foundationPayload.rows[0]?.raw.extensionRunId, payload.runId)
 
+const domMetricsPayload = toFoundationIngestPayload({
+  ...payload,
+  sourceUrl: "https://fxg.jinritemai.com/ffa/g/list",
+  rows: [
+    {
+      sourceKind: "product",
+      rowIndex: 0,
+      externalProductId: "381838388858177978472",
+      externalSkuId: "381838388858177978472",
+      title: "韩版夏季短袖上衣",
+      salePrice: 59.9,
+      availableStock: 20000,
+      category: null,
+      listingStatus: "优秀 / 售卖中",
+      activityLabels: ["现货模式"],
+      updatedAt: "2026/05/16 01:51:26",
+      sourceUrl: "https://fxg.jinritemai.com/ffa/g/list",
+      raw: {
+        source: "current-page-dom",
+        productId: "381838388858177978472",
+        domMetrics: {
+          salesCount: 0,
+          positiveRate: 1,
+          qualityLabel: "优秀",
+          qualityScore: 85,
+          listedAt: "2026/05/16 01:51:26"
+        }
+      },
+      warnings: []
+    }
+  ]
+})
+assert.equal(domMetricsPayload.rows[0]?.sales30d, 0)
+assert.equal(domMetricsPayload.rows[0]?.positiveRate, 1)
+assert.equal((domMetricsPayload.rows[0]?.raw.domMetrics as Record<string, unknown>).qualityScore, 85)
+
 await submitToRealIngestApi(payload, {
   endpoint: "https://pickagent.local/api/ingest",
   fetcher: async (_input, init) => {
