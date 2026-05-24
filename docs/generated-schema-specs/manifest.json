@@ -1,5 +1,12 @@
 [
   {
+    "model": "Activity",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "activities",
+    "spec": "docs/generated-schema-specs/backend/Activity.schema.json"
+  },
+  {
     "model": "ActivityRuleSet",
     "module": "backend",
     "modulePath": "apps/backend",
@@ -91,6 +98,13 @@
     "spec": "docs/generated-schema-specs/backend/Connector.schema.json"
   },
   {
+    "model": "ConnectorRun",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "connector_runs",
+    "spec": "docs/generated-schema-specs/backend/ConnectorRun.schema.json"
+  },
+  {
     "model": "CurrentSkuProjection",
     "module": "backend",
     "modulePath": "apps/backend",
@@ -98,11 +112,32 @@
     "spec": "docs/generated-schema-specs/backend/CurrentSkuProjection.schema.json"
   },
   {
+    "model": "Report",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "reports",
+    "spec": "docs/generated-schema-specs/backend/Report.schema.json"
+  },
+  {
+    "model": "ReportVersion",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "report_versions",
+    "spec": "docs/generated-schema-specs/backend/ReportVersion.schema.json"
+  },
+  {
     "model": "ReviewItem",
     "module": "backend",
     "modulePath": "apps/backend",
     "table": "review_items",
     "spec": "docs/generated-schema-specs/backend/ReviewItem.schema.json"
+  },
+  {
+    "model": "RuleSetVersion",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "rule_set_versions",
+    "spec": "docs/generated-schema-specs/backend/RuleSetVersion.schema.json"
   },
   {
     "model": "SkuHealthDiagnosis",
@@ -138,5 +173,12 @@
     "modulePath": "apps/backend",
     "table": "workflow_steps",
     "spec": "docs/generated-schema-specs/backend/WorkflowStep.schema.json"
+  },
+  {
+    "model": "WorkspaceSetting",
+    "module": "backend",
+    "modulePath": "apps/backend",
+    "table": "workspace_settings",
+    "spec": "docs/generated-schema-specs/backend/WorkspaceSetting.schema.json"
   }
 ]

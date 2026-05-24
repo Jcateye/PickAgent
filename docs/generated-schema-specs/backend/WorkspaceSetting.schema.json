@@ -1,0 +1,96 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "WorkspaceSetting",
+  "resource": {
+    "name": "workspaceSetting",
+    "plural": "workspace-settings",
+    "tag": "WorkspaceSetting"
+  },
+  "table": {
+    "name": "workspace_settings",
+    "comment": "工作区设置表，保存数据 freshness、Review SLA、工具策略等 P0 配置"
+  },
+  "api": {
+    "basePath": "/api/v1/workspace-settings"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "namespace",
+      "dbType": "varchar(64)",
+      "comment": "设置命名空间",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "setting_key",
+      "dbType": "varchar(96)",
+      "comment": "设置键",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "setting_json",
+      "dbType": "jsonb",
+      "comment": "设置值 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "设置状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "updated_by",
+      "dbType": "varchar(128)",
+      "comment": "更新人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

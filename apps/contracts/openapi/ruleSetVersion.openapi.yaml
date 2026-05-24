@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "RuleSetVersion API"
+  version: "1.0.0"
+  description: "规则库版本表，保存规则集历史版本、Rule DSL 快照和发布状态"
+tags:
+  - name: "RuleSetVersion"
+    description: "规则库版本表，保存规则集历史版本、Rule DSL 快照和发布状态"
+paths:
+  /api/v1/rule-set-versions:
+    get:
+      tags: ["RuleSetVersion"]
+      summary: "查询RuleSetVersion列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["RuleSetVersion"]
+      summary: "创建RuleSetVersion"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/rule-set-versions/{id}:
+    get:
+      tags: ["RuleSetVersion"]
+      summary: "查询RuleSetVersion详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["RuleSetVersion"]
+      summary: "更新RuleSetVersion"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["RuleSetVersion"]
+      summary: "删除RuleSetVersion"
+      responses:
+        '204':
+          description: "删除成功"

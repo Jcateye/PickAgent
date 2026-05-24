@@ -1,0 +1,146 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "Report",
+  "resource": {
+    "name": "report",
+    "plural": "reports",
+    "tag": "Report"
+  },
+  "table": {
+    "name": "reports",
+    "comment": "报告中心主对象表，保存报告列表、来源对象、导出状态和最新版本"
+  },
+  "api": {
+    "basePath": "/api/v1/reports"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "title",
+      "dbType": "varchar(180)",
+      "comment": "报告标题",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "report_type",
+      "dbType": "varchar(64)",
+      "comment": "报告类型",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "报告状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "activity_id",
+      "dbType": "uuid",
+      "comment": "活动 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "workflow_run_id",
+      "dbType": "uuid",
+      "comment": "工作流运行 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "simulation_run_id",
+      "dbType": "uuid",
+      "comment": "活动模拟运行 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "latest_version_id",
+      "dbType": "uuid",
+      "comment": "最新版本 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "export_status",
+      "dbType": "varchar(32)",
+      "comment": "导出状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "subscription_json",
+      "dbType": "jsonb",
+      "comment": "订阅配置 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "summary_json",
+      "dbType": "jsonb",
+      "comment": "报告摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

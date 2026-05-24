@@ -1,0 +1,128 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ConnectorRun",
+  "resource": {
+    "name": "connectorRun",
+    "plural": "connector-runs",
+    "tag": "ConnectorRun"
+  },
+  "table": {
+    "name": "connector_runs",
+    "comment": "数据源采集运行表，记录连接器最近采集运行、行数、质量分、告警和 Workflow 引用"
+  },
+  "api": {
+    "basePath": "/api/v1/connector-runs"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "connector_id",
+      "dbType": "uuid",
+      "comment": "连接器 ID",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "workflow_run_id",
+      "dbType": "uuid",
+      "comment": "关联工作流运行 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "运行状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "row_count",
+      "dbType": "integer",
+      "comment": "采集行数",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "sortable": true
+    },
+    {
+      "name": "quality_score",
+      "dbType": "integer",
+      "comment": "数据质量分，0 到 100",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "warnings_json",
+      "dbType": "jsonb",
+      "comment": "告警 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "summary_json",
+      "dbType": "jsonb",
+      "comment": "运行摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "started_at",
+      "dbType": "timestamptz",
+      "comment": "开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "completed_at",
+      "dbType": "timestamptz",
+      "comment": "完成时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

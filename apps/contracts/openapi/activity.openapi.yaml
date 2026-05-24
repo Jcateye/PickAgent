@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "Activity API"
+  version: "1.0.0"
+  description: "活动主对象表，承载活动名称、范围、状态、时间窗、当前规则集和最新运行引用"
+tags:
+  - name: "Activity"
+    description: "活动主对象表，承载活动名称、范围、状态、时间窗、当前规则集和最新运行引用"
+paths:
+  /api/v1/activities:
+    get:
+      tags: ["Activity"]
+      summary: "查询Activity列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["Activity"]
+      summary: "创建Activity"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/activities/{id}:
+    get:
+      tags: ["Activity"]
+      summary: "查询Activity详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["Activity"]
+      summary: "更新Activity"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["Activity"]
+      summary: "删除Activity"
+      responses:
+        '204':
+          description: "删除成功"

@@ -1,0 +1,118 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "RuleSetVersion",
+  "resource": {
+    "name": "ruleSetVersion",
+    "plural": "rule-set-versions",
+    "tag": "RuleSetVersion"
+  },
+  "table": {
+    "name": "rule_set_versions",
+    "comment": "规则库版本表，保存规则集历史版本、Rule DSL 快照和发布状态"
+  },
+  "api": {
+    "basePath": "/api/v1/rule-set-versions"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "rule_set_id",
+      "dbType": "uuid",
+      "comment": "活动规则集 ID",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "version",
+      "dbType": "integer",
+      "comment": "版本号",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "版本状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "source_text",
+      "dbType": "text",
+      "comment": "规则原文快照",
+      "nullable": false,
+      "writable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "rules_json",
+      "dbType": "jsonb",
+      "comment": "Canonical Rule DSL JSON 快照",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "required_fields_json",
+      "dbType": "jsonb",
+      "comment": "必需字段 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "confirmations_json",
+      "dbType": "jsonb",
+      "comment": "人工确认项 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "metadata_json",
+      "dbType": "jsonb",
+      "comment": "版本元数据 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

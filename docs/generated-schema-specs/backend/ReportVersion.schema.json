@@ -1,0 +1,102 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "ReportVersion",
+  "resource": {
+    "name": "reportVersion",
+    "plural": "report-versions",
+    "tag": "ReportVersion"
+  },
+  "table": {
+    "name": "report_versions",
+    "comment": "报告版本表，保存报告章节、证据快照和导出产物引用"
+  },
+  "api": {
+    "basePath": "/api/v1/report-versions"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "report_id",
+      "dbType": "uuid",
+      "comment": "报告 ID",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "version",
+      "dbType": "integer",
+      "comment": "版本号",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "版本状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "sections_json",
+      "dbType": "jsonb",
+      "comment": "报告章节 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_refs_json",
+      "dbType": "jsonb",
+      "comment": "证据引用 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "export_artifacts_json",
+      "dbType": "jsonb",
+      "comment": "导出产物 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

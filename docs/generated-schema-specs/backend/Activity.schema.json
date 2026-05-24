@@ -1,0 +1,153 @@
+{
+  "stack": "typescript",
+  "module": "business_sku_ready",
+  "modulePath": "apps/backend",
+  "entity": "Activity",
+  "resource": {
+    "name": "activity",
+    "plural": "activities",
+    "tag": "Activity"
+  },
+  "table": {
+    "name": "activities",
+    "comment": "活动主对象表，承载活动名称、范围、状态、时间窗、当前规则集和最新运行引用"
+  },
+  "api": {
+    "basePath": "/api/v1/activities"
+  },
+  "columns": [
+    {
+      "name": "id",
+      "dbType": "uuid",
+      "comment": "主键",
+      "nullable": false,
+      "writable": false,
+      "primaryKey": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "name",
+      "dbType": "varchar(160)",
+      "comment": "活动名称",
+      "nullable": false,
+      "writable": true,
+      "filterable": true,
+      "sortable": true,
+      "requiredOnCreate": true
+    },
+    {
+      "name": "platform",
+      "dbType": "varchar(64)",
+      "comment": "电商平台标识",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "status",
+      "dbType": "varchar(32)",
+      "comment": "活动状态",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "scope_json",
+      "dbType": "jsonb",
+      "comment": "活动范围 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "current_rule_set_id",
+      "dbType": "uuid",
+      "comment": "当前规则集 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "latest_workflow_run_id",
+      "dbType": "uuid",
+      "comment": "最新工作流运行 ID",
+      "nullable": true,
+      "writable": true,
+      "filterable": true
+    },
+    {
+      "name": "starts_at",
+      "dbType": "timestamptz",
+      "comment": "活动开始时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "ends_at",
+      "dbType": "timestamptz",
+      "comment": "活动结束时间",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "summary_json",
+      "dbType": "jsonb",
+      "comment": "活动摘要 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "pending_questions_json",
+      "dbType": "jsonb",
+      "comment": "待确认项 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "evidence_refs_json",
+      "dbType": "jsonb",
+      "comment": "证据引用 JSON",
+      "nullable": false,
+      "writable": true,
+      "hasDefault": true
+    },
+    {
+      "name": "created_by",
+      "dbType": "varchar(128)",
+      "comment": "创建人",
+      "nullable": true,
+      "writable": true,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "created_at",
+      "dbType": "timestamptz",
+      "comment": "创建时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    },
+    {
+      "name": "updated_at",
+      "dbType": "timestamptz",
+      "comment": "更新时间",
+      "nullable": false,
+      "writable": false,
+      "hasDefault": true,
+      "sortable": true
+    }
+  ]
+}

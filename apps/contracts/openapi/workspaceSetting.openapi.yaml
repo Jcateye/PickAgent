@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "WorkspaceSetting API"
+  version: "1.0.0"
+  description: "工作区设置表，保存数据 freshness、Review SLA、工具策略等 P0 配置"
+tags:
+  - name: "WorkspaceSetting"
+    description: "工作区设置表，保存数据 freshness、Review SLA、工具策略等 P0 配置"
+paths:
+  /api/v1/workspace-settings:
+    get:
+      tags: ["WorkspaceSetting"]
+      summary: "查询WorkspaceSetting列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["WorkspaceSetting"]
+      summary: "创建WorkspaceSetting"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/workspace-settings/{id}:
+    get:
+      tags: ["WorkspaceSetting"]
+      summary: "查询WorkspaceSetting详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["WorkspaceSetting"]
+      summary: "更新WorkspaceSetting"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["WorkspaceSetting"]
+      summary: "删除WorkspaceSetting"
+      responses:
+        '204':
+          description: "删除成功"

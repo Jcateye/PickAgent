@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "ReportVersion API"
+  version: "1.0.0"
+  description: "报告版本表，保存报告章节、证据快照和导出产物引用"
+tags:
+  - name: "ReportVersion"
+    description: "报告版本表，保存报告章节、证据快照和导出产物引用"
+paths:
+  /api/v1/report-versions:
+    get:
+      tags: ["ReportVersion"]
+      summary: "查询ReportVersion列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["ReportVersion"]
+      summary: "创建ReportVersion"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/report-versions/{id}:
+    get:
+      tags: ["ReportVersion"]
+      summary: "查询ReportVersion详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["ReportVersion"]
+      summary: "更新ReportVersion"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["ReportVersion"]
+      summary: "删除ReportVersion"
+      responses:
+        '204':
+          description: "删除成功"

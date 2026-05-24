@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "ConnectorRun API"
+  version: "1.0.0"
+  description: "数据源采集运行表，记录连接器最近采集运行、行数、质量分、告警和 Workflow 引用"
+tags:
+  - name: "ConnectorRun"
+    description: "数据源采集运行表，记录连接器最近采集运行、行数、质量分、告警和 Workflow 引用"
+paths:
+  /api/v1/connector-runs:
+    get:
+      tags: ["ConnectorRun"]
+      summary: "查询ConnectorRun列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["ConnectorRun"]
+      summary: "创建ConnectorRun"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/connector-runs/{id}:
+    get:
+      tags: ["ConnectorRun"]
+      summary: "查询ConnectorRun详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["ConnectorRun"]
+      summary: "更新ConnectorRun"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["ConnectorRun"]
+      summary: "删除ConnectorRun"
+      responses:
+        '204':
+          description: "删除成功"

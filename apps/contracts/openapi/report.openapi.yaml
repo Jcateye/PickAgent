@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: "Report API"
+  version: "1.0.0"
+  description: "报告中心主对象表，保存报告列表、来源对象、导出状态和最新版本"
+tags:
+  - name: "Report"
+    description: "报告中心主对象表，保存报告列表、来源对象、导出状态和最新版本"
+paths:
+  /api/v1/reports:
+    get:
+      tags: ["Report"]
+      summary: "查询Report列表"
+      responses:
+        '200':
+          description: "查询成功"
+    post:
+      tags: ["Report"]
+      summary: "创建Report"
+      responses:
+        '200':
+          description: "创建成功"
+  /api/v1/reports/{id}:
+    get:
+      tags: ["Report"]
+      summary: "查询Report详情"
+      responses:
+        '200':
+          description: "查询成功"
+    patch:
+      tags: ["Report"]
+      summary: "更新Report"
+      responses:
+        '200':
+          description: "更新成功"
+    delete:
+      tags: ["Report"]
+      summary: "删除Report"
+      responses:
+        '204':
+          description: "删除成功"

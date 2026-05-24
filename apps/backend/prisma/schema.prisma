@@ -138,24 +138,25 @@ enum AgentReviewGateStatus {
 /// 数据连接器，记录插件、平台 API、报表导入等采集来源。
 model Connector {
   /// 主键。
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// 连接器编码。
-  code         String        @unique @db.VarChar(64)
+  code         String         @unique @db.VarChar(64)
   /// 连接器名称。
-  name         String        @db.VarChar(128)
+  name         String         @db.VarChar(128)
   /// 连接器类型。
-  kind         String        @db.VarChar(32)
+  kind         String         @db.VarChar(32)
   /// 电商平台标识。
-  platform     String?       @db.VarChar(64)
+  platform     String?        @db.VarChar(64)
   /// 连接器配置 JSON。
-  configJson   Json          @default("{}") @map("config_json") @db.JsonB
+  configJson   Json           @default("{}") @map("config_json") @db.JsonB
   /// 连接器状态。
-  status       String        @default("active") @db.VarChar(32)
+  status       String         @default("active") @db.VarChar(32)
   /// 创建时间。
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   skuSnapshots SkuSnapshot[]
+  runs         ConnectorRun[]
 
   @@map("connectors")
 }
@@ -198,49 +199,49 @@ model SkuProfile {
 /// 某次采集得到的 SKU 事实快照。
 model SkuSnapshot {
   /// 主键。
-  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                      String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// SKU 档案 ID。
-  skuProfileId             String                     @map("sku_profile_id") @db.Uuid
+  skuProfileId            String                     @map("sku_profile_id") @db.Uuid
   /// 连接器 ID。
-  connectorId              String?                    @map("connector_id") @db.Uuid
+  connectorId             String?                    @map("connector_id") @db.Uuid
   /// 来源页面 URL。
-  sourceUrl                String?                    @map("source_url") @db.Text
+  sourceUrl               String?                    @map("source_url") @db.Text
   /// 来源行号。
-  rowIndex                 Int?                       @map("row_index")
+  rowIndex                Int?                       @map("row_index")
   /// 采集时间。
-  collectedAt              DateTime                   @default(now()) @map("collected_at") @db.Timestamptz(6)
+  collectedAt             DateTime                   @default(now()) @map("collected_at") @db.Timestamptz(6)
   /// 商品名称快照。
-  productName              String?                    @map("product_name") @db.VarChar(256)
+  productName             String?                    @map("product_name") @db.VarChar(256)
   /// 商品类目快照。
-  category                 String?                    @db.VarChar(128)
+  category                String?                    @db.VarChar(128)
   /// 近 30 天销量。
-  sales30d                 Int?                       @map("sales30d")
+  sales30d                Int?                       @map("sales30d")
   /// 好评率，取值范围 0 到 1。
-  positiveRate             Decimal?                   @map("positive_rate") @db.Decimal(5, 4)
+  positiveRate            Decimal?                   @map("positive_rate") @db.Decimal(5, 4)
   /// 可售库存。
-  stock                    Int?
+  stock                   Int?
   /// 原价。
-  originalPrice            Decimal?                   @map("original_price") @db.Decimal(12, 2)
+  originalPrice           Decimal?                   @map("original_price") @db.Decimal(12, 2)
   /// 近 30 天最低价。
-  lowestPrice30d           Decimal?                   @map("lowest_price_30d") @db.Decimal(12, 2)
+  lowestPrice30d          Decimal?                   @map("lowest_price_30d") @db.Decimal(12, 2)
   /// 活动价。
-  campaignPrice            Decimal?                   @map("campaign_price") @db.Decimal(12, 2)
+  campaignPrice           Decimal?                   @map("campaign_price") @db.Decimal(12, 2)
   /// 是否已参加品牌日等互斥活动。
-  joinedBrandDay           Boolean?                   @map("joined_brand_day")
+  joinedBrandDay          Boolean?                   @map("joined_brand_day")
   /// 证书状态。
-  certificateStatus        String?                    @map("certificate_status") @db.VarChar(64)
+  certificateStatus       String?                    @map("certificate_status") @db.VarChar(64)
   /// 原始采集数据。
-  rawJson                  Json                       @default("{}") @map("raw_json") @db.JsonB
+  rawJson                 Json                       @default("{}") @map("raw_json") @db.JsonB
   /// 标准化后的字段数据。
-  normalizedJson           Json                       @default("{}") @map("normalized_json") @db.JsonB
+  normalizedJson          Json                       @default("{}") @map("normalized_json") @db.JsonB
   /// 创建时间。
-  createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  skuProfile               SkuProfile                 @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
-  connector                Connector?                 @relation(fields: [connectorId], references: [id], onDelete: SetNull)
-  diagnoses                SkuHealthDiagnosis[]
-  currentAsLatestSnapshot  CurrentSkuProjection[]     @relation("CurrentLatestSnapshot")
-  simulationResults        ActivitySimulationResult[]
-  reviewItems              ReviewItem[]
+  createdAt               DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  skuProfile              SkuProfile                 @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
+  connector               Connector?                 @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+  diagnoses               SkuHealthDiagnosis[]
+  currentAsLatestSnapshot CurrentSkuProjection[]     @relation("CurrentLatestSnapshot")
+  simulationResults       ActivitySimulationResult[]
+  reviewItems             ReviewItem[]
 
   @@index([skuProfileId, collectedAt], map: "sku_snapshots_profile_collected_idx")
   @@index([connectorId, collectedAt], map: "sku_snapshots_connector_collected_idx")
@@ -250,32 +251,32 @@ model SkuSnapshot {
 /// SKU 日常健康诊断结论。
 model SkuHealthDiagnosis {
   /// 主键。
-  id                         String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// SKU 档案 ID。
-  skuProfileId               String                     @map("sku_profile_id") @db.Uuid
+  skuProfileId             String                     @map("sku_profile_id") @db.Uuid
   /// 关联采集快照 ID。
-  snapshotId                 String?                    @map("snapshot_id") @db.Uuid
+  snapshotId               String?                    @map("snapshot_id") @db.Uuid
   /// 长期健康状态。
-  healthStatus               HealthStatus               @map("health_status")
+  healthStatus             HealthStatus               @map("health_status")
   /// 健康分，0 到 100。
-  healthScore                Int                        @map("health_score")
+  healthScore              Int                        @map("health_score")
   /// 数据质量分，0 到 100。
-  dataQualityScore           Int                        @map("data_quality_score")
+  dataQualityScore         Int                        @map("data_quality_score")
   /// 问题列表 JSON。
-  issuesJson                 Json                       @default("[]") @map("issues_json") @db.JsonB
+  issuesJson               Json                       @default("[]") @map("issues_json") @db.JsonB
   /// 下一步动作 JSON。
-  nextActionsJson            Json                       @default("[]") @map("next_actions_json") @db.JsonB
+  nextActionsJson          Json                       @default("[]") @map("next_actions_json") @db.JsonB
   /// 证据链 JSON。
-  evidenceJson               Json                       @default("[]") @map("evidence_json") @db.JsonB
+  evidenceJson             Json                       @default("[]") @map("evidence_json") @db.JsonB
   /// 诊断时间。
-  diagnosedAt                DateTime                   @default(now()) @map("diagnosed_at") @db.Timestamptz(6)
+  diagnosedAt              DateTime                   @default(now()) @map("diagnosed_at") @db.Timestamptz(6)
   /// 创建时间。
-  createdAt                  DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  skuProfile                 SkuProfile                 @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
-  snapshot                   SkuSnapshot?               @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
-  currentAsLatestDiagnosis   CurrentSkuProjection[]     @relation("CurrentLatestDiagnosis")
-  simulationResults          ActivitySimulationResult[]
-  reviewItems                ReviewItem[]
+  createdAt                DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  skuProfile               SkuProfile                 @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
+  snapshot                 SkuSnapshot?               @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  currentAsLatestDiagnosis CurrentSkuProjection[]     @relation("CurrentLatestDiagnosis")
+  simulationResults        ActivitySimulationResult[]
+  reviewItems              ReviewItem[]
 
   @@index([skuProfileId, diagnosedAt], map: "sku_health_diagnoses_profile_diagnosed_idx")
   @@map("sku_health_diagnoses")
@@ -284,25 +285,25 @@ model SkuHealthDiagnosis {
 /// SKU 当前状态读模型，供 Dashboard、SKU List、Chat summary 和 Report summary 查询。
 model CurrentSkuProjection {
   /// SKU 档案 ID，同时作为主键。
-  skuProfileId      String             @id @map("sku_profile_id") @db.Uuid
+  skuProfileId      String              @id @map("sku_profile_id") @db.Uuid
   /// 最新采集快照 ID。
-  latestSnapshotId  String?            @map("latest_snapshot_id") @db.Uuid
+  latestSnapshotId  String?             @map("latest_snapshot_id") @db.Uuid
   /// 最新健康诊断 ID。
-  latestDiagnosisId String?            @map("latest_diagnosis_id") @db.Uuid
+  latestDiagnosisId String?             @map("latest_diagnosis_id") @db.Uuid
   /// 当前长期健康状态。
-  healthStatus      HealthStatus       @map("health_status")
+  healthStatus      HealthStatus        @map("health_status")
   /// 当前健康分，0 到 100。
-  healthScore       Int                @map("health_score")
+  healthScore       Int                 @map("health_score")
   /// 当前数据质量分，0 到 100。
-  dataQualityScore  Int                @map("data_quality_score")
+  dataQualityScore  Int                 @map("data_quality_score")
   /// 顶部问题摘要 JSON。
-  topIssuesJson     Json               @default("[]") @map("top_issues_json") @db.JsonB
+  topIssuesJson     Json                @default("[]") @map("top_issues_json") @db.JsonB
   /// 创建时间。
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  skuProfile        SkuProfile         @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
-  latestSnapshot    SkuSnapshot?       @relation("CurrentLatestSnapshot", fields: [latestSnapshotId], references: [id], onDelete: SetNull)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  skuProfile        SkuProfile          @relation(fields: [skuProfileId], references: [id], onDelete: Cascade)
+  latestSnapshot    SkuSnapshot?        @relation("CurrentLatestSnapshot", fields: [latestSnapshotId], references: [id], onDelete: SetNull)
   latestDiagnosis   SkuHealthDiagnosis? @relation("CurrentLatestDiagnosis", fields: [latestDiagnosisId], references: [id], onDelete: SetNull)
 
   @@index([healthStatus, dataQualityScore], map: "current_sku_projections_health_dq_idx")
@@ -312,35 +313,144 @@ model CurrentSkuProjection {
 /// 活动规则集，保存规则原文、Rule DSL 和解析元数据。
 model ActivityRuleSet {
   /// 主键。
-  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// 活动规则集名称。
-  name               String                     @db.VarChar(160)
+  name              String                     @db.VarChar(160)
   /// 适用平台。
-  platform           String?                    @db.VarChar(64)
+  platform          String?                    @db.VarChar(64)
   /// 规则原文。
-  sourceText         String                     @map("source_text") @db.Text
+  sourceText        String                     @map("source_text") @db.Text
   /// Canonical Rule DSL JSON。
-  rulesJson          Json                       @default("[]") @map("rules_json") @db.JsonB
+  rulesJson         Json                       @default("[]") @map("rules_json") @db.JsonB
   /// 规则解析模型。
-  parseModel         String?                    @map("parse_model") @db.VarChar(128)
+  parseModel        String?                    @map("parse_model") @db.VarChar(128)
   /// 规则解析置信度，取值范围 0 到 1。
-  parseConfidence    Decimal?                   @map("parse_confidence") @db.Decimal(5, 4)
+  parseConfidence   Decimal?                   @map("parse_confidence") @db.Decimal(5, 4)
   /// 规则解析状态。
-  parseStatus        String                     @default("parsed") @map("parse_status") @db.VarChar(32)
+  parseStatus       String                     @default("parsed") @map("parse_status") @db.VarChar(32)
   /// 规则解析元数据 JSON。
-  parseMetadataJson  Json                       @default("{}") @map("parse_metadata_json") @db.JsonB
+  parseMetadataJson Json                       @default("{}") @map("parse_metadata_json") @db.JsonB
   /// 创建人。
-  createdBy          String?                    @map("created_by") @db.VarChar(128)
+  createdBy         String?                    @map("created_by") @db.VarChar(128)
   /// 创建时间。
-  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt          DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  simulationRuns     ActivitySimulationRun[]
-  simulationResults  ActivitySimulationResult[]
-  reviewItems        ReviewItem[]
+  updatedAt         DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activities        Activity[]
+  versions          RuleSetVersion[]
+  simulationRuns    ActivitySimulationRun[]
+  simulationResults ActivitySimulationResult[]
+  reviewItems       ReviewItem[]
 
   @@index([platform, createdAt], map: "activity_rule_sets_platform_created_idx")
   @@map("activity_rule_sets")
+}
+
+/// 活动主对象，承载活动名称、范围、状态、时间窗、当前规则集和最新运行引用。
+model Activity {
+  /// 主键。
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 活动名称。
+  name                 String           @db.VarChar(160)
+  /// 电商平台标识。
+  platform             String?          @db.VarChar(64)
+  /// 活动状态。
+  status               String           @default("draft") @db.VarChar(32)
+  /// 活动范围 JSON。
+  scopeJson            Json             @default("{}") @map("scope_json") @db.JsonB
+  /// 当前规则集 ID。
+  currentRuleSetId     String?          @map("current_rule_set_id") @db.Uuid
+  /// 最新工作流运行 ID。
+  latestWorkflowRunId  String?          @map("latest_workflow_run_id") @db.Uuid
+  /// 活动开始时间。
+  startsAt             DateTime?        @map("starts_at") @db.Timestamptz(6)
+  /// 活动结束时间。
+  endsAt               DateTime?        @map("ends_at") @db.Timestamptz(6)
+  /// 活动摘要 JSON。
+  summaryJson          Json             @default("{}") @map("summary_json") @db.JsonB
+  /// 待确认项 JSON。
+  pendingQuestionsJson Json             @default("[]") @map("pending_questions_json") @db.JsonB
+  /// 证据引用 JSON。
+  evidenceRefsJson     Json             @default("[]") @map("evidence_refs_json") @db.JsonB
+  /// 创建人。
+  createdBy            String?          @map("created_by") @db.VarChar(128)
+  /// 创建时间。
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// 更新时间。
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  currentRuleSet       ActivityRuleSet? @relation(fields: [currentRuleSetId], references: [id], onDelete: SetNull)
+  latestWorkflowRun    WorkflowRun?     @relation(fields: [latestWorkflowRunId], references: [id], onDelete: SetNull)
+  reports              Report[]
+
+  @@index([platform, status], map: "activities_platform_status_idx")
+  @@index([currentRuleSetId], map: "activities_current_rule_set_idx")
+  @@index([startsAt, endsAt], map: "activities_time_window_idx")
+  @@map("activities")
+}
+
+/// 规则库版本，保存规则集历史版本、Rule DSL 快照和发布状态。
+model RuleSetVersion {
+  /// 主键。
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 活动规则集 ID。
+  ruleSetId          String          @map("rule_set_id") @db.Uuid
+  /// 版本号。
+  version            Int
+  /// 版本状态。
+  status             String          @default("draft") @db.VarChar(32)
+  /// 规则原文快照。
+  sourceText         String          @map("source_text") @db.Text
+  /// Canonical Rule DSL JSON 快照。
+  rulesJson          Json            @default("[]") @map("rules_json") @db.JsonB
+  /// 必需字段 JSON。
+  requiredFieldsJson Json            @default("[]") @map("required_fields_json") @db.JsonB
+  /// 人工确认项 JSON。
+  confirmationsJson  Json            @default("[]") @map("confirmations_json") @db.JsonB
+  /// 版本元数据 JSON。
+  metadataJson       Json            @default("{}") @map("metadata_json") @db.JsonB
+  /// 创建人。
+  createdBy          String?         @map("created_by") @db.VarChar(128)
+  /// 创建时间。
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  ruleSet            ActivityRuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleSetId, version], map: "rule_set_versions_rule_version_key")
+  @@index([ruleSetId, status], map: "rule_set_versions_rule_status_idx")
+  @@map("rule_set_versions")
+}
+
+/// 数据源采集运行，记录连接器最近采集运行、行数、质量分、告警和 Workflow 引用。
+model ConnectorRun {
+  /// 主键。
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 连接器 ID。
+  connectorId   String       @map("connector_id") @db.Uuid
+  /// 关联工作流运行 ID。
+  workflowRunId String?      @map("workflow_run_id") @db.Uuid
+  /// 运行状态。
+  status        String       @default("pending") @db.VarChar(32)
+  /// 采集行数。
+  rowCount      Int          @default(0) @map("row_count")
+  /// 数据质量分，0 到 100。
+  qualityScore  Int?         @map("quality_score")
+  /// 告警 JSON。
+  warningsJson  Json         @default("[]") @map("warnings_json") @db.JsonB
+  /// 运行摘要 JSON。
+  summaryJson   Json         @default("{}") @map("summary_json") @db.JsonB
+  /// 开始时间。
+  startedAt     DateTime?    @map("started_at") @db.Timestamptz(6)
+  /// 完成时间。
+  completedAt   DateTime?    @map("completed_at") @db.Timestamptz(6)
+  /// 创建时间。
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// 更新时间。
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  connector     Connector    @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  workflowRun   WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+
+  @@index([connectorId, createdAt], map: "connector_runs_connector_created_idx")
+  @@index([status, createdAt], map: "connector_runs_status_created_idx")
+  @@map("connector_runs")
 }
 
 /// 活动准入模拟运行记录。
@@ -367,6 +477,7 @@ model ActivitySimulationRun {
   updatedAt         DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   activityRuleSet   ActivityRuleSet            @relation(fields: [activityRuleSetId], references: [id], onDelete: Cascade)
   results           ActivitySimulationResult[]
+  reports           Report[]
 
   @@index([activityRuleSetId, createdAt], map: "activity_simulation_runs_rule_created_idx")
   @@map("activity_simulation_runs")
@@ -416,48 +527,48 @@ model ActivitySimulationResult {
 /// 人工 Review 审批任务。
 model ReviewItem {
   /// 主键。
-  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// SKU 档案 ID。
-  skuProfileId         String?                   @map("sku_profile_id") @db.Uuid
+  skuProfileId        String?                   @map("sku_profile_id") @db.Uuid
   /// 采集快照 ID。
-  snapshotId           String?                   @map("snapshot_id") @db.Uuid
+  snapshotId          String?                   @map("snapshot_id") @db.Uuid
   /// 健康诊断 ID。
-  diagnosisId          String?                   @map("diagnosis_id") @db.Uuid
+  diagnosisId         String?                   @map("diagnosis_id") @db.Uuid
   /// 活动规则集 ID。
-  activityRuleSetId    String?                   @map("activity_rule_set_id") @db.Uuid
+  activityRuleSetId   String?                   @map("activity_rule_set_id") @db.Uuid
   /// 活动模拟结果 ID。
-  simulationResultId   String?                   @map("simulation_result_id") @db.Uuid
+  simulationResultId  String?                   @map("simulation_result_id") @db.Uuid
   /// Review 类型。
-  reviewType           String                    @map("review_type") @db.VarChar(64)
+  reviewType          String                    @map("review_type") @db.VarChar(64)
   /// Review 原因编码。
-  reasonCode           String                    @map("reason_code") @db.VarChar(96)
+  reasonCode          String                    @map("reason_code") @db.VarChar(96)
   /// Review 状态。
-  status               ReviewStatus              @default(PENDING)
+  status              ReviewStatus              @default(PENDING)
   /// 需要人工回答的问题。
-  question             String                    @db.Text
+  question            String                    @db.Text
   /// Agent 建议。
-  agentRecommendation  String?                   @map("agent_recommendation") @db.Text
+  agentRecommendation String?                   @map("agent_recommendation") @db.Text
   /// 风险等级。
-  riskLevel            String?                   @map("risk_level") @db.VarChar(32)
+  riskLevel           String?                   @map("risk_level") @db.VarChar(32)
   /// 人工决策。
-  decision             String?                   @db.VarChar(64)
+  decision            String?                   @db.VarChar(64)
   /// 人工决策说明。
-  decisionComment      String?                   @map("decision_comment") @db.Text
+  decisionComment     String?                   @map("decision_comment") @db.Text
   /// 决策人。
-  decisionBy           String?                   @map("decision_by") @db.VarChar(128)
+  decisionBy          String?                   @map("decision_by") @db.VarChar(128)
   /// 决策时间。
-  decidedAt            DateTime?                 @map("decided_at") @db.Timestamptz(6)
+  decidedAt           DateTime?                 @map("decided_at") @db.Timestamptz(6)
   /// 证据链 JSON。
-  evidenceJson         Json                      @default("[]") @map("evidence_json") @db.JsonB
+  evidenceJson        Json                      @default("[]") @map("evidence_json") @db.JsonB
   /// 创建时间。
-  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt           DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  skuProfile           SkuProfile?               @relation(fields: [skuProfileId], references: [id], onDelete: SetNull)
-  snapshot             SkuSnapshot?              @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
-  diagnosis            SkuHealthDiagnosis?       @relation(fields: [diagnosisId], references: [id], onDelete: SetNull)
-  activityRuleSet      ActivityRuleSet?          @relation(fields: [activityRuleSetId], references: [id], onDelete: SetNull)
-  simulationResult     ActivitySimulationResult? @relation(fields: [simulationResultId], references: [id], onDelete: SetNull)
+  updatedAt           DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  skuProfile          SkuProfile?               @relation(fields: [skuProfileId], references: [id], onDelete: SetNull)
+  snapshot            SkuSnapshot?              @relation(fields: [snapshotId], references: [id], onDelete: SetNull)
+  diagnosis           SkuHealthDiagnosis?       @relation(fields: [diagnosisId], references: [id], onDelete: SetNull)
+  activityRuleSet     ActivityRuleSet?          @relation(fields: [activityRuleSetId], references: [id], onDelete: SetNull)
+  simulationResult    ActivitySimulationResult? @relation(fields: [simulationResultId], references: [id], onDelete: SetNull)
 
   @@index([status, reviewType], map: "review_items_status_type_idx")
   @@index([skuProfileId, createdAt], map: "review_items_sku_created_idx")
@@ -467,30 +578,33 @@ model ReviewItem {
 /// 工作流运行审计记录。
 model WorkflowRun {
   /// 主键。
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// 工作流类型。
-  workflowType String            @map("workflow_type") @db.VarChar(96)
+  workflowType      String            @map("workflow_type") @db.VarChar(96)
   /// 运行状态。
-  status       WorkflowRunStatus @default(QUEUED)
+  status            WorkflowRunStatus @default(QUEUED)
   /// 业务对象类型。
-  subjectType  String?           @map("subject_type") @db.VarChar(96)
+  subjectType       String?           @map("subject_type") @db.VarChar(96)
   /// 业务对象 ID。
-  subjectId    String?           @map("subject_id") @db.VarChar(128)
+  subjectId         String?           @map("subject_id") @db.VarChar(128)
   /// 输入 JSON。
-  inputJson    Json              @default("{}") @map("input_json") @db.JsonB
+  inputJson         Json              @default("{}") @map("input_json") @db.JsonB
   /// 输出 JSON。
-  outputJson   Json              @default("{}") @map("output_json") @db.JsonB
+  outputJson        Json              @default("{}") @map("output_json") @db.JsonB
   /// 错误信息。
-  errorMessage String?           @map("error_message") @db.Text
+  errorMessage      String?           @map("error_message") @db.Text
   /// 开始时间。
-  startedAt    DateTime?         @map("started_at") @db.Timestamptz(6)
+  startedAt         DateTime?         @map("started_at") @db.Timestamptz(6)
   /// 完成时间。
-  completedAt  DateTime?         @map("completed_at") @db.Timestamptz(6)
+  completedAt       DateTime?         @map("completed_at") @db.Timestamptz(6)
   /// 创建时间。
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  steps        WorkflowStep[]
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  steps             WorkflowStep[]
+  currentActivities Activity[]
+  connectorRuns     ConnectorRun[]
+  reports           Report[]
 
   @@index([workflowType, status], map: "workflow_runs_type_status_idx")
   @@map("workflow_runs")
@@ -724,40 +838,40 @@ model AgentRunEvent {
 /// Agent 工具调用记录，保存工具输入输出、状态、风险等级、Review 策略和证据引用。
 model AgentToolCall {
   /// 主键。
-  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// Agent Run ID。
-  runId              String                @map("run_id") @db.Uuid
+  runId              String              @map("run_id") @db.Uuid
   /// Pi 或 SDK 侧工具调用 ID。
-  externalToolCallId String?               @map("external_tool_call_id") @db.VarChar(128)
+  externalToolCallId String?             @map("external_tool_call_id") @db.VarChar(128)
   /// 关联 WorkflowStep ID。
-  workflowStepId     String?               @map("workflow_step_id") @db.Uuid
+  workflowStepId     String?             @map("workflow_step_id") @db.Uuid
   /// 工具名称。
-  toolName           String                @map("tool_name") @db.VarChar(96)
+  toolName           String              @map("tool_name") @db.VarChar(96)
   /// 工具调用状态。
-  status             AgentToolCallStatus   @default(PENDING)
+  status             AgentToolCallStatus @default(PENDING)
   /// 风险等级。
-  riskLevel          String                @default("L1") @map("risk_level") @db.VarChar(16)
+  riskLevel          String              @default("L1") @map("risk_level") @db.VarChar(16)
   /// Review 策略。
-  reviewPolicy       String                @default("none") @map("review_policy") @db.VarChar(64)
+  reviewPolicy       String              @default("none") @map("review_policy") @db.VarChar(64)
   /// 工具输入 JSON。
-  inputJson          Json                  @default("{}") @map("input_json") @db.JsonB
+  inputJson          Json                @default("{}") @map("input_json") @db.JsonB
   /// 工具输出 JSON。
-  outputJson         Json                  @default("{}") @map("output_json") @db.JsonB
+  outputJson         Json                @default("{}") @map("output_json") @db.JsonB
   /// 证据引用 JSON。
-  evidenceRefsJson   Json                  @default("[]") @map("evidence_refs_json") @db.JsonB
+  evidenceRefsJson   Json                @default("[]") @map("evidence_refs_json") @db.JsonB
   /// 错误信息。
-  errorMessage       String?               @map("error_message") @db.Text
+  errorMessage       String?             @map("error_message") @db.Text
   /// 阻断原因。
-  blockedReason      String?               @map("blocked_reason") @db.Text
+  blockedReason      String?             @map("blocked_reason") @db.Text
   /// 开始时间。
-  startedAt          DateTime?             @map("started_at") @db.Timestamptz(6)
+  startedAt          DateTime?           @map("started_at") @db.Timestamptz(6)
   /// 完成时间。
-  completedAt        DateTime?             @map("completed_at") @db.Timestamptz(6)
+  completedAt        DateTime?           @map("completed_at") @db.Timestamptz(6)
   /// 创建时间。
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   /// 更新时间。
-  updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  run                AgentRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  run                AgentRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
   reviewGates        AgentReviewGate[]
 
   @@unique([runId, externalToolCallId], map: "agent_tool_calls_run_external_key")
@@ -869,4 +983,96 @@ model AgentReviewGate {
   @@index([runId, status], map: "agent_review_gates_run_status_idx")
   @@index([reviewItemId], map: "agent_review_gates_review_item_idx")
   @@map("agent_review_gates")
+}
+
+/// 报告中心主对象，保存报告列表、来源对象、导出状态和最新版本。
+model Report {
+  /// 主键。
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 报告标题。
+  title            String                 @db.VarChar(180)
+  /// 报告类型。
+  reportType       String                 @map("report_type") @db.VarChar(64)
+  /// 报告状态。
+  status           String                 @default("draft") @db.VarChar(32)
+  /// 活动 ID。
+  activityId       String?                @map("activity_id") @db.Uuid
+  /// 工作流运行 ID。
+  workflowRunId    String?                @map("workflow_run_id") @db.Uuid
+  /// 活动模拟运行 ID。
+  simulationRunId  String?                @map("simulation_run_id") @db.Uuid
+  /// 最新版本 ID。
+  latestVersionId  String?                @map("latest_version_id") @db.Uuid
+  /// 导出状态。
+  exportStatus     String                 @default("not_requested") @map("export_status") @db.VarChar(32)
+  /// 订阅配置 JSON。
+  subscriptionJson Json                   @default("{}") @map("subscription_json") @db.JsonB
+  /// 报告摘要 JSON。
+  summaryJson      Json                   @default("{}") @map("summary_json") @db.JsonB
+  /// 创建人。
+  createdBy        String?                @map("created_by") @db.VarChar(128)
+  /// 创建时间。
+  createdAt        DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// 更新时间。
+  updatedAt        DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activity         Activity?              @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  workflowRun      WorkflowRun?           @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+  simulationRun    ActivitySimulationRun? @relation(fields: [simulationRunId], references: [id], onDelete: SetNull)
+  versions         ReportVersion[]
+
+  @@index([reportType, status], map: "reports_type_status_idx")
+  @@index([activityId, createdAt], map: "reports_activity_created_idx")
+  @@index([workflowRunId], map: "reports_workflow_run_idx")
+  @@map("reports")
+}
+
+/// 报告版本，保存报告章节、证据快照和导出产物引用。
+model ReportVersion {
+  /// 主键。
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 报告 ID。
+  reportId            String   @map("report_id") @db.Uuid
+  /// 版本号。
+  version             Int
+  /// 版本状态。
+  status              String   @default("draft") @db.VarChar(32)
+  /// 报告章节 JSON。
+  sectionsJson        Json     @default("[]") @map("sections_json") @db.JsonB
+  /// 证据引用 JSON。
+  evidenceRefsJson    Json     @default("[]") @map("evidence_refs_json") @db.JsonB
+  /// 导出产物 JSON。
+  exportArtifactsJson Json     @default("[]") @map("export_artifacts_json") @db.JsonB
+  /// 创建人。
+  createdBy           String?  @map("created_by") @db.VarChar(128)
+  /// 创建时间。
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  report              Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, version], map: "report_versions_report_version_key")
+  @@index([reportId, status], map: "report_versions_report_status_idx")
+  @@map("report_versions")
+}
+
+/// 工作区设置，保存数据 freshness、Review SLA、工具策略等 P0 配置。
+model WorkspaceSetting {
+  /// 主键。
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// 设置命名空间。
+  namespace   String   @db.VarChar(64)
+  /// 设置键。
+  settingKey  String   @map("setting_key") @db.VarChar(96)
+  /// 设置值 JSON。
+  settingJson Json     @default("{}") @map("setting_json") @db.JsonB
+  /// 设置状态。
+  status      String   @default("active") @db.VarChar(32)
+  /// 更新时间。
+  updatedBy   String?  @map("updated_by") @db.VarChar(128)
+  /// 创建时间。
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// 更新时间。
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([namespace, settingKey], map: "workspace_settings_namespace_key")
+  @@index([namespace, status], map: "workspace_settings_namespace_status_idx")
+  @@map("workspace_settings")
 }
