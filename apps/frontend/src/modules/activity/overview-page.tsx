@@ -260,9 +260,9 @@ export function OverviewPage() {
                   <tr key={item.skuProfileId}>
                     <td>{item.canonicalSkuKey}</td>
                     <td><span className={`${styles.statusTag} ${item.healthStatus === 'READY' ? styles.success : item.healthStatus === 'WARNING' ? styles.warning : styles.danger}`}>{item.healthStatus === 'READY' ? '通过' : item.healthStatus === 'WARNING' ? '待确认' : '不符合'}</span></td>
-                    <td>{item.topIssues[0] ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
+                    <td>{item.topIssues?.[0] ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
                     <td>天猫618大促</td>
-                    <td>{item.nextActions[0] ?? (item.healthStatus === 'READY' ? '可直接报名' : '人工确认')}</td>
+                    <td>{item.nextActions?.[0] ?? (item.healthStatus === 'READY' ? '可直接报名' : '人工确认')}</td>
                     <td><a href={`/sku-health/${item.skuProfileId}`} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                   </tr>
                 )) : (
