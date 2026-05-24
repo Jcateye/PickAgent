@@ -149,6 +149,41 @@ L3 注意：
 - 新表 migration 属于结构变更，执行前需要确认。
 - 不建议一开始拆独立 `EvidenceRef` 表，P0 先用 JSON evidence refs，字段结构必须满足 `EvidenceRef`。
 
+### 2.5 P0 数据库初始化复核（2026-05-24）
+
+当前结论：P0 建议新增的核心存储已经覆盖，没有漏掉本分工里定义的主对象表。
+
+已初始化并在 Prisma schema 中存在：
+
+- `activities`：覆盖活动主对象。
+- `rule_set_versions`：覆盖规则版本。
+- `connector_runs`：覆盖数据源采集运行。
+- `reports`：覆盖报告中心主对象。
+- `report_versions`：覆盖报告版本快照。
+- `workspace_settings`：覆盖工作区阈值、Review SLA、tool policy。
+
+已确认的初始化数据：
+
+- `workspace_settings: agent/tool_policy`
+- `workspace_settings: workspace/freshness_thresholds`
+- `workspace_settings: workspace/review_sla`
+
+不需要为 P0 立即新增的表：
+
+- `EvidenceRef` 独立表：P0 继续使用 `evidence_refs_json` / `evidence_json`，避免过早拆证据模型。
+- `ReportSubscription` 独立表：P0 使用 `reports.subscription_json`。
+- `ExportJob` 独立表：P0 使用 `reports.export_status` 和 `report_versions.export_artifacts_json` 表达导出状态与产物。
+- `Notification` 独立表：概览通知数先从 review、run、connector 状态派生。
+- `RunQuestion` 独立表：任务内问答先复用 `agent_messages`。
+
+P0.5 / P1 需要补强的关系与实现：
+
+- `reports.latest_version_id` 当前是普通 UUID 字段，没有外键或 Prisma relation；P0 服务层可用 `report_versions(report_id, max(version))` 兜底，后续建议补 FK 或移除该冗余字段。
+- `activity_simulation_runs` 只关联 `activity_rule_set_id`，没有直接 `activity_id`；P0 可通过 `activities.current_rule_set_id` 或 report/activity 上下文回查，后续若要稳定展示历史活动运行，建议补 `activity_id`。
+- `connector_runs` 没有直接关联入库批次或 `sku_snapshots`；P0 可通过 `workflow_run_id` 和 `summary_json` 记录批次摘要，后续若要做强 Trace，建议给快照或 ingest batch 增加 `connector_run_id`。
+- `POST /api/activities/{activityId}/candidate-skus` 没有独立候选清单表；P0 可以先把候选范围写入 `activities.summary_json` 或由 simulation results 派生，后续若要人工维护候选池，建议新增 `activity_candidate_skus`。
+- 当前 P0 表解决的是持久化底座；页面可用接口仍需要补 DTO、application service、repository 聚合和 Next API route handler，不能只暴露生成式 CRUD。
+
 ## 3. 菜单到能力映射
 
 ### 3.1 概览
