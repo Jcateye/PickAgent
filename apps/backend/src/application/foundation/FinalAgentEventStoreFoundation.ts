@@ -1,4 +1,5 @@
 import type { AgentMission } from "../../domain/entities/AgentMission";
+import type { AgentMessage } from "../../domain/entities/AgentMessage";
 import type { AgentReviewGate } from "../../domain/entities/AgentReviewGate";
 import type { AgentRun } from "../../domain/entities/AgentRun";
 import type { AgentRunEvent } from "../../domain/entities/AgentRunEvent";
@@ -10,12 +11,18 @@ import type { WorkflowStep } from "../../domain/entities/WorkflowStep";
 import { createBusinessFoundationRuntime, type AgentToolRegistry } from "./BusinessFoundationServices";
 import { createP0RuntimeConfig, P0_PRODUCTION_TOOL_ALLOWLIST, P0_RUNTIME_TOOL_DENYLIST, redactSensitiveText, redactSensitiveValue, type P0RuntimeConfig } from "./P0AuthBoundaryRuntimeConfig";
 
-export type AgentRunStatus = "QUEUED" | "RUNNING" | "WAITING_REVIEW" | "SUCCEEDED" | "FAILED" | "CANCELED";
+export type AgentRunStatus = "QUEUED" | "RUNNING" | "WAITING_REVIEW" | "PAUSED" | "SUCCEEDED" | "FAILED" | "CANCELED";
 export type AgentPermission = "ALLOW" | "REVIEW_REQUIRED" | "DENY";
 export type AgentRiskLevel = "L0" | "L1" | "L2" | "L3";
 export type AgentReviewPolicy = "AUTO_ALLOW" | "REVIEW_GATE" | "DENY";
 export type AgentToolStatus = "SUCCEEDED" | "BLOCKED" | "REVIEW_REQUIRED" | "FAILED";
 export type AgentReviewDecision = "APPROVE" | "REJECT" | "REQUEST_CHANGES";
+
+export interface AgentMissionListQuery {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+}
 
 export interface EvidenceRef {
   type: "agent_event" | "tool_call" | "review_gate" | "workflow_step" | "policy";
@@ -91,6 +98,104 @@ export interface AgentMissionCreatedDto {
   mission: AgentMission;
 }
 
+export interface AgentMissionListItemDto {
+  missionId: string;
+  objective: string;
+  status: string;
+  sourceSurface: string;
+  subjectType: string | null;
+  subjectId: string | null;
+  currentRun?: {
+    runId: string;
+    status: string;
+    startedAt: string | null;
+    updatedAt: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentMissionDetailDto extends AgentMissionListItemDto {
+  sessionId: string;
+  autonomyLevel: string;
+  constraintsJson: Record<string, unknown>;
+  workbenchContextJson: Record<string, unknown>;
+  planJson: Record<string, unknown>;
+  nextActionsJson: Record<string, unknown>;
+  runs: Array<{
+    runId: string;
+    status: string;
+    workflowRunId: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    updatedAt: string;
+  }>;
+}
+
+export interface AgentRunDetailDto {
+  run: {
+    runId: string;
+    missionId: string;
+    sessionId: string;
+    workflowRunId: string | null;
+    status: string;
+    modelProvider: string | null;
+    modelName: string | null;
+    cancelRequested: boolean;
+    inputJson: Record<string, unknown>;
+    outputJson: Record<string, unknown>;
+    errorMessage: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  mission: {
+    missionId: string;
+    objective: string;
+    status: string;
+  };
+  events: AgentRunEvent[];
+  toolCalls: Array<{
+    toolCallId: string;
+    toolName: string;
+    status: string;
+    riskLevel: string;
+    reviewPolicy: string;
+    workflowStepId: string | null;
+    evidenceRefsJson: Record<string, unknown>;
+    errorMessage: string | null;
+    blockedReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  reviewGates: Array<{
+    gateId: string;
+    status: string;
+    reasonCode: string;
+    question: string;
+    agentRecommendation: string | null;
+    evidenceRefsJson: Record<string, unknown>;
+    reviewItemId: string | null;
+    decidedBy: string | null;
+    decidedAt: string | null;
+  }>;
+  messages: Array<{
+    messageId: string;
+    role: string;
+    contentText: string | null;
+    contentJson: Record<string, unknown>;
+    status: string;
+    createdAt: string;
+  }>;
+}
+
+export interface AgentQuestionResponseDto {
+  messageId: string;
+  answer: string;
+  evidenceRefs: AgentRunEvent[];
+}
+
 export class AgentEventStoreState {
   readonly sessions = new Map<string, AgentSession>();
   readonly sessionsByKey = new Map<string, AgentSession>();
@@ -99,6 +204,7 @@ export class AgentEventStoreState {
   readonly eventsByRun = new Map<string, AgentRunEvent[]>();
   readonly toolCalls = new Map<string, AgentToolCall>();
   readonly reviewGates = new Map<string, AgentReviewGate>();
+  readonly messages = new Map<string, AgentMessage>();
   readonly workflowRuns = new Map<string, WorkflowRun>();
   readonly workflowSteps = new Map<string, WorkflowStep>();
   readonly reviewItems = new Map<string, ReviewItem>();
@@ -185,6 +291,32 @@ export class AgentRepository {
 
   getMission(id: string): AgentMission | null {
     return this.state.missions.get(id) ?? null;
+  }
+
+  listMissions(query: AgentMissionListQuery = {}): { items: AgentMission[]; total: number; page: number; pageSize: number } {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
+    const filtered = [...this.state.missions.values()]
+      .filter((mission) => !query.status || mission.status === query.status)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const start = (page - 1) * pageSize;
+    return { items: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize };
+  }
+
+  listRunsByMission(missionId: string): AgentRun[] {
+    return [...this.state.runs.values()].filter((run) => run.missionId === missionId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  listToolCallsByRun(runId: string): AgentToolCall[] {
+    return [...this.state.toolCalls.values()].filter((toolCall) => toolCall.runId === runId).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  listReviewGatesByRun(runId: string): AgentReviewGate[] {
+    return [...this.state.reviewGates.values()].filter((gate) => gate.runId === runId).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  }
+
+  listMessagesByRun(runId: string): AgentMessage[] {
+    return [...this.state.messages.values()].filter((message) => message.runId === runId).sort((left, right) => left.orderIndex - right.orderIndex);
   }
 
   createRun(missionId: string, input: StartAgentRunInput & { status?: AgentRunStatus; workflowRunId?: string | null }): AgentRun {
@@ -377,6 +509,32 @@ export class AgentRepository {
     const updated = { ...gate, updatedAt: nowIso() };
     this.state.reviewGates.set(updated.id, updated);
     return updated;
+  }
+
+  appendMessage(input: {
+    sessionId: string;
+    runId: string;
+    role: string;
+    contentText?: string | null;
+    contentJson?: Record<string, unknown>;
+    status?: string;
+    parentId?: string | null;
+  }): AgentMessage {
+    const orderIndex = [...this.state.messages.values()].filter((message) => message.sessionId === input.sessionId).length + 1;
+    const message: AgentMessage = {
+      id: nextAgentId("agent_message"),
+      sessionId: input.sessionId,
+      runId: input.runId,
+      role: input.role,
+      orderIndex,
+      contentText: input.contentText ?? null,
+      contentJson: metadata(input.contentJson),
+      status: input.status ?? "COMPLETED",
+      parentId: input.parentId ?? null,
+      createdAt: nowIso(),
+    };
+    this.state.messages.set(message.id, message);
+    return message;
   }
 }
 
@@ -643,11 +801,39 @@ export class MinimalPiAgentLoopAdapter {
 export class FinalAgentService {
   constructor(private readonly repository: AgentRepository, private readonly eventStore: AgentEventStore, private readonly toolExecutor: AgentToolExecutor) {}
 
+  listMissions(query: AgentMissionListQuery = {}): { items: AgentMissionListItemDto[]; page: number; pageSize: number; total: number } {
+    const page = this.repository.listMissions(query);
+    return { ...page, items: page.items.map((mission) => this.toMissionListItem(mission)) };
+  }
+
   createMission(input: CreateAgentMissionInput): AgentMissionCreatedDto {
     if (!input.sessionKey || !input.objective) throw new Error("sessionKey and objective are required");
     const session = this.repository.getOrCreateSession({ sessionKey: input.sessionKey, surface: input.sourceSurface, title: input.objective });
     const mission = this.repository.createMission(session, input);
     return { session, mission };
+  }
+
+  getMission(missionId: string): AgentMissionDetailDto {
+    const mission = this.repository.getMission(missionId);
+    if (!mission) throw new Error(`Agent mission not found: ${missionId}`);
+    const runs = this.repository.listRunsByMission(missionId);
+    return {
+      ...this.toMissionListItem(mission),
+      sessionId: mission.sessionId,
+      autonomyLevel: mission.autonomyLevel,
+      constraintsJson: mission.constraintsJson,
+      workbenchContextJson: mission.workbenchContextJson,
+      planJson: mission.planJson,
+      nextActionsJson: mission.nextActionsJson,
+      runs: runs.map((run) => ({
+        runId: run.id,
+        status: run.status,
+        workflowRunId: run.workflowRunId,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        updatedAt: run.updatedAt,
+      })),
+    };
   }
 
   startRun(missionId: string, input: StartAgentRunInput = {}): AgentRun {
@@ -656,12 +842,120 @@ export class FinalAgentService {
     return run;
   }
 
+  getRun(runId: string): AgentRunDetailDto {
+    const run = this.repository.getRun(runId);
+    if (!run) throw new Error(`Agent run not found: ${runId}`);
+    const mission = this.repository.getMission(run.missionId);
+    if (!mission) throw new Error(`Agent mission not found: ${run.missionId}`);
+    return {
+      run: {
+        runId: run.id,
+        missionId: run.missionId,
+        sessionId: run.sessionId,
+        workflowRunId: run.workflowRunId,
+        status: run.status,
+        modelProvider: run.modelProvider,
+        modelName: run.modelName,
+        cancelRequested: run.cancelRequested,
+        inputJson: run.inputJson,
+        outputJson: run.outputJson,
+        errorMessage: run.errorMessage,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+      },
+      mission: {
+        missionId: mission.id,
+        objective: mission.objective,
+        status: mission.status,
+      },
+      events: this.listEvents(runId, 0),
+      toolCalls: this.repository.listToolCallsByRun(runId).map((toolCall) => ({
+        toolCallId: toolCall.id,
+        toolName: toolCall.toolName,
+        status: toolCall.status,
+        riskLevel: toolCall.riskLevel,
+        reviewPolicy: toolCall.reviewPolicy,
+        workflowStepId: toolCall.workflowStepId,
+        evidenceRefsJson: toolCall.evidenceRefsJson,
+        errorMessage: toolCall.errorMessage,
+        blockedReason: toolCall.blockedReason,
+        createdAt: toolCall.createdAt,
+        updatedAt: toolCall.updatedAt,
+      })),
+      reviewGates: this.repository.listReviewGatesByRun(runId).map((gate) => ({
+        gateId: gate.id,
+        status: gate.status,
+        reasonCode: gate.reasonCode,
+        question: gate.question,
+        agentRecommendation: gate.agentRecommendation,
+        evidenceRefsJson: gate.evidenceRefsJson,
+        reviewItemId: gate.reviewItemId,
+        decidedBy: gate.decidedBy,
+        decidedAt: gate.decidedAt,
+      })),
+      messages: this.repository.listMessagesByRun(runId).map((message) => ({
+        messageId: message.id,
+        role: message.role,
+        contentText: message.contentText,
+        contentJson: message.contentJson,
+        status: message.status,
+        createdAt: message.createdAt,
+      })),
+    };
+  }
+
   listEvents(runId: string, after = 0): AgentRunEvent[] {
     return this.eventStore.listAfter(runId, after);
   }
 
   executeTool(input: ExecuteAgentToolInput): AgentToolExecutionResult {
     return this.toolExecutor.execute(input);
+  }
+
+  pauseRun(runId: string, pausedBy?: string | null): AgentRun {
+    const run = this.repository.getRun(runId);
+    if (!run) throw new Error(`Agent run not found: ${runId}`);
+    if (run.status === "CANCELED" || run.status === "SUCCEEDED" || run.status === "FAILED") return run;
+    const paused = this.eventStore.markRunStatus(runId, "PAUSED", undefined, null);
+    this.eventStore.append({ runId, eventType: "run.paused", eventPhase: "paused", payloadJson: { pausedBy: pausedBy ?? null } });
+    return paused;
+  }
+
+  cancelRun(runId: string, canceledBy?: string | null, reason?: string | null): AgentRun {
+    const run = this.repository.getRun(runId);
+    if (!run) throw new Error(`Agent run not found: ${runId}`);
+    const updated = this.repository.saveRun({ ...run, status: "CANCELED", cancelRequested: true, errorMessage: reason ?? run.errorMessage, completedAt: nowIso() });
+    this.eventStore.append({ runId, eventType: "run.cancel_requested", eventPhase: "canceled", payloadJson: { canceledBy: canceledBy ?? null, reason: reason ?? null } });
+    this.eventStore.append({ runId, eventType: "run.status_changed", eventPhase: "CANCELED", payloadJson: { status: "CANCELED", cancelRequested: true } });
+    return updated;
+  }
+
+  answerQuestion(runId: string, input: { question: string; askedBy?: string | null }): AgentQuestionResponseDto {
+    if (!input.question.trim()) throw new Error("question is required");
+    const run = this.repository.getRun(runId);
+    if (!run) throw new Error(`Agent run not found: ${runId}`);
+    const userMessage = this.repository.appendMessage({
+      sessionId: run.sessionId,
+      runId,
+      role: "USER",
+      contentText: input.question,
+      contentJson: { askedBy: input.askedBy ?? null },
+    });
+    this.eventStore.append({ runId, eventType: "message.appended", eventPhase: "question", payloadJson: { messageId: userMessage.id, role: "USER" } });
+
+    const evidenceRefs = this.listEvents(runId, 0).filter((event) => ["tool.call_recorded", "review_gate.opened", "review_gate.decided", "run.status_changed"].includes(event.eventType)).slice(-5);
+    const answer = buildRunScopedAnswer(input.question, evidenceRefs);
+    const assistantMessage = this.repository.appendMessage({
+      sessionId: run.sessionId,
+      runId,
+      role: "ASSISTANT",
+      contentText: answer,
+      contentJson: { evidenceEventIds: evidenceRefs.map((event) => event.id) },
+    });
+    this.eventStore.append({ runId, eventType: "message.appended", eventPhase: "answered", payloadJson: { messageId: assistantMessage.id, role: "ASSISTANT", evidenceEventIds: evidenceRefs.map((event) => event.id) } });
+    return { messageId: assistantMessage.id, answer, evidenceRefs };
   }
 
   decideReviewGate(gateId: string, input: DecideAgentReviewGateInput): AgentReviewGateDecisionResult {
@@ -699,6 +993,28 @@ export class FinalAgentService {
   createReviewGateForTest(input: Parameters<AgentRepository["createReviewGate"]>[0]): AgentReviewGate {
     return this.repository.createReviewGate(input);
   }
+
+  private toMissionListItem(mission: AgentMission): AgentMissionListItemDto {
+    const currentRun = this.repository.listRunsByMission(mission.id)[0];
+    return {
+      missionId: mission.id,
+      objective: mission.objective,
+      status: mission.status,
+      sourceSurface: mission.sourceSurface,
+      subjectType: mission.subjectType,
+      subjectId: mission.subjectId,
+      currentRun: currentRun
+        ? {
+            runId: currentRun.id,
+            status: currentRun.status,
+            startedAt: currentRun.startedAt,
+            updatedAt: currentRun.updatedAt,
+          }
+        : undefined,
+      createdAt: mission.createdAt,
+      updatedAt: mission.updatedAt,
+    };
+  }
 }
 
 export function createFinalAgentEventStoreRuntime() {
@@ -733,4 +1049,12 @@ function summarizeToolResult(result: unknown): string {
   }
   if (result === null || result === undefined) return "empty";
   return typeof result === "string" ? result : "ok";
+}
+
+function buildRunScopedAnswer(question: string, evidenceEvents: AgentRunEvent[]): string {
+  if (evidenceEvents.length === 0) {
+    return `仅基于当前 run 证据回答：暂未找到可引用的工具调用、Review Gate 或状态事件。问题：${question}`;
+  }
+  const summaries = evidenceEvents.map((event) => `${event.sequence}.${event.eventType}`).join("；");
+  return `仅基于当前 run 证据回答：可参考事件 ${summaries}。该回答不会读取 run 外部业务结论，也不会执行自动改价、报名或商品修改。问题：${question}`;
 }
