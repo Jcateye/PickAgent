@@ -22,7 +22,7 @@ import { assertTenantBoundary, type P0AuthContextDto } from "./P0AuthBoundaryRun
 declare const process: { env: Record<string, string | undefined> };
 
 export interface ApiEnvelope<T> {
-  code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND";
+  code: "OK" | "COMMON.VALIDATION_ERROR" | "SKU.NOT_FOUND" | "RULE.PARSE_FAILED" | "REVIEW.NOT_FOUND" | "AGENT.REAL_CHAT_NOT_CONFIGURED";
   message: string;
   data: T | null;
   requestId: string;

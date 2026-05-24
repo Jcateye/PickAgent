@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { POST } from '../src/app/api/agent/chat/route'
 
-test('agent chat route stays blank-first and only responds after a real user message', async () => {
+test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
   const response = await POST(
     new Request('http://localhost/api/agent/chat', {
       method: 'POST',
@@ -26,21 +26,14 @@ test('agent chat route stays blank-first and only responds after a real user mes
     }),
   )
 
-  assert.equal(response.status, 200)
+  assert.equal(response.status, 503)
   const envelope = (await response.json()) as {
     code: string
-    data: {
-      runId: string
-      assistantMessage: { content: string }
-      toolTrace: Array<{ toolName: string }>
-      fallbackUsed: boolean
-    }
+    data: null
+    details: { missing: string[] }
   }
 
-  assert.equal(envelope.code, 'OK')
-  assert.equal(envelope.data.fallbackUsed, false)
-  assert.ok(envelope.data.runId)
-  assert.match(envelope.data.assistantMessage.content, /SKU|健康|建议/)
-  assert.ok(envelope.data.toolTrace.some((item) => item.toolName === 'getSkuSummary'))
-  assert.ok(envelope.data.toolTrace.some((item) => item.toolName === 'diagnoseSkuHealth'))
+  assert.equal(envelope.code, 'AGENT.REAL_CHAT_NOT_CONFIGURED')
+  assert.equal(envelope.data, null)
+  assert.deepEqual(envelope.details.missing, ['AgentConversationRepository', 'AgentModelAdapter'])
 })
