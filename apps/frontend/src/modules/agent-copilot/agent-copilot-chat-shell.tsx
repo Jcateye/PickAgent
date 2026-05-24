@@ -9,6 +9,8 @@ import { PageHeader } from '@/shared/ui/page-header'
 import { Panel, PanelBody, PanelHeader } from '@/shared/ui/panel'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
+let inMemorySessionKey: string | null = null
+
 interface ChatTurnMeta {
   assistantMessageId: string
   toolTrace: AgentToolTrace[]
@@ -278,10 +280,31 @@ export function AgentCopilotChatShell({ context, compact = false }: { context: W
 function stableSessionKey(context: WorkbenchContext): string {
   const storageKey = 'pickagent.agentCopilot.sessionKey'
   if (typeof window === 'undefined') return `agent-chat-${context.route || 'server'}`
-  const existing = window.localStorage.getItem(storageKey)
-  if (existing) return existing
+  const existing = readLocalStorage(storageKey)
+  if (existing) {
+    inMemorySessionKey = existing
+    return existing
+  }
+  if (inMemorySessionKey) return inMemorySessionKey
   const route = context.route.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'console'
   const key = `agent-chat-local-${route}-${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`
-  window.localStorage.setItem(storageKey, key)
+  inMemorySessionKey = key
+  writeLocalStorage(storageKey, key)
   return key
+}
+
+function readLocalStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writeLocalStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Storage can be unavailable in embedded or privacy-restricted browser contexts.
+  }
 }
