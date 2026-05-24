@@ -1,0 +1,631 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  background: #f7f9fc;
+  font-family: var(--font-body);
+  color: var(--fg);
+  overflow: hidden;
+}
+
+.header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.logo {
+  width: 24px;
+  height: 24px;
+  background: var(--primary, #246bff);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  align-items: center;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.cardPadding {
+  padding: 14px 16px;
+}
+
+.taskHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.taskTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.taskIcon {
+  width: 30px;
+  height: 30px;
+  background: rgba(36, 107, 255, 0.1);
+  color: var(--primary, #246bff);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.taskName {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.runBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(31, 157, 98, 0.1);
+  color: var(--ready, #1f9d62);
+  border: 1px solid rgba(31, 157, 98, 0.2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.runBadge_ready {
+  background: rgba(31, 157, 98, 0.1);
+  color: var(--ready, #1f9d62);
+  border-color: rgba(31, 157, 98, 0.2);
+}
+
+.runBadge_running {
+  background: rgba(36, 107, 255, 0.1);
+  color: var(--primary, #246bff);
+  border-color: rgba(36, 107, 255, 0.2);
+}
+
+.runBadge_failed {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.22);
+}
+
+.runBadge_idle {
+  background: #f3f4f6;
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+.taskMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  padding-left: 44px;
+}
+
+.taskMetaInline {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionTitleMeta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ready, #1f9d62);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dataRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--surface-soft, #f4f5f7);
+}
+
+.dataRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dataIcon {
+  color: var(--muted);
+}
+
+.dataLabel {
+  color: var(--muted);
+  width: 64px;
+  flex: 0 0 64px;
+}
+
+.dataValue {
+  color: var(--fg);
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.statusPill {
+  flex: 0 0 auto;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #f3f4f6;
+  color: var(--muted);
+}
+
+.statusPill_collectible,
+.statusPill_needs-confirmation {
+  background: rgba(31, 157, 98, 0.1);
+  color: var(--ready, #1f9d62);
+}
+
+.statusPill_unsupported {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.statusPill_idle {
+  background: #f3f4f6;
+  color: var(--muted);
+}
+
+.dataLink {
+  color: var(--primary, #246bff);
+  text-decoration: none;
+}
+
+.progressContainer {
+  margin-bottom: 12px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.progressBar {
+  height: 6px;
+  background: var(--surface-soft, #f4f5f7);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--primary, #246bff);
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.metricItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.metricLabel {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.metricValue {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.metric_ready,
+.metricValue.blue {
+  color: var(--primary, #246bff);
+}
+
+.metric_idle {
+  color: var(--muted);
+}
+
+.metric_warn {
+  color: #f59e0b;
+}
+
+.metricValue.green {
+  color: var(--ready, #1f9d62);
+}
+
+.issueRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-soft, #f4f5f7);
+  font-size: 13px;
+}
+
+.issueRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.issueLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.issueIcon.red { color: #ef4444; }
+.issueIcon.orange { color: #f59e0b; }
+.issueIcon.blue { color: var(--primary, #246bff); }
+.issueIcon.gray { color: var(--muted); }
+
+.issueLabel {
+  font-weight: 500;
+}
+
+.issueDesc {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 8px;
+  min-width: 0;
+}
+
+.issueCount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.issueCount.red { color: #ef4444; }
+.issueCount.orange { color: #f59e0b; }
+.issueCount.blue { color: var(--primary, #246bff); }
+.issueCount.gray { color: var(--muted); }
+
+.buttonPrimary {
+  width: 100%;
+  height: 38px;
+  background: var(--primary, #246bff);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.buttonSecondary {
+  width: 100%;
+  height: 38px;
+  background: white;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.buttonPrimary:disabled,
+.buttonSecondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.secondaryActionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.textButton,
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #246bff);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.linkButton {
+  padding: 0;
+}
+
+.sectionHint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  text-align: right;
+}
+
+.inlineWarning,
+.inlineSuccess {
+  margin-top: 10px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.inlineWarning {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+
+.inlineSuccess {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #bbf7d0;
+}
+
+.stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  position: relative;
+}
+
+.stepLine {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  z-index: 1;
+}
+
+.stepLine.completed {
+  background: var(--ready, #1f9d62);
+  opacity: 0.3;
+}
+
+.stepLine.dashed {
+  background: transparent;
+  border-top: 2px dashed var(--line);
+}
+
+.stepIcon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: white;
+  z-index: 2;
+  border: 1px solid var(--line);
+}
+
+.stepIcon.completed {
+  color: var(--ready, #1f9d62);
+  border-color: var(--ready, #1f9d62);
+}
+
+.stepIcon.running {
+  color: var(--primary, #246bff);
+  border-color: var(--primary, #246bff);
+  box-shadow: 0 0 0 3px rgba(36, 107, 255, 0.1);
+}
+
+.stepLabel {
+  font-size: 11px;
+  color: var(--fg);
+  text-align: center;
+}
+
+.stepTime {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.stepTime.running {
+  color: var(--primary, #246bff);
+}
+
+.footer {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: white;
+}
+
+.securityBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.helpLink {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.securityDot {
+  width: 6px;
+  height: 6px;
+  background: var(--ready, #1f9d62);
+  border-radius: 50%;
+}
+
+.debugBox {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: #2f3a4a;
+  font-size: 11px;
+  line-height: 1.55;
+  padding: 10px;
+  word-break: break-all;
+}
+
+.configRow {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.configTitle,
+.configValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.configTitle {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.configValue {
+  color: var(--muted);
+}
+
+.devTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 0 14px 12px;
+  border-top: 1px solid var(--surface-soft, #f4f5f7);
+}
+
+@media (max-width: 380px) {
+  .content {
+    padding: 10px;
+  }
+
+  .cardPadding {
+    padding: 12px;
+  }
+
+  .metricsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .issueDesc {
+    display: none;
+  }
+}

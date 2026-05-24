@@ -47,6 +47,7 @@ function toFoundationIngestRow(
   row: StandardProductRow,
   options: FoundationIngestTransformOptions
 ): FoundationIngestRowDto {
+  const domMetrics = extractDomMetrics(row.raw)
   return {
     platform: "doudian",
     storeId: options.storeId ?? inferStoreId(payload.sourceUrl),
@@ -55,6 +56,8 @@ function toFoundationIngestRow(
     category: row.category ?? undefined,
     sourceUrl: row.sourceUrl,
     rowIndex: row.rowIndex,
+    sales30d: domMetrics.salesCount,
+    positiveRate: domMetrics.positiveRate,
     stock: row.availableStock ?? undefined,
     campaignPrice: row.salePrice ?? undefined,
     raw: {
@@ -65,9 +68,31 @@ function toFoundationIngestRow(
       externalProductId: row.externalProductId ?? null,
       listingStatus: row.listingStatus,
       activityLabels: row.activityLabels ?? [],
-      updatedAt: row.updatedAt ?? null
+      updatedAt: row.updatedAt ?? null,
+      domMetrics
     }
   }
+}
+
+function extractDomMetrics(raw: Record<string, unknown>): {
+  readonly salesCount?: number
+  readonly positiveRate?: number
+  readonly qualityScore?: number
+  readonly qualityLabel?: string
+} {
+  const value = raw.domMetrics
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const metrics = value as Record<string, unknown>
+  return {
+    salesCount: numberValue(metrics.salesCount),
+    positiveRate: numberValue(metrics.positiveRate),
+    qualityScore: numberValue(metrics.qualityScore),
+    qualityLabel: typeof metrics.qualityLabel === "string" ? metrics.qualityLabel : undefined
+  }
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 function inferStoreId(sourceUrl: string): string {
