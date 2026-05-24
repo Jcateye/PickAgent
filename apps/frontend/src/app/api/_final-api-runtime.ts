@@ -47,6 +47,11 @@ export function requireApiAuthContext(request: Request, requestId = nextRequestI
   )
 }
 
+export function p0AuthContext(request: Request, requestId = nextRequestId()) {
+  const headers = Object.fromEntries(request.headers.entries())
+  return requireP0AuthContext({ headers, requestId, surface: 'next-api' }, createP0RuntimeConfig())
+}
+
 function nextRequestId(): string {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 }
