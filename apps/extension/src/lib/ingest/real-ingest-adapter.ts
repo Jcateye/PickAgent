@@ -23,8 +23,10 @@ export interface RealIngestSubmitOptions {
   readonly fetcher?: Fetcher
 }
 
+export const defaultRealIngestEndpoint = "http://localhost:3010/api/ingest"
+
 export async function submitToRealIngestApi(payload: IngestCollectionPayload, options: RealIngestSubmitOptions = {}): Promise<SubmitReceipt> {
-  const endpoint = options.endpoint ?? "/api/ingest"
+  const endpoint = options.endpoint ?? defaultRealIngestEndpoint
   const fetcher = options.fetcher ?? fetch
   const response = await fetcher(endpoint, {
     method: "POST",

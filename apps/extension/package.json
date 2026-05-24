@@ -4,6 +4,16 @@
   "version": "0.1.0",
   "private": true,
   "description": "SKU Ready Agent browser extension frontend",
+  "manifest": {
+    "host_permissions": [
+      "http://localhost:3010/*",
+      "https://fxg.jinritemai.com/*"
+    ],
+    "permissions": [
+      "activeTab",
+      "sidePanel"
+    ]
+  },
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",

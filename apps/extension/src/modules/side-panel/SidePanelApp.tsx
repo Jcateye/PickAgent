@@ -10,6 +10,7 @@ import {
   collectCommentPage,
   collectProductPage,
   createInitialTaskState,
+  defaultRealIngestEndpoint,
   emptySyntheticDoudianCommentPage,
   realIngestAdapterDependency,
   recognizeCommentPage,
@@ -414,7 +415,7 @@ export function SidePanelApp() {
 
           <ModuleCard title="提交通路" right={<span className="muted-text">contract-first</span>}>
             <div className="submit-panel">
-              <p className="muted-text">生产默认路径：商品采集提交到真实 POST /api/ingest；评论 payload 当前只做预览和后续扩展输入。mock submit 仅保留为开发与断网 fallback。</p>
+              <p className="muted-text">生产默认路径：商品采集提交到真实 {defaultRealIngestEndpoint}；评论 payload 当前只做预览和后续扩展输入。mock submit 仅保留为开发与断网 fallback。</p>
               <div className="dependency-note">{realIngestAdapterDependency.note}</div>
               {runState.lastError ? <div className="inline-warning">失败原因：{runState.lastError}</div> : null}
               {runState.submitReceipt ? (
@@ -425,7 +426,7 @@ export function SidePanelApp() {
                   <span>通路：{runState.submitReceipt.adapter === "real-api" ? "真实 /api/ingest" : "mock fallback"}</span>
                 </div>
               ) : null}
-              <a className="console-link" href="/sku-health" target="_blank" rel="noreferrer">
+              <a className="console-link" href="http://localhost:3010/sku-health" target="_blank" rel="noreferrer">
                 打开员工工作台 SKU 健康页
               </a>
             </div>
