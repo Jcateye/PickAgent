@@ -53,6 +53,7 @@
 ```bash
 ./scripts/cli bootstrap repo
 ./scripts/cli dev frontend
+./scripts/cli dev frontend --restart
 ./scripts/cli dev extension
 ./scripts/cli build repo
 ./scripts/cli build extension
@@ -65,9 +66,9 @@
 
 ## 当前模块行为
 
-- `frontend`：通过 `pnpm --dir apps/frontend` 运行 `dev/build/lint/typecheck`。
+- `frontend`：`dev` 默认使用 `http://localhost:3010`；端口已有监听时直接复用，传 `--restart` 会先停止监听进程再启动。其余动作通过 `pnpm --dir apps/frontend` 运行。
 - `extension`：通过 `npm run` 运行 Plasmo 的 `dev/build/typecheck`。
-- `backend`：当前没有独立 `package.json` 和 HTTP dev server，门面脚本会执行 Prisma schema validate 和后端 TypeScript smoke typecheck。
+- `backend`：默认预留 `http://localhost:3011`；当前没有独立 HTTP dev server，门面脚本会执行 Prisma schema validate 和后端 TypeScript smoke typecheck。
 - `agent-workbench`：当前 Hermes / Agent Copilot 工程落在 `frontend` UI 与 `backend` Agent 数据结构 / service 骨架中，门面脚本会组合执行两侧检查。
 - `repo`：聚合执行 backend、frontend、extension 当前可用的检查或构建。
 

@@ -11,21 +11,27 @@ fi
 module="$(normalize_module "${1:-frontend}")"
 shift || true
 
+FRONTEND_DEV_PORT="${FRONTEND_DEV_PORT:-3010}"
+BACKEND_DEV_PORT="${BACKEND_DEV_PORT:-3011}"
+
 case "$module" in
   frontend)
-    run_package_script "$ROOT_DIR/apps/frontend" dev "$@"
+    run_package_dev_on_port "$ROOT_DIR/apps/frontend" "$FRONTEND_DEV_PORT" "$@"
     ;;
   extension)
     run_package_script "$ROOT_DIR/apps/extension" dev "$@"
     ;;
   backend)
+    printf 'Backend default port: %s\n' "$BACKEND_DEV_PORT"
     printf '%s\n' "Backend has no standalone dev server yet. Use scripts/dev frontend for the Next.js app shell."
     exit 1
     ;;
   agent-workbench)
-    run_package_script "$ROOT_DIR/apps/frontend" dev "$@"
+    run_package_dev_on_port "$ROOT_DIR/apps/frontend" "$FRONTEND_DEV_PORT" "$@"
     ;;
   repo)
+    printf 'Frontend default: http://localhost:%s\n' "$FRONTEND_DEV_PORT"
+    printf 'Backend default:  http://localhost:%s\n' "$BACKEND_DEV_PORT"
     printf '%s\n' "Run dev targets in separate terminals:"
     printf '%s\n' "  scripts/dev frontend"
     printf '%s\n' "  scripts/dev extension"

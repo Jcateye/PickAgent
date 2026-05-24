@@ -82,6 +82,72 @@ run_package_script() {
   fi
 }
 
+port_pids() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u
+}
+
+port_has_listener() {
+  local port="$1"
+  [[ -n "$(port_pids "$port")" ]]
+}
+
+kill_port_listeners() {
+  local port="$1"
+  local pids
+  pids="$(port_pids "$port")"
+
+  if [[ -z "$pids" ]]; then
+    return 0
+  fi
+
+  printf 'Restarting port %s: stopping %s\n' "$port" "$(printf '%s' "$pids" | tr '\n' ' ')"
+  kill $pids 2>/dev/null || true
+
+  local wait_count=0
+  while port_has_listener "$port" && ((wait_count < 30)); do
+    sleep 0.2
+    wait_count=$((wait_count + 1))
+  done
+
+  if port_has_listener "$port"; then
+    kill -9 $pids 2>/dev/null || true
+  fi
+}
+
+run_package_dev_on_port() {
+  local dir="$1"
+  local default_port="$2"
+  shift 2
+
+  local restart="0"
+  local args=()
+  while (($#)); do
+    case "$1" in
+      --restart)
+        restart="1"
+        ;;
+      *)
+        args+=("$1")
+        ;;
+    esac
+    shift
+  done
+
+  local port="${PORT:-$default_port}"
+
+  if port_has_listener "$port"; then
+    if [[ "$restart" == "1" ]]; then
+      kill_port_listeners "$port"
+    else
+      printf 'Reusing existing dev server: http://localhost:%s\n' "$port"
+      return 0
+    fi
+  fi
+
+  PORT="$port" run_package_script "$dir" dev "${args[@]}"
+}
+
 run_backend_typecheck() {
   local prisma_schema="$ROOT_DIR/apps/backend/prisma/schema.prisma"
 
