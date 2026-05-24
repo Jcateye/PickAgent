@@ -5,6 +5,7 @@ import {
   attachTaskSubmitReceipt,
   buildCommentIngestPayload,
   buildProductIngestPayload,
+  collectDoudianStockPages,
   collectAllCommentPages,
   collectAllProductPages,
   collectCommentPage,
@@ -116,6 +117,48 @@ export function SidePanelApp() {
         status: "failed",
         lastEvent: "FAIL",
         lastError: error instanceof Error ? error.message : "真实 ingest API 提交失败。"
+      }))
+    }
+  }
+
+  const collectRealDoudianStock = async () => {
+    try {
+      setRunState((state) => ({ ...state, status: "collecting_products", lastEvent: "START", lastError: undefined }))
+      const sourceUrl = "https://fxg.jinritemai.com/ffa/g/stock-manage/list"
+      const previews = await collectDoudianStockPages({ sourceUrl, pageSize: 50, maxPages: 20 })
+      const rows = previews.flatMap((preview) => preview.rows)
+      const lastPreview = previews[previews.length - 1]
+      setRunState((state) => ({
+        ...state,
+        status: rows.length > 0 ? "ready" : "failed",
+        activePageType: rows.length > 0 ? "product-list" : "unsupported",
+        currentPage: Math.max(previews.length, 1),
+        totalPages: Math.max(previews.length, 1),
+        collectedProductRows: rows,
+        currentProductPreview: lastPreview,
+        lastRecognition: {
+          status: rows.length > 0 ? "collectible" : "unsupported",
+          confidence: rows.length > 0 ? 0.92 : 0,
+          platform: "抖店商家后台",
+          pageType: rows.length > 0 ? "stock-manage-list" : "unsupported",
+          sourceKind: "product",
+          pageIndex: Math.max(previews.length, 1),
+          totalPages: Math.max(previews.length, 1),
+          reasons: rows.length > 0 ? ["抖店库存接口返回商品/SKU数据", "已调用库存诊断接口补充采集风险"] : ["抖店库存接口未返回可采集数据"],
+          unsupportedReason: rows.length > 0 ? undefined : "抖店库存接口未返回商品/SKU数据。"
+        },
+        lastEvent: rows.length > 0 ? "PAGE_COLLECTED" : "FAIL",
+        lastError: rows.length > 0 ? undefined : "真实抖店库存接口未返回可采集数据；请确认已登录并打开库存管理页。",
+        checkpoint: undefined,
+        submitted: false,
+        submitReceipt: undefined
+      }))
+    } catch (error) {
+      setRunState((state) => ({
+        ...state,
+        status: "failed",
+        lastEvent: "FAIL",
+        lastError: error instanceof Error ? error.message : "真实抖店库存采集失败；请确认已登录抖店并授权插件访问。"
       }))
     }
   }
@@ -233,6 +276,9 @@ export function SidePanelApp() {
                 </button>
               </div>
               <div className="button-row">
+                <button className="primary-button" type="button" onClick={() => void collectRealDoudianStock()}>
+                  真实采集库存页
+                </button>
                 <button className="secondary-button" type="button" onClick={() => setRunState(collectAllProductPages(createInitialTaskState(syntheticDoudianPages.length), syntheticDoudianPages, 1))}>
                   商品采集后暂停
                 </button>

@@ -240,7 +240,7 @@ async function fetchDiagnoseBySku(fetcher: Fetcher, products: readonly DoudianSt
 }
 
 async function postDoudianJson<T>(fetcher: Fetcher, path: string, body: object): Promise<T> {
-  const response = await fetcher(path, {
+  const response = await fetcher(toDoudianEndpoint(path), {
     method: "POST",
     credentials: "include",
     headers: {
@@ -254,6 +254,10 @@ async function postDoudianJson<T>(fetcher: Fetcher, path: string, body: object):
   }
 
   return (await response.json()) as T
+}
+
+function toDoudianEndpoint(path: string): string {
+  return new URL(path, "https://fxg.jinritemai.com").toString()
 }
 
 function buildDoudianHttpMappingPreview(product?: DoudianStockProduct): FieldMappingPreview[] {

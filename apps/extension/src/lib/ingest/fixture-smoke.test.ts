@@ -194,7 +194,8 @@ const collectedRealPages = await collectDoudianStockPages({
   },
   fetcher: async (input, init) => {
     const request = JSON.parse(String(init?.body))
-    if (String(input) === "/stock/manage/list") {
+    const inputPath = new URL(String(input)).pathname
+    if (inputPath === "/stock/manage/list") {
       if (request.page === 1) {
         assert.deepEqual(request, realDoudianStockListFilteredRequestFixture)
         return new Response(JSON.stringify(realDoudianStockListFilteredFixture), { status: 200, headers: { "content-type": "application/json" } })
@@ -203,7 +204,7 @@ const collectedRealPages = await collectDoudianStockPages({
       return new Response(JSON.stringify({ ...realDoudianStockListSecondPageFixture, total: 11 }), { status: 200, headers: { "content-type": "application/json" } })
     }
 
-    assert.equal(String(input), "/stock/manage/sku_stock_diagnose")
+    assert.equal(inputPath, "/stock/manage/sku_stock_diagnose")
     assert.ok(Array.isArray(request.sku_ids))
     return new Response(JSON.stringify(realDoudianStockDiagnoseFixture), { status: 200, headers: { "content-type": "application/json" } })
   }
