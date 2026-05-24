@@ -9,11 +9,21 @@ import {
   type ReportPreviewDto,
   type ReviewDecision,
   type ReviewItemDto,
+  type RuleSetDetailDto,
+  type RuleSetListItemDto,
+  type RuleSetSourceDto,
+  type RuleSetStatusDto,
+  type RuleSetTypeDto,
+  type RuleSetVersionDto,
   type SimulationEligibility,
   type SimulationRequestDto,
   type SimulationResultDto,
   type SkuDetailDto,
   type SkuSummaryDto,
+  type SettingsUserDto,
+  type ToolPolicyDto,
+  type TraceableRefDto,
+  type WorkspaceSettingsDto,
   assertValidIngestPayload,
   assertValidRuleSet,
 } from "../../../../contracts/types/businessFoundation";
@@ -129,6 +139,23 @@ interface DashboardSkuReadModelRecord {
   updatedAt: string;
 }
 
+export interface CreateRuleSetInputDto {
+  name: string;
+  sourceText: string;
+  platform?: string;
+  type?: RuleSetTypeDto;
+  source?: RuleSetSourceDto;
+  status?: RuleSetStatusDto;
+  rules?: CanonicalRuleDto[];
+}
+
+export interface UpdateRuleSetInputDto {
+  name?: string;
+  sourceText?: string;
+  platform?: string;
+  rules?: CanonicalRuleDto[];
+}
+
 const explicitDevBoundary: P0AuthContextDto = {
   actorId: "dev_actor",
   tenantId: "dev_tenant",
@@ -182,6 +209,7 @@ export interface PrismaPersistenceClient {
   currentSkuProjection: PrismaDelegate;
   activity: PrismaDelegate;
   activityRuleSet: PrismaDelegate;
+  ruleSetVersion: PrismaDelegate;
   activitySimulationRun: PrismaDelegate;
   activitySimulationResult: PrismaDelegate;
   reviewItem: PrismaDelegate;
@@ -191,6 +219,7 @@ export interface PrismaPersistenceClient {
   reportVersion?: PrismaDelegate;
   connector: PrismaDelegate;
   connectorRun: PrismaDelegate;
+  workspaceSetting: PrismaDelegate;
 }
 
 export class FinalApiPersistenceStore {
@@ -203,6 +232,8 @@ export class FinalApiPersistenceStore {
   readonly diagnoses = new Map<string, HealthDiagnosisDto>();
   readonly projections = new Map<string, SkuSummaryDto>();
   readonly ruleSets = new Map<string, ActivityRuleSetDto>();
+  readonly ruleSetVersions = new Map<string, RuleSetVersionDto>();
+  readonly ruleSetMetadata = new Map<string, RuleSetMetadata>();
   readonly simulationRuns = new Map<string, ActivitySimulationRunDto>();
   readonly simulationResults = new Map<string, SimulationResultDto>();
   readonly reviews = new Map<string, ReviewItemDto>();
@@ -242,6 +273,15 @@ interface ConnectorRunRecordDto {
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface RuleSetMetadata {
+  type: RuleSetTypeDto;
+  source: RuleSetSourceDto;
+  status: RuleSetStatusDto;
+  version: string;
+  updatedAt: string;
+  updatedBy: string;
 }
 
 export interface TransactionContext {
@@ -519,6 +559,162 @@ export class ActivityRepository {
     this.store.workflowAudits.set(workflowRunId, { workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, input, output, createdAt: new Date().toISOString() });
     this.store.tenantByEntityId.set(workflowRunId, boundary.tenantId);
     return traceRef("workflow_run", workflowRunId, "Workflow audit");
+  }
+}
+
+export class RuleSetRepository {
+  constructor(private readonly store: FinalApiPersistenceStore) {}
+
+  list(boundary: P0AuthContextDto, page = 1, pageSize = 20): PageDto<RuleSetListItemDto> | Promise<PageDto<RuleSetListItemDto>> {
+    const rows = Array.from(this.store.ruleSets.values()).filter((item) => this.store.tenantByEntityId.get(item.ruleSetId) === boundary.tenantId);
+    const items = rows.map((ruleSet) => this.toListItem(ruleSet)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const start = (page - 1) * pageSize;
+    return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
+  }
+
+  getDetail(boundary: P0AuthContextDto, ruleSetId: string): RuleSetDetailDto | null | Promise<RuleSetDetailDto | null> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(ruleSetId), ruleSetId);
+    const ruleSet = this.store.ruleSets.get(ruleSetId);
+    return ruleSet ? assembleRuleSetDetail(this.toListItem(ruleSet), ruleSet, this.relatedRuns(ruleSetId)) : null;
+  }
+
+  create(boundary: P0AuthContextDto, input: CreateRuleSetInputDto): RuleSetDetailDto | Promise<RuleSetDetailDto> {
+    const ruleSet: ActivityRuleSetDto = {
+      ruleSetId: nextId("rules"),
+      name: input.name,
+      platform: input.platform,
+      sourceText: input.sourceText,
+      rules: input.rules ?? deterministicRules(input.sourceText),
+      parseStatus: "PARSED",
+      confidence: 0.9,
+      errors: [],
+    };
+    assertValidRuleSet(ruleSet);
+    const now = new Date().toISOString();
+    this.store.ruleSets.set(ruleSet.ruleSetId, ruleSet);
+    this.store.ruleSetMetadata.set(ruleSet.ruleSetId, {
+      type: input.type ?? "ACTIVITY_RULE",
+      source: input.source ?? "INTERNAL",
+      status: input.status ?? "DRAFT",
+      version: "v1",
+      updatedAt: now,
+      updatedBy: boundary.actorId,
+    });
+    const version = this.toVersion(ruleSet, 1, this.store.ruleSetMetadata.get(ruleSet.ruleSetId)!.status, now, boundary.actorId);
+    this.store.ruleSetVersions.set(version.ruleSetVersionId, version);
+    this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
+    this.store.tenantByEntityId.set(version.ruleSetVersionId, boundary.tenantId);
+    return assembleRuleSetDetail(this.toListItem(ruleSet), ruleSet, []);
+  }
+
+  update(boundary: P0AuthContextDto, ruleSetId: string, input: UpdateRuleSetInputDto): RuleSetDetailDto | Promise<RuleSetDetailDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(ruleSetId), ruleSetId);
+    const current = this.store.ruleSets.get(ruleSetId);
+    if (!current) throw new Error(`Rule set not found: ${ruleSetId}`);
+    const updated: ActivityRuleSetDto = {
+      ...current,
+      name: input.name ?? current.name,
+      platform: input.platform ?? current.platform,
+      sourceText: input.sourceText ?? current.sourceText,
+      rules: input.rules ?? (input.sourceText ? deterministicRules(input.sourceText) : current.rules),
+    };
+    assertValidRuleSet(updated);
+    this.store.ruleSets.set(ruleSetId, updated);
+    this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), updatedAt: new Date().toISOString(), updatedBy: boundary.actorId });
+    return assembleRuleSetDetail(this.toListItem(updated), updated, this.relatedRuns(ruleSetId));
+  }
+
+  setStatus(boundary: P0AuthContextDto, ruleSetId: string, status: RuleSetStatusDto): RuleSetDetailDto | Promise<RuleSetDetailDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(ruleSetId), ruleSetId);
+    const current = this.store.ruleSets.get(ruleSetId);
+    if (!current) throw new Error(`Rule set not found: ${ruleSetId}`);
+    this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), status, updatedAt: new Date().toISOString(), updatedBy: boundary.actorId });
+    return assembleRuleSetDetail(this.toListItem(current), current, this.relatedRuns(ruleSetId));
+  }
+
+  createVersion(boundary: P0AuthContextDto, ruleSetId: string): RuleSetVersionDto | Promise<RuleSetVersionDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(ruleSetId), ruleSetId);
+    const ruleSet = this.store.ruleSets.get(ruleSetId);
+    if (!ruleSet) throw new Error(`Rule set not found: ${ruleSetId}`);
+    const versions = Array.from(this.store.ruleSetVersions.values()).filter((item) => item.ruleSetId === ruleSetId);
+    const nextVersion = versions.length + 1;
+    const createdAt = new Date().toISOString();
+    const version = this.toVersion(ruleSet, nextVersion, this.metadata(ruleSetId).status, createdAt, boundary.actorId);
+    this.store.ruleSetVersions.set(version.ruleSetVersionId, version);
+    this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), version: `v${nextVersion}`, updatedAt: createdAt, updatedBy: boundary.actorId });
+    this.store.tenantByEntityId.set(version.ruleSetVersionId, boundary.tenantId);
+    return version;
+  }
+
+  listVersions(boundary: P0AuthContextDto, ruleSetId: string): RuleSetVersionDto[] | Promise<RuleSetVersionDto[]> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(ruleSetId), ruleSetId);
+    return Array.from(this.store.ruleSetVersions.values()).filter((item) => item.ruleSetId === ruleSetId).sort((a, b) => b.version.localeCompare(a.version));
+  }
+
+  private metadata(ruleSetId: string): RuleSetMetadata {
+    return this.store.ruleSetMetadata.get(ruleSetId) ?? defaultRuleSetMetadata();
+  }
+
+  private toListItem(ruleSet: ActivityRuleSetDto): RuleSetListItemDto {
+    const metadata = this.metadata(ruleSet.ruleSetId);
+    return {
+      ruleSetId: ruleSet.ruleSetId,
+      name: ruleSet.name,
+      type: metadata.type,
+      version: metadata.version,
+      status: metadata.status,
+      source: metadata.source,
+      updatedAt: metadata.updatedAt,
+      updatedBy: metadata.updatedBy,
+      activeRunCount: this.relatedRuns(ruleSet.ruleSetId).length,
+    };
+  }
+
+  private toVersion(ruleSet: ActivityRuleSetDto, version: number, status: RuleSetStatusDto, createdAt: string, createdBy: string): RuleSetVersionDto {
+    const detail = assembleRuleSetDetail({ ...this.toListItem(ruleSet), version: `v${version}`, status }, ruleSet, []);
+    return {
+      ruleSetVersionId: nextId("rule_version"),
+      ruleSetId: ruleSet.ruleSetId,
+      version: `v${version}`,
+      status,
+      sourceText: ruleSet.sourceText,
+      dslJson: ruleSet.rules,
+      affectedFields: detail.affectedFields,
+      manualReviewItems: detail.manualReviewItems,
+      createdAt,
+      createdBy,
+    };
+  }
+
+  private relatedRuns(ruleSetId: string): TraceableRefDto[] {
+    return Array.from(this.store.simulationRuns.values())
+      .filter((run) => run.activityRuleSetId === ruleSetId)
+      .map((run) => ({ entityType: "simulation_run", entityId: run.simulationRunId, label: `规则运行 ${run.simulationRunId}`, drawerTarget: "simulation_run" }));
+  }
+}
+
+export class WorkspaceSettingsRepository {
+  constructor(private readonly store: FinalApiPersistenceStore) {}
+
+  getWorkspace(_boundary: P0AuthContextDto): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
+    return defaultWorkspaceSettings();
+  }
+
+  updateWorkspace(_boundary: P0AuthContextDto, input: Partial<WorkspaceSettingsDto>): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
+    return normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), ...input });
+  }
+
+  getToolPolicy(boundary: P0AuthContextDto): ToolPolicyDto | Promise<ToolPolicyDto> {
+    const workspace = this.getWorkspace(boundary) as WorkspaceSettingsDto;
+    return toToolPolicy(workspace, boundary.actorId);
+  }
+
+  updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): ToolPolicyDto | Promise<ToolPolicyDto> {
+    return toToolPolicy(normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools }), boundary.actorId);
+  }
+
+  listUsers(_boundary: P0AuthContextDto): SettingsUserDto[] | Promise<SettingsUserDto[]> {
+    return defaultSettingsUsers();
   }
 }
 
@@ -1239,6 +1435,172 @@ export class PrismaActivityRepository extends ActivityRepository {
   }
 }
 
+export class PrismaRuleSetRepository extends RuleSetRepository {
+  constructor(private readonly prisma: PrismaPersistenceClient) {
+    super(new FinalApiPersistenceStore());
+  }
+
+  async list(_boundary: P0AuthContextDto, page = 1, pageSize = 20): Promise<PageDto<RuleSetListItemDto>> {
+    const rows = await this.prisma.activityRuleSet.findMany({ orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize });
+    const total = await this.prisma.activityRuleSet.count();
+    const items = await Promise.all(rows.map((row) => this.toListItemFromRow(row)));
+    return { items, page, pageSize, total };
+  }
+
+  async getDetail(_boundary: P0AuthContextDto, ruleSetId: string): Promise<RuleSetDetailDto | null> {
+    const row = await this.prisma.activityRuleSet.findUnique({ where: { id: ruleSetId } });
+    if (!row) return null;
+    return assembleRuleSetDetail(await this.toListItemFromRow(row), toRuleSetDto(row), await this.prismaRelatedRuns(ruleSetId));
+  }
+
+  async create(boundary: P0AuthContextDto, input: CreateRuleSetInputDto): Promise<RuleSetDetailDto> {
+    const ruleSetId = nextUuid();
+    const rules = input.rules ?? deterministicRules(input.sourceText);
+    const row = await this.prisma.activityRuleSet.create({
+      data: {
+        id: ruleSetId,
+        name: input.name,
+        platform: input.platform,
+        sourceText: input.sourceText,
+        rulesJson: rules,
+        parseConfidence: 0.9,
+        parseStatus: "parsed",
+        parseMetadataJson: { type: input.type ?? "ACTIVITY_RULE", source: input.source ?? "INTERNAL", status: input.status ?? "DRAFT", version: "v1", updatedBy: boundary.actorId },
+        createdBy: boundary.actorId,
+      },
+    });
+    await this.prisma.ruleSetVersion.create({
+      data: {
+        id: nextUuid(),
+        ruleSetId,
+        version: 1,
+        status: String(input.status ?? "DRAFT").toLowerCase(),
+        sourceText: input.sourceText,
+        rulesJson: rules,
+        requiredFieldsJson: extractAffectedFields(rules),
+        confirmationsJson: extractManualReviewItems(rules),
+        metadataJson: { createdBy: boundary.actorId },
+        createdBy: boundary.actorId,
+      },
+    });
+    return assembleRuleSetDetail(await this.toListItemFromRow(row), toRuleSetDto(row), []);
+  }
+
+  async update(boundary: P0AuthContextDto, ruleSetId: string, input: UpdateRuleSetInputDto): Promise<RuleSetDetailDto> {
+    const current = await this.prisma.activityRuleSet.findUnique({ where: { id: ruleSetId } });
+    if (!current) throw new Error(`Rule set not found: ${ruleSetId}`);
+    const rules = input.rules ?? (input.sourceText ? deterministicRules(input.sourceText) : asArray(current.rulesJson) as CanonicalRuleDto[]);
+    const row = await this.prisma.activityRuleSet.update({
+      where: { id: ruleSetId },
+      data: {
+        name: input.name,
+        platform: input.platform,
+        sourceText: input.sourceText,
+        rulesJson: rules,
+        parseMetadataJson: { ...asRecord(current.parseMetadataJson), updatedBy: boundary.actorId },
+      },
+    });
+    return assembleRuleSetDetail(await this.toListItemFromRow(row), toRuleSetDto(row), await this.prismaRelatedRuns(ruleSetId));
+  }
+
+  async setStatus(boundary: P0AuthContextDto, ruleSetId: string, status: RuleSetStatusDto): Promise<RuleSetDetailDto> {
+    const current = await this.prisma.activityRuleSet.findUnique({ where: { id: ruleSetId } });
+    if (!current) throw new Error(`Rule set not found: ${ruleSetId}`);
+    const row = await this.prisma.activityRuleSet.update({
+      where: { id: ruleSetId },
+      data: { parseMetadataJson: { ...asRecord(current.parseMetadataJson), status, updatedBy: boundary.actorId } },
+    });
+    return assembleRuleSetDetail(await this.toListItemFromRow(row), toRuleSetDto(row), await this.prismaRelatedRuns(ruleSetId));
+  }
+
+  async createVersion(boundary: P0AuthContextDto, ruleSetId: string): Promise<RuleSetVersionDto> {
+    const row = await this.prisma.activityRuleSet.findUnique({ where: { id: ruleSetId } });
+    if (!row) throw new Error(`Rule set not found: ${ruleSetId}`);
+    const existing = await this.prisma.ruleSetVersion.findMany({ where: { ruleSetId }, orderBy: { version: "desc" }, take: 1 });
+    const version = Number(existing[0]?.version ?? 0) + 1;
+    const created = await this.prisma.ruleSetVersion.create({
+      data: {
+        id: nextUuid(),
+        ruleSetId,
+        version,
+        status: String(ruleSetStatusFromMetadata(row.parseMetadataJson)).toLowerCase(),
+        sourceText: String(row.sourceText),
+        rulesJson: asArray(row.rulesJson),
+        requiredFieldsJson: extractAffectedFields(asArray(row.rulesJson) as CanonicalRuleDto[]),
+        confirmationsJson: extractManualReviewItems(asArray(row.rulesJson) as CanonicalRuleDto[]),
+        metadataJson: { createdBy: boundary.actorId },
+        createdBy: boundary.actorId,
+      },
+    });
+    await this.prisma.activityRuleSet.update({ where: { id: ruleSetId }, data: { parseMetadataJson: { ...asRecord(row.parseMetadataJson), version: `v${version}`, updatedBy: boundary.actorId } } });
+    return toRuleSetVersionDto(created);
+  }
+
+  async listVersions(_boundary: P0AuthContextDto, ruleSetId: string): Promise<RuleSetVersionDto[]> {
+    const rows = await this.prisma.ruleSetVersion.findMany({ where: { ruleSetId }, orderBy: { version: "desc" } });
+    return rows.map(toRuleSetVersionDto);
+  }
+
+  private async toListItemFromRow(row: Record<string, unknown>): Promise<RuleSetListItemDto> {
+    return {
+      ruleSetId: String(row.id),
+      name: String(row.name),
+      type: ruleSetTypeFromMetadata(row.parseMetadataJson),
+      version: String(asRecord(row.parseMetadataJson).version ?? "v1"),
+      status: ruleSetStatusFromMetadata(row.parseMetadataJson),
+      source: ruleSetSourceFromMetadata(row.parseMetadataJson),
+      updatedAt: dateString(row.updatedAt),
+      updatedBy: String(asRecord(row.parseMetadataJson).updatedBy ?? row.createdBy ?? "system"),
+      activeRunCount: await this.prisma.activitySimulationRun.count({ where: { activityRuleSetId: String(row.id) } }),
+    };
+  }
+
+  private async prismaRelatedRuns(ruleSetId: string): Promise<TraceableRefDto[]> {
+    const rows = await this.prisma.activitySimulationRun.findMany({ where: { activityRuleSetId: ruleSetId }, orderBy: { startedAt: "desc" }, take: 10 });
+    return rows.map((run) => ({ entityType: "simulation_run", entityId: String(run.id), label: `规则运行 ${String(run.id).slice(0, 8)}`, drawerTarget: "simulation_run" }));
+  }
+}
+
+export class PrismaWorkspaceSettingsRepository extends WorkspaceSettingsRepository {
+  constructor(private readonly prisma: PrismaPersistenceClient) {
+    super(new FinalApiPersistenceStore());
+  }
+
+  async getWorkspace(_boundary: P0AuthContextDto): Promise<WorkspaceSettingsDto> {
+    const rows = await this.prisma.workspaceSetting.findMany({ where: { status: "active" } });
+    return normalizeWorkspaceSettings(settingsRowsToWorkspace(rows));
+  }
+
+  async updateWorkspace(boundary: P0AuthContextDto, input: Partial<WorkspaceSettingsDto>): Promise<WorkspaceSettingsDto> {
+    const current = await this.getWorkspace(boundary);
+    const next = normalizeWorkspaceSettings({ ...current, ...input });
+    await this.upsert("workspace", "freshness_thresholds", { dataFreshnessThresholdHours: next.dataFreshnessThresholdHours }, boundary.actorId);
+    await this.upsert("workspace", "review_sla", next.reviewSlaHours, boundary.actorId);
+    await this.upsert("agent", "tool_policy", { allowedAgentTools: next.allowedAgentTools, deniedRuntimeTools: next.deniedRuntimeTools, policyVersion: "p0" }, boundary.actorId);
+    return next;
+  }
+
+  async getToolPolicy(boundary: P0AuthContextDto): Promise<ToolPolicyDto> {
+    const row = (await this.prisma.workspaceSetting.findMany({ where: { namespace: "agent", settingKey: "tool_policy" }, take: 1 }))[0];
+    const workspace = normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), ...asRecord(row?.settingJson) });
+    return toToolPolicy(workspace, boundary.actorId, dateString(row?.updatedAt));
+  }
+
+  async updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): Promise<ToolPolicyDto> {
+    const workspace = normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools });
+    await this.upsert("agent", "tool_policy", { allowedAgentTools: workspace.allowedAgentTools, deniedRuntimeTools: workspace.deniedRuntimeTools, policyVersion: "p0" }, boundary.actorId);
+    return toToolPolicy(workspace, boundary.actorId);
+  }
+
+  private async upsert(namespace: string, settingKey: string, settingJson: Record<string, unknown>, actorId: string): Promise<void> {
+    await this.prisma.workspaceSetting.upsert({
+      where: { namespace_settingKey: { namespace, settingKey } },
+      create: { namespace, settingKey, settingJson, status: "active", updatedBy: actorId },
+      update: { settingJson, updatedBy: actorId },
+    });
+  }
+}
+
 export class PrismaReviewRepository extends ReviewRepository {
   constructor(private readonly prisma: PrismaPersistenceClient) {
     super(new FinalApiPersistenceStore());
@@ -1895,6 +2257,286 @@ export class ConnectorManagementService {
   }
 }
 
+export class RuleSetService {
+  constructor(private readonly tx: TransactionManager, private readonly auditRepository: IngestRepository, private readonly repository: RuleSetRepository) {}
+
+  list(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<RuleSetListItemDto>> {
+    return Promise.resolve(this.repository.list(boundary, page, pageSize));
+  }
+
+  async get(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto | null> {
+    return this.repository.getDetail(boundary, ruleSetId);
+  }
+
+  async create(input: CreateRuleSetInputDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
+    return this.tx.transaction(async (tx) => {
+      const detail = await this.repository.create(boundary, input);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "rule_set_create",
+        subjectType: "rule_set",
+        subjectId: detail.ruleSetId,
+        input: { name: input.name, type: detail.type, actorId: boundary.actorId },
+        output: { ruleSetId: detail.ruleSetId, status: detail.status, version: detail.version },
+      });
+      return detail;
+    });
+  }
+
+  async update(ruleSetId: string, input: UpdateRuleSetInputDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
+    return this.tx.transaction(async (tx) => {
+      const detail = await this.repository.update(boundary, ruleSetId, input);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "rule_set_update",
+        subjectType: "rule_set",
+        subjectId: ruleSetId,
+        input: { ruleSetId, fields: Object.keys(input), actorId: boundary.actorId },
+        output: { ruleSetId, status: detail.status, version: detail.version },
+      });
+      return detail;
+    });
+  }
+
+  async createVersion(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetVersionDto> {
+    return this.tx.transaction(async (tx) => {
+      const version = await this.repository.createVersion(boundary, ruleSetId);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "rule_set_version_create",
+        subjectType: "rule_set",
+        subjectId: ruleSetId,
+        input: { ruleSetId, actorId: boundary.actorId },
+        output: { ruleSetVersionId: version.ruleSetVersionId, version: version.version },
+      });
+      return version;
+    });
+  }
+
+  listVersions(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetVersionDto[]> {
+    return Promise.resolve(this.repository.listVersions(boundary, ruleSetId));
+  }
+
+  async setStatus(ruleSetId: string, status: RuleSetStatusDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
+    return this.tx.transaction(async (tx) => {
+      const detail = await this.repository.setStatus(boundary, ruleSetId, status);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "rule_set_status_update",
+        subjectType: "rule_set",
+        subjectId: ruleSetId,
+        input: { ruleSetId, status, actorId: boundary.actorId },
+        output: { ruleSetId, status: detail.status },
+      });
+      return detail;
+    });
+  }
+}
+
+export class WorkspaceSettingsService {
+  constructor(private readonly tx: TransactionManager, private readonly auditRepository: IngestRepository, private readonly repository: WorkspaceSettingsRepository) {}
+
+  getWorkspace(boundary: P0AuthContextDto = explicitDevBoundary): Promise<WorkspaceSettingsDto> {
+    return Promise.resolve(this.repository.getWorkspace(boundary));
+  }
+
+  async updateWorkspace(input: Partial<WorkspaceSettingsDto>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<WorkspaceSettingsDto> {
+    return this.tx.transaction(async (tx) => {
+      const settings = await this.repository.updateWorkspace(boundary, input);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "workspace_settings_update",
+        subjectType: "workspace_setting",
+        input: { fields: Object.keys(input), actorId: boundary.actorId },
+        output: { workspaceId: settings.workspaceId, dataFreshnessThresholdHours: settings.dataFreshnessThresholdHours },
+      });
+      return settings;
+    });
+  }
+
+  getToolPolicy(boundary: P0AuthContextDto = explicitDevBoundary): Promise<ToolPolicyDto> {
+    return Promise.resolve(this.repository.getToolPolicy(boundary));
+  }
+
+  async updateToolPolicy(input: Partial<ToolPolicyDto>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ToolPolicyDto> {
+    return this.tx.transaction(async (tx) => {
+      const policy = await this.repository.updateToolPolicy(boundary, input);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "tool_policy_update",
+        subjectType: "workspace_setting",
+        input: { allowedAgentTools: policy.allowedAgentTools, deniedRuntimeTools: policy.deniedRuntimeTools, actorId: boundary.actorId },
+        output: { policyVersion: policy.policyVersion, deniedRuntimeTools: policy.deniedRuntimeTools },
+      });
+      return policy;
+    });
+  }
+
+  listUsers(boundary: P0AuthContextDto = explicitDevBoundary): Promise<SettingsUserDto[]> {
+    return Promise.resolve(this.repository.listUsers(boundary));
+  }
+}
+
+const forcedDeniedRuntimeTools = ["coding", "file", "bash", "shell", "terminal", "runtime:exec", "prisma:migrate"];
+
+function defaultRuleSetMetadata(): RuleSetMetadata {
+  return { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedAt: new Date(0).toISOString(), updatedBy: "system" };
+}
+
+function assembleRuleSetDetail(item: RuleSetListItemDto, ruleSet: ActivityRuleSetDto, relatedRuns: TraceableRefDto[]): RuleSetDetailDto {
+  return {
+    ...item,
+    summary: {
+      ruleCount: ruleSet.rules.length,
+      validationMode: ruleSet.rules.some((rule) => rule.severity === "blocking") ? "BLOCK_AND_HINT" : "HINT_ONLY",
+      failureHandling: ruleSet.rules.some((rule) => rule.type === "manual_review") ? "MANUAL_REVIEW" : ruleSet.rules.some((rule) => rule.severity === "blocking") ? "BLOCK" : "WARN",
+      priority: ruleSet.rules.some((rule) => rule.severity === "blocking") ? "P0" : "P1",
+      scopeText: ruleSet.platform ? `平台 ${ruleSet.platform}` : "全工作区",
+      linkedDataSources: [...new Set(extractAffectedFields(ruleSet.rules).flatMap((item) => item.dataSources.map((source) => source.label)))],
+    },
+    dslJson: ruleSet.rules,
+    affectedFields: extractAffectedFields(ruleSet.rules),
+    manualReviewItems: extractManualReviewItems(ruleSet.rules),
+    relatedRuns,
+  };
+}
+
+function extractAffectedFields(rules: CanonicalRuleDto[]): RuleSetDetailDto["affectedFields"] {
+  const fields = new Map<string, RuleSetDetailDto["affectedFields"][number]>();
+  for (const rule of rules) {
+    for (const field of [rule.field, rule.compareField].filter((value): value is string => Boolean(value))) {
+      fields.set(field, {
+        field,
+        label: fieldLabel(field),
+        required: rule.type === "data_required" || rule.severity === "blocking",
+        dataSources: [{ entityType: "connector", entityId: `connector_${field}`, label: fieldDataSource(field), drawerTarget: "connector" }],
+      });
+    }
+  }
+  return Array.from(fields.values());
+}
+
+function extractManualReviewItems(rules: CanonicalRuleDto[]): RuleSetDetailDto["manualReviewItems"] {
+  return rules
+    .filter((rule) => rule.type === "manual_review")
+    .map((rule) => ({ reasonCode: rule.id, question: rule.message, confidence: rule.severity === "warning" ? 0.72 : 0.9 }));
+}
+
+function fieldLabel(field: string): string {
+  const labels: Record<string, string> = { stock: "库存", positiveRate: "好评率", certificateStatus: "证书状态", campaignPrice: "活动价", sales30d: "30 天销量" };
+  return labels[field] ?? field;
+}
+
+function fieldDataSource(field: string): string {
+  if (field === "certificateStatus") return "资质/证书数据源";
+  if (field === "positiveRate") return "评价数据源";
+  return "商品数据源";
+}
+
+function defaultWorkspaceSettings(): WorkspaceSettingsDto {
+  return normalizeWorkspaceSettings({
+    workspaceId: "default_workspace",
+    name: "PickAgent 工作区",
+    defaultTenantId: "dev_tenant",
+    dataFreshnessThresholdHours: 24,
+    reviewSlaHours: { high: 4, medium: 24, low: 72 },
+    allowedAgentTools: ["getSkuSummary", "parseActivityRules", "simulateActivityReadiness", "runSimulation", "checkDataFreshness", "diagnoseSkuHealth", "createReviewItems", "explainDecisionWithEvidence", "generateReportPreview"],
+    deniedRuntimeTools: forcedDeniedRuntimeTools,
+  });
+}
+
+function normalizeWorkspaceSettings(input: Partial<WorkspaceSettingsDto>): WorkspaceSettingsDto {
+  const defaults = {
+    workspaceId: "default_workspace",
+    name: "PickAgent 工作区",
+    defaultTenantId: "dev_tenant",
+    dataFreshnessThresholdHours: 24,
+    reviewSlaHours: { high: 4, medium: 24, low: 72 },
+    allowedAgentTools: [] as string[],
+    deniedRuntimeTools: [] as string[],
+  };
+  const deniedRuntimeTools = Array.from(new Set([...(input.deniedRuntimeTools ?? defaults.deniedRuntimeTools), ...forcedDeniedRuntimeTools]));
+  return {
+    ...defaults,
+    ...input,
+    reviewSlaHours: { ...defaults.reviewSlaHours, ...input.reviewSlaHours },
+    allowedAgentTools: (input.allowedAgentTools ?? defaults.allowedAgentTools).filter((tool) => !forcedDeniedRuntimeTools.includes(tool)),
+    deniedRuntimeTools,
+  };
+}
+
+function toToolPolicy(settings: WorkspaceSettingsDto, updatedBy: string, updatedAt = new Date().toISOString()): ToolPolicyDto {
+  return { allowedAgentTools: settings.allowedAgentTools, deniedRuntimeTools: settings.deniedRuntimeTools, policyVersion: "p0", updatedAt, updatedBy };
+}
+
+function defaultSettingsUsers(): SettingsUserDto[] {
+  return [
+    { userId: "ops_lead", name: "运营负责人", role: "op_team", teamName: "运营团队", status: "ACTIVE" },
+    { userId: "qa_reviewer", name: "质检复核", role: "qa_team", teamName: "质检团队", status: "ACTIVE" },
+    { userId: "compliance_owner", name: "合规审批", role: "compliance_team", teamName: "合规团队", status: "ACTIVE" },
+  ];
+}
+
+function toRuleSetDto(row: Record<string, unknown>): ActivityRuleSetDto {
+  return {
+    ruleSetId: String(row.id),
+    name: String(row.name),
+    platform: typeof row.platform === "string" ? row.platform : undefined,
+    sourceText: String(row.sourceText),
+    rules: asArray(row.rulesJson) as CanonicalRuleDto[],
+    parseStatus: String(row.parseStatus).toUpperCase() as ActivityRuleSetDto["parseStatus"],
+    confidence: Number(row.parseConfidence ?? 0),
+    errors: asArray(asRecord(row.parseMetadataJson).errors).map(String),
+  };
+}
+
+function toRuleSetVersionDto(row: Record<string, unknown>): RuleSetVersionDto {
+  return {
+    ruleSetVersionId: String(row.id),
+    ruleSetId: String(row.ruleSetId),
+    version: `v${Number(row.version ?? 1)}`,
+    status: statusFromString(row.status),
+    sourceText: String(row.sourceText),
+    dslJson: asArray(row.rulesJson) as CanonicalRuleDto[],
+    affectedFields: asArray(row.requiredFieldsJson) as RuleSetVersionDto["affectedFields"],
+    manualReviewItems: asArray(row.confirmationsJson) as RuleSetVersionDto["manualReviewItems"],
+    createdAt: dateString(row.createdAt),
+    createdBy: String(row.createdBy ?? asRecord(row.metadataJson).createdBy ?? "system"),
+  };
+}
+
+function settingsRowsToWorkspace(rows: Record<string, unknown>[]): Partial<WorkspaceSettingsDto> {
+  const workspace = defaultWorkspaceSettings();
+  for (const row of rows) {
+    const key = String(row.settingKey);
+    const value = asRecord(row.settingJson);
+    if (key === "freshness_thresholds") workspace.dataFreshnessThresholdHours = Number(value.dataFreshnessThresholdHours ?? value.hours ?? workspace.dataFreshnessThresholdHours);
+    if (key === "review_sla") workspace.reviewSlaHours = { ...workspace.reviewSlaHours, ...value };
+    if (key === "tool_policy") {
+      workspace.allowedAgentTools = asArray(value.allowedAgentTools).map(String);
+      workspace.deniedRuntimeTools = asArray(value.deniedRuntimeTools).map(String);
+    }
+  }
+  return workspace;
+}
+
+function ruleSetTypeFromMetadata(value: unknown): RuleSetTypeDto {
+  const type = asRecord(value).type;
+  return type === "QUALIFICATION_RULE" || type === "CONTENT_RULE" ? type : "ACTIVITY_RULE";
+}
+
+function ruleSetSourceFromMetadata(value: unknown): RuleSetSourceDto {
+  return asRecord(value).source === "PLATFORM" ? "PLATFORM" : "INTERNAL";
+}
+
+function ruleSetStatusFromMetadata(value: unknown): RuleSetStatusDto {
+  return statusFromString(asRecord(value).status);
+}
+
+function statusFromString(value: unknown): RuleSetStatusDto {
+  const upper = String(value ?? "DRAFT").toUpperCase();
+  return upper === "ENABLED" || upper === "DISABLED" ? upper : "DRAFT";
+}
+
+function dateString(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === "string" && value ? value : new Date().toISOString();
+}
+
 function toSummary(profile: SkuProfileRecord, diagnosis: HealthDiagnosisDto): SkuSummaryDto {
   return {
     skuProfileId: profile.skuProfileId,
@@ -2277,6 +2919,10 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
 function toContractHealthStatus(value: unknown): HealthDiagnosisDto["healthStatus"] {
   if (value === "READY") return "READY";
   if (value === "BLOCKED") return "BLOCKED";
@@ -2650,7 +3296,9 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
     const reportService = new FinalReportService(new PrismaReportRepository(options.prisma), skuQueryRepository);
     const connectorService = new ConnectorManagementService(new PrismaConnectorRepositoryV2(options.prisma));
     const browserConnectorService = new BrowserConnectorService();
-    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService };
+    const ruleSetService = new RuleSetService(tx, new PrismaIngestRepository(), new PrismaRuleSetRepository(options.prisma));
+    const workspaceSettingsService = new WorkspaceSettingsService(tx, new PrismaIngestRepository(), new PrismaWorkspaceSettingsRepository(options.prisma));
+    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService };
   }
   const store = new FinalApiPersistenceStore();
   const tx = new InMemoryTransactionManager(store);
@@ -2663,5 +3311,8 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
   const reportService = new FinalReportService(new ReportRepository(store), skuQueryRepository);
   const connectorService = new ConnectorManagementService(new ConnectorRepositoryV2(store));
   const browserConnectorService = new BrowserConnectorService();
-  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService };
+  const auditRepository = new IngestRepository();
+  const ruleSetService = new RuleSetService(tx, auditRepository, new RuleSetRepository(store));
+  const workspaceSettingsService = new WorkspaceSettingsService(tx, auditRepository, new WorkspaceSettingsRepository(store));
+  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService };
 }

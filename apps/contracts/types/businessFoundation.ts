@@ -144,6 +144,114 @@ export interface ActivityRuleSetDto {
   errors: string[];
 }
 
+export type TraceableEntityType =
+  | "sku_profile"
+  | "sku_snapshot"
+  | "health_diagnosis"
+  | "activity"
+  | "rule_set"
+  | "simulation_run"
+  | "simulation_result"
+  | "review_item"
+  | "workflow_run"
+  | "workflow_step"
+  | "agent_mission"
+  | "agent_run"
+  | "agent_tool_call"
+  | "connector"
+  | "report";
+
+export interface TraceableRefDto {
+  entityType: TraceableEntityType;
+  entityId: string;
+  label: string;
+  href?: string;
+  drawerTarget?: string;
+}
+
+export type RuleSetTypeDto = "ACTIVITY_RULE" | "QUALIFICATION_RULE" | "CONTENT_RULE";
+export type RuleSetStatusDto = "ENABLED" | "DRAFT" | "DISABLED";
+export type RuleSetSourceDto = "PLATFORM" | "INTERNAL";
+
+export interface RuleSetListItemDto {
+  ruleSetId: string;
+  name: string;
+  type: RuleSetTypeDto;
+  version: string;
+  status: RuleSetStatusDto;
+  source: RuleSetSourceDto;
+  updatedAt: string;
+  updatedBy: string;
+  activeRunCount: number;
+}
+
+export interface RuleSetDetailDto extends RuleSetListItemDto {
+  summary: {
+    ruleCount: number;
+    validationMode: "BLOCK_AND_HINT" | "HINT_ONLY";
+    failureHandling: "BLOCK" | "MANUAL_REVIEW" | "WARN";
+    priority: "P0" | "P1" | "P2";
+    scopeText: string;
+    linkedDataSources: string[];
+  };
+  dslJson: CanonicalRuleDto[];
+  affectedFields: Array<{
+    field: string;
+    label: string;
+    required: boolean;
+    dataSources: TraceableRefDto[];
+  }>;
+  manualReviewItems: Array<{
+    reasonCode: string;
+    question: string;
+    confidence?: number;
+  }>;
+  relatedRuns: TraceableRefDto[];
+}
+
+export interface RuleSetVersionDto {
+  ruleSetVersionId: string;
+  ruleSetId: string;
+  version: string;
+  status: RuleSetStatusDto;
+  sourceText: string;
+  dslJson: CanonicalRuleDto[];
+  affectedFields: RuleSetDetailDto["affectedFields"];
+  manualReviewItems: RuleSetDetailDto["manualReviewItems"];
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface WorkspaceSettingsDto {
+  workspaceId: string;
+  name: string;
+  defaultTenantId: string;
+  dataFreshnessThresholdHours: number;
+  reviewSlaHours: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+  allowedAgentTools: string[];
+  deniedRuntimeTools: string[];
+}
+
+export interface ToolPolicyDto {
+  allowedAgentTools: string[];
+  deniedRuntimeTools: string[];
+  policyVersion: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface SettingsUserDto {
+  userId: string;
+  name: string;
+  role: "op_team" | "qa_team" | "compliance_team" | "marketing_team" | string;
+  teamName: string;
+  status: "ACTIVE" | "DISABLED";
+}
+
 export interface WhatIfInputDto {
   stock?: number;
   campaignPrice?: number;

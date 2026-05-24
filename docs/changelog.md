@@ -56,6 +56,19 @@
 
 ---
 
+### [2026-05-24] 支撑规则库与设置 API
+
+- 模块：backend / contracts / frontend api / docs
+- 类型：功能
+- 摘要：新增 RuleSet list/detail/version/enable/disable 与 workspace/tool-policy/users settings 的最小可验收服务、DTO 和 Next API route。写操作通过 WorkflowRun 审计，工具策略强制保留 L3 runtime tools denylist。
+- 影响范围：`apps/contracts/types/businessFoundation.ts`、`apps/backend/src/application/foundation/FinalApiPersistenceFoundation.ts`、`apps/frontend/src/app/api/rule-sets/**`、`apps/frontend/src/app/api/settings/**`
+- 是否影响 contracts：是
+- 是否影响数据结构：否
+- 兼容性说明：复用既有 `activity_rule_sets`、`rule_set_versions`、`workspace_settings` 和 `workflow_runs`，未新增 migration；route handler 仅做 parse/auth/service/envelope。
+- 关联任务 / 决策：Workstream H / `rules-settings-api`
+
+---
+
 ### [2026-05-23] 补充最终设计缺口收敛方案
 
 - 模块：docs / architecture / openspec

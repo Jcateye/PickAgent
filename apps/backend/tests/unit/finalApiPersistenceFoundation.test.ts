@@ -98,7 +98,7 @@ test("final activity, review and report services share persistent repositories",
   ]);
   const review = reviews[0];
   assert.equal((await runtime.reviewService.list()).total, 1);
-  assert.equal((await runtime.reviewService.decide(review.reviewItemId, { decision: "REQUEST_CHANGES", decisionBy: "ops@example.test" })).status, "CHANGES_REQUESTED");
+  assert.equal((await runtime.reviewService.decide(review.reviewItemId, { decision: "REQUEST_CHANGES", decisionBy: "ops@example.test" })).status, "MODIFIED");
 
   const report = await runtime.reportService.generate({
     type: "ACTIVITY",
@@ -146,4 +146,61 @@ test("dashboard SKU read models expose filterable list and evidence-backed detai
   assert.ok(detail);
   assert.ok(detail.readinessChecklist.every((item) => item.evidenceRefs.length > 0));
   assert.ok(detail.relatedRules.length > 0);
+});
+
+test("rule library service exposes detail, versions, status updates and workflow audits", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const created = await runtime.ruleSetService.create(
+    {
+      name: "规则库验收规则",
+      platform: "tmall",
+      sourceText: "活动库存不得低于 50 件，好评率不少于 95%，证书必须有效，人工确认特殊资质。",
+      source: "INTERNAL",
+    },
+    tenantA,
+  );
+
+  assert.equal(created.status, "DRAFT");
+  assert.equal(created.dslJson.length, 4);
+  assert.ok(created.affectedFields.some((field) => field.field === "stock" && field.dataSources.length > 0));
+  assert.ok(created.manualReviewItems.length > 0);
+
+  const list = await runtime.ruleSetService.list(1, 20, tenantA);
+  assert.equal(list.total, 1);
+  assert.equal(list.items[0].ruleSetId, created.ruleSetId);
+
+  const version = await runtime.ruleSetService.createVersion(created.ruleSetId, tenantA);
+  assert.equal(version.version, "v2");
+  assert.equal((await runtime.ruleSetService.listVersions(created.ruleSetId, tenantA)).length, 2);
+
+  const enabled = await runtime.ruleSetService.setStatus(created.ruleSetId, "ENABLED", tenantA);
+  assert.equal(enabled.status, "ENABLED");
+  assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "rule_set_status_update" && audit.subjectId === created.ruleSetId));
+
+  await assert.rejects(
+    () => runtime.ruleSetService.get(created.ruleSetId, tenantB),
+    (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
+  );
+});
+
+test("workspace settings service keeps L3 runtime tools denied", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const policy = await runtime.workspaceSettingsService.updateToolPolicy(
+    {
+      allowedAgentTools: ["getSkuSummary", "bash", "runtime:exec"],
+      deniedRuntimeTools: ["customDangerousTool"],
+    },
+    tenantA,
+  );
+
+  assert.deepEqual(policy.allowedAgentTools, ["getSkuSummary"]);
+  assert.ok(policy.deniedRuntimeTools.includes("bash"));
+  assert.ok(policy.deniedRuntimeTools.includes("runtime:exec"));
+  assert.ok(policy.deniedRuntimeTools.includes("customDangerousTool"));
+
+  const workspace = await runtime.workspaceSettingsService.updateWorkspace({ dataFreshnessThresholdHours: 12, reviewSlaHours: { high: 2, medium: 8, low: 48 } }, tenantA);
+  assert.equal(workspace.dataFreshnessThresholdHours, 12);
+  assert.equal(workspace.reviewSlaHours.high, 2);
+  assert.equal((await runtime.workspaceSettingsService.listUsers(tenantA)).length, 3);
+  assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "tool_policy_update"));
 });
