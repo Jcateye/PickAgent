@@ -23,20 +23,21 @@ const tenantB: P0AuthContextDto = {
 test("final API persistence foundation writes ingest aggregate in one transaction boundary", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const result = await runtime.ingestService.ingest(businessFoundationSeedFixture);
+  const expectedRows = businessFoundationSeedFixture.rows.length;
 
-  assert.equal(result.summaries.length, 2);
-  assert.equal(result.snapshots.length, 2);
-  assert.equal(result.diagnoses.length, 2);
+  assert.equal(result.summaries.length, expectedRows);
+  assert.equal(result.snapshots.length, expectedRows);
+  assert.equal(result.diagnoses.length, expectedRows);
   assert.match(result.workflowRunId, /^workflow_/);
-  assert.equal(runtime.store.profilesById.size, 2);
-  assert.equal(runtime.store.snapshots.size, 2);
-  assert.equal(runtime.store.diagnoses.size, 2);
-  assert.equal(runtime.store.projections.size, 2);
+  assert.equal(runtime.store.profilesById.size, expectedRows);
+  assert.equal(runtime.store.snapshots.size, expectedRows);
+  assert.equal(runtime.store.diagnoses.size, expectedRows);
+  assert.equal(runtime.store.projections.size, expectedRows);
   assert.equal(runtime.store.workflowAudits.size, 1);
 
   const summary = await runtime.ingestService.getHealthSummary();
-  assert.equal(summary.total, 2);
-  assert.equal((await runtime.ingestService.listSkus()).items.length, 2);
+  assert.equal(summary.total, expectedRows);
+  assert.equal((await runtime.ingestService.listSkus()).items.length, expectedRows);
   assert.equal((await runtime.ingestService.getSkuDetail(result.summaries[0].skuProfileId))?.latestSnapshot?.skuProfileId, result.summaries[0].skuProfileId);
 });
 
@@ -44,7 +45,7 @@ test("final API repositories carry tenant and session boundary and deny cross-te
   const runtime = createFinalApiPersistenceRuntime();
   const ingestA = await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
 
-  assert.equal((await runtime.ingestService.getHealthSummary(tenantA)).total, 2);
+  assert.equal((await runtime.ingestService.getHealthSummary(tenantA)).total, businessFoundationSeedFixture.rows.length);
   assert.equal((await runtime.ingestService.getHealthSummary(tenantB)).total, 0);
   await assert.rejects(
     () => runtime.ingestService.getSkuDetail(ingestA.summaries[0].skuProfileId, tenantB),
@@ -66,6 +67,55 @@ test("final API repositories carry tenant and session boundary and deny cross-te
   );
 });
 
+test("sku readiness query exposes browser collection key metrics", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingest = await runtime.ingestService.ingest({
+    connectorId: "doudian-browser-extension",
+    collectedAt: "2026-05-24T10:00:00.000Z",
+    rows: [
+      {
+        platform: "doudian",
+        storeId: "fxg.jinritemai.com",
+        externalSkuId: "3818388858177978472",
+        productName: "韩版夏季短袖上衣",
+        stock: 98,
+        raw: {
+          extensionSourceKind: "current-page-dom",
+          domMetrics: {
+            salesCount: 4,
+            positiveRate: 1,
+            qualityScore: 85,
+            qualityLabel: "优秀",
+          },
+        },
+      },
+    ],
+  });
+
+  const list = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10 }, {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  });
+  const item = list.items.find((row) => row.skuProfileId === ingest.summaries[0].skuProfileId);
+  assert.equal(item?.sales30d, 4);
+  assert.equal(item?.positiveRate, 1);
+  assert.equal(item?.qualityScore, 85);
+  assert.equal(item?.sourceKind, "current-page-dom");
+
+  const detail = await runtime.skuReadinessQueryService.detail(ingest.summaries[0].skuProfileId, {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  });
+  assert.equal(detail?.keyMetrics.qualityLabel, "优秀");
+  assert.equal(detail?.keyMetrics.collectedAt, "2026-05-24T10:00:00.000Z");
+});
+
 test("final activity, review and report services share persistent repositories", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture);
@@ -80,10 +130,10 @@ test("final activity, review and report services share persistent repositories",
   });
 
   assert.equal(run.status, "SUCCEEDED");
-  assert.equal(run.results.length, 2);
+  assert.equal(run.results.length, businessFoundationSeedFixture.rows.length);
   assert.equal(runtime.store.ruleSets.get(ruleSet.ruleSetId)?.ruleSetId, ruleSet.ruleSetId);
-  assert.equal(runtime.store.simulationRuns.get(run.simulationRunId)?.results.length, 2);
-  assert.equal(runtime.store.simulationResults.size, 2);
+  assert.equal(runtime.store.simulationRuns.get(run.simulationRunId)?.results.length, businessFoundationSeedFixture.rows.length);
+  assert.equal(runtime.store.simulationResults.size, businessFoundationSeedFixture.rows.length);
 
   const reviews = await runtime.reviewService.create([
     {

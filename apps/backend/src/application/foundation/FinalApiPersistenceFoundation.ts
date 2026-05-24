@@ -2584,19 +2584,24 @@ function dashboardSortValue(record: DashboardSkuReadModelRecord, sortBy: NonNull
 function toDashboardSkuListItem(record: DashboardSkuReadModelRecord): DashboardSkuListItemDto {
   const healthStatus = toDashboardHealthStatus(record.summary.healthStatus);
   const eligibilityStatus = record.latestSimulationResult?.eligibility;
+  const keyMetrics = dashboardKeyMetrics(record);
   return {
     skuProfileId: record.summary.skuProfileId,
     displaySku: record.summary.canonicalSkuKey,
     productName: record.summary.productName,
     category: record.latestSnapshot?.category,
-    sales30d: record.latestSnapshot?.sales30d,
-    positiveRate: record.latestSnapshot?.positiveRate,
-    stock: record.latestSnapshot?.stock,
+    sales30d: keyMetrics.sales30d,
+    positiveRate: keyMetrics.positiveRate,
+    qualityScore: keyMetrics.qualityScore,
+    qualityLabel: keyMetrics.qualityLabel,
+    sourceKind: keyMetrics.sourceKind,
+    stock: keyMetrics.stock,
     healthStatus,
     eligibilityStatus,
     eligibilityLabel: eligibilityLabel(eligibilityStatus),
     nextAction: nextDashboardSkuAction(healthStatus, eligibilityStatus),
     evidenceCount: evidenceRefsForRecord(record).length,
+    collectedAt: keyMetrics.collectedAt,
     updatedAt: record.updatedAt,
   };
 }
@@ -2605,6 +2610,7 @@ function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSku
   const evidenceRefs = evidenceRefsForRecord(record);
   const healthStatus = toDashboardHealthStatus(record.summary.healthStatus);
   const eligibilityStatus = record.latestSimulationResult?.eligibility;
+  const keyMetrics = dashboardKeyMetrics(record);
   return {
     skuProfileId: record.summary.skuProfileId,
     displaySku: record.summary.canonicalSkuKey,
@@ -2612,6 +2618,7 @@ function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSku
     category: record.latestSnapshot?.category,
     platform: record.summary.platform,
     storeId: record.summary.storeId,
+    keyMetrics,
     statusSummary: {
       healthStatus,
       eligibilityStatus,
@@ -2640,6 +2647,23 @@ function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSku
       : null,
     relatedRules: record.latestSimulationResult ? [traceableRef("rule_set", record.latestSimulationResult.ruleSetId, "活动规则集")] : [],
     relatedReviews: record.relatedReviews.map((item) => traceableRef("review_item", item.reviewItemId, item.question)),
+  };
+}
+
+function dashboardKeyMetrics(record: DashboardSkuReadModelRecord): DashboardSkuReadinessDetailDto["keyMetrics"] {
+  const snapshot = record.latestSnapshot;
+  const normalized = snapshot?.normalized;
+  const raw = snapshot?.raw;
+  const rawDomMetrics = raw?.domMetrics;
+  const domMetrics = rawDomMetrics && typeof rawDomMetrics === "object" && !Array.isArray(rawDomMetrics) ? (rawDomMetrics as Record<string, unknown>) : {};
+  return {
+    sales30d: snapshot?.sales30d,
+    positiveRate: snapshot?.positiveRate,
+    qualityScore: numberFromUnknown(normalized?.qualityScore) ?? numberFromUnknown(domMetrics.qualityScore),
+    qualityLabel: stringFromUnknown(normalized?.qualityLabel) ?? stringFromUnknown(domMetrics.qualityLabel),
+    sourceKind: stringFromUnknown(raw?.extensionSourceKind),
+    stock: snapshot?.stock,
+    collectedAt: snapshot?.collectedAt,
   };
 }
 
@@ -3189,6 +3213,14 @@ function isReportDetailShape(value: Record<string, unknown>): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberFromUnknown(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function stringFromUnknown(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function validateCreateConnector(input: CreateConnectorDto): void {

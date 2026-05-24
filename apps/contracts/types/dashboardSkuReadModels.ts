@@ -56,6 +56,9 @@ export interface DashboardSkuListItemDto {
   category?: string;
   sales30d?: number;
   positiveRate?: number;
+  qualityScore?: number;
+  qualityLabel?: string;
+  sourceKind?: string;
   stock?: number;
   healthStatus: DashboardSkuHealthStatus;
   eligibilityStatus?: DashboardSkuEligibilityStatus;
@@ -66,6 +69,7 @@ export interface DashboardSkuListItemDto {
     disabled?: boolean;
   };
   evidenceCount: number;
+  collectedAt?: string;
   updatedAt: string;
 }
 
@@ -76,6 +80,15 @@ export interface DashboardSkuReadinessDetailDto {
   category?: string;
   platform: string;
   storeId: string;
+  keyMetrics: {
+    sales30d?: number;
+    positiveRate?: number;
+    qualityScore?: number;
+    qualityLabel?: string;
+    sourceKind?: string;
+    stock?: number;
+    collectedAt?: string;
+  };
   statusSummary: {
     healthStatus: DashboardSkuHealthStatus;
     eligibilityStatus?: DashboardSkuEligibilityStatus;
