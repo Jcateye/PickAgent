@@ -79,13 +79,18 @@ export function AgentAssistantThread({
     isRunning: isSubmitting,
     isSendDisabled: isSubmitting,
     setMessages: (nextMessages) => setMessages([...nextMessages]),
-    convertMessage: (message) => ({
-      id: message.id,
-      role: message.role === 'user' || message.role === 'system' ? message.role : 'assistant',
-      content: message.content,
-      status: message.status === 'streaming' ? { type: 'running' } : { type: 'complete', reason: 'stop' },
-      metadata: { custom: { linkedEntityIds: message.linkedEntityIds ?? [], evidenceRefIds: message.evidenceRefIds ?? [] } },
-    }),
+    convertMessage: (message) => {
+      const role: 'user' | 'system' | 'assistant' = message.role === 'user' || message.role === 'system' ? message.role : 'assistant'
+      const converted = {
+        id: message.id,
+        role,
+        content: message.content,
+        metadata: { custom: { linkedEntityIds: message.linkedEntityIds ?? [], evidenceRefIds: message.evidenceRefIds ?? [] } },
+      }
+      return role === 'assistant'
+        ? { ...converted, status: message.status === 'streaming' ? { type: 'running' as const } : { type: 'complete' as const, reason: 'stop' as const } }
+        : converted
+    },
     onNew: async (message) => {
       const content = extractComposerText(message)
       if (content) await submitMessage(content)
