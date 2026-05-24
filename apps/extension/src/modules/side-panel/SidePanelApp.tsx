@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import {
   AlertTriangle,
+  Archive,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -412,20 +413,12 @@ export function SidePanelApp() {
           <div className={styles.cardPadding}>
             <div className={styles.sectionTitle}>
               采集操作
-              <span className={styles.sectionHint}>DOM 对齐当前页，库存接口为 SKU 维度</span>
+              <span className={styles.sectionHint}>对齐当前页商品行</span>
             </div>
             <div className={styles.actionGrid}>
               <button className={styles.buttonPrimary} type="button" onClick={() => void collectProductRowsFromPageDom()}>
                 <Search size={16} />
-                采当前页DOM
-              </button>
-              <button className={styles.buttonSecondary} type="button" onClick={() => void collectRealDoudianStock()}>
-                <Store size={16} />
-                库存采SKU
-              </button>
-              <button className={styles.buttonSecondary} type="button" onClick={() => void inspectCurrentPage()}>
-                <Info size={16} />
-                页面调试
+                采集商品
               </button>
               <button className={styles.buttonSecondary} type="button" onClick={() => void submitRealPayloads()} disabled={!hasProductRows}>
                 <Send size={16} />
@@ -524,6 +517,14 @@ export function SidePanelApp() {
             <div className={styles.configValue}>已选择: 抖店 <ChevronDown size={14} /></div>
           </div>
           <div className={styles.devTools}>
+            <button className={styles.textButton} type="button" onClick={() => void inspectCurrentPage()}>
+              <Info size={13} />
+              调试页面
+            </button>
+            <button className={styles.textButton} type="button" onClick={() => void collectRealDoudianStock()}>
+              <Archive size={13} />
+              库存采SKU
+            </button>
             <button className={styles.textButton} type="button" onClick={() => setRunState(collectProductPage(runState, activeProductPage))}>
               模拟采商品
             </button>

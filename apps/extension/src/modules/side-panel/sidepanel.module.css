@@ -401,6 +401,11 @@
   gap: 8px;
 }
 
+.actionGrid .buttonPrimary,
+.actionGrid .buttonSecondary {
+  margin: 0;
+}
+
 .secondaryActionRow {
   display: flex;
   align-items: center;
