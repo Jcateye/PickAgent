@@ -1,10 +1,54 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { FileText, Database, Plug, LayoutList, CheckCircle2, ChevronRight, Download, Filter, HelpCircle, FileCheck2, ChevronDown, Lock, ShieldAlert, Check } from 'lucide-react'
+import type { SkuSummaryDto } from '../../../../contracts/types/businessFoundation'
+import type { ReviewListItemDto } from '../../../../contracts/types/reviewReportCenter'
+import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './overview.module.css'
 
 export function OverviewPage() {
+  const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
+  const [skuPage, setSkuPage] = useState<PageDto<SkuSummaryDto> | null>(null)
+  const [reviewPage, setReviewPage] = useState<PageDto<ReviewListItemDto> | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
+      fetchActivityApi<PageDto<SkuSummaryDto>>('/api/skus?pageSize=5'),
+      fetchActivityApi<PageDto<ReviewListItemDto>>('/api/reviews?pageSize=20'),
+    ])
+      .then(([nextSummary, nextSkuPage, nextReviewPage]) => {
+        if (cancelled) return
+        setSummary(nextSummary)
+        setSkuPage(nextSkuPage)
+        setReviewPage(nextReviewPage)
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const overview = useMemo(() => {
+    const total = summary?.total ?? 1258
+    const ready = summary?.ready ?? 862
+    const blocked = summary?.blocked ?? 8
+    const reviewCount = reviewPage?.total ?? 142
+    return {
+      total,
+      ready,
+      blocked,
+      reviewCount,
+      readyRate: total > 0 ? `${((ready / total) * 100).toFixed(1)}%` : '0.0%',
+    }
+  }, [reviewPage?.total, summary])
+
+  const apiRows = skuPage?.items?.length ? skuPage.items : null
+
   return (
     <div className={styles.layout}>
       {/* Left Main Content */}
@@ -58,7 +102,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceIcon}><LayoutList size={20} /></div>
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>诊断结果</span>
-                    <span className={styles.evidenceData}>1,258 个 SKU</span>
+                    <span className={styles.evidenceData}>{overview.total.toLocaleString()} 个 SKU</span>
                     <a href="#" className={styles.evidenceLink}>查看证据</a>
                   </div>
                 </div>
@@ -152,12 +196,12 @@ export function OverviewPage() {
           <div className={styles.indicatorCard}>
             <div className={styles.indicatorTitle}>可直接报名 SKU</div>
             <div className={styles.indicatorMain}>
-              <div className={`${styles.indicatorBigValue} ${styles.green}`}>862</div>
-              <div className={`${styles.indicatorSubValue} ${styles.green}`}>68.6%</div>
+              <div className={`${styles.indicatorBigValue} ${styles.green}`}>{overview.ready.toLocaleString()}</div>
+              <div className={`${styles.indicatorSubValue} ${styles.green}`}>{overview.readyRate}</div>
             </div>
             <div className={styles.indicatorMetaRow} style={{ marginTop: 'auto', marginBottom: '16px' }}>
-              <span>已通过 <span className={styles.indicatorMetaVal}>862</span></span>
-              <span>占比 <span className={styles.indicatorMetaVal}>68.6%</span></span>
+              <span>已通过 <span className={styles.indicatorMetaVal}>{overview.ready.toLocaleString()}</span></span>
+              <span>占比 <span className={styles.indicatorMetaVal}>{overview.readyRate}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
               <a href="#" className={styles.evidenceLink}>查看清单</a>
@@ -167,12 +211,12 @@ export function OverviewPage() {
           <div className={styles.indicatorCard}>
             <div className={styles.indicatorTitle}>待人工确认</div>
             <div className={styles.indicatorMain}>
-              <div className={`${styles.indicatorBigValue} ${styles.orange}`}>142</div>
+              <div className={`${styles.indicatorBigValue} ${styles.orange}`}>{overview.reviewCount.toLocaleString()}</div>
               <div className={`${styles.indicatorSubValue} ${styles.orange}`}>11.3%</div>
             </div>
             <div className={styles.indicatorMetaRow} style={{ marginTop: 'auto', marginBottom: '16px' }}>
-              <span>需审批 <span className={styles.indicatorMetaVal}>142</span></span>
-              <span>高风险 <span className={styles.indicatorMetaVal}>37</span></span>
+              <span>需审批 <span className={styles.indicatorMetaVal}>{overview.reviewCount.toLocaleString()}</span></span>
+              <span>阻塞 <span className={styles.indicatorMetaVal}>{overview.blocked.toLocaleString()}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
               <a href="#" className={styles.evidenceLink}>进入审核</a>
@@ -212,51 +256,40 @@ export function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>G003</td>
-                  <td><span className={`${styles.statusTag} ${styles.danger}`}>不符合</span></td>
-                  <td>库存不足：活动价测算库存 &lt; 100 件 <span className={styles.ruleTag}>库存规则</span></td>
-                  <td>天猫618大促</td>
-                  <td>补货建议</td>
-                  <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                </tr>
-                <tr>
-                  <td>G004</td>
-                  <td><span className={`${styles.statusTag} ${styles.danger}`}>不符合</span></td>
-                  <td>证书缺失：缺少 3C 证书 <span className={styles.ruleTag}>资质规则</span></td>
-                  <td>天猫618大促</td>
-                  <td>补全资料</td>
-                  <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                </tr>
-                <tr>
-                  <td>G006</td>
-                  <td><span className={`${styles.statusTag} ${styles.danger}`}>不符合</span></td>
-                  <td>活动互斥：与“店铺周年庆”时间冲突 <span className={styles.ruleTag}>互斥规则</span></td>
-                  <td>天猫618大促</td>
-                  <td>排除并复核</td>
-                  <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                </tr>
-                <tr>
-                  <td>G012</td>
-                  <td><span className={`${styles.statusTag} ${styles.warning}`}>待确认</span></td>
-                  <td>价格力不足：折扣力度 6.8% &lt; 规则要求 7% <span className={styles.ruleTag}>价格规则</span></td>
-                  <td>天猫618大促</td>
-                  <td>人工确认</td>
-                  <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                </tr>
-                <tr>
-                  <td>G018</td>
-                  <td><span className={`${styles.statusTag} ${styles.success}`}>通过</span></td>
-                  <td>—</td>
-                  <td>天猫618大促</td>
-                  <td>可直接报名</td>
-                  <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                </tr>
+                {apiRows ? apiRows.map((item) => (
+                  <tr key={item.skuProfileId}>
+                    <td>{item.canonicalSkuKey}</td>
+                    <td><span className={`${styles.statusTag} ${item.healthStatus === 'READY' ? styles.success : item.healthStatus === 'WARNING' ? styles.warning : styles.danger}`}>{item.healthStatus === 'READY' ? '通过' : item.healthStatus === 'WARNING' ? '待确认' : '不符合'}</span></td>
+                    <td>{item.topIssues[0] ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
+                    <td>天猫618大促</td>
+                    <td>{item.nextActions[0] ?? (item.healthStatus === 'READY' ? '可直接报名' : '人工确认')}</td>
+                    <td><a href={`/sku-health/${item.skuProfileId}`} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                  </tr>
+                )) : (
+                  <>
+                    <tr>
+                      <td>G003</td>
+                      <td><span className={`${styles.statusTag} ${styles.danger}`}>不符合</span></td>
+                      <td>库存不足：活动价测算库存 &lt; 100 件 <span className={styles.ruleTag}>库存规则</span></td>
+                      <td>天猫618大促</td>
+                      <td>补货建议</td>
+                      <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                    </tr>
+                    <tr>
+                      <td>G012</td>
+                      <td><span className={`${styles.statusTag} ${styles.warning}`}>待确认</span></td>
+                      <td>价格力不足：折扣力度 6.8% &lt; 规则要求 7% <span className={styles.ruleTag}>价格规则</span></td>
+                      <td>天猫618大促</td>
+                      <td>人工确认</td>
+                      <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>
           <div className={styles.tablePagination}>
-            <span>共 1,258 条</span>
+            <span>共 {overview.total.toLocaleString()} 条</span>
             <div className={styles.pageControls}>
               <button className="secondaryButton" style={{ height: '28px', padding: '0 8px', fontSize: '12px' }}>20 条/页 <ChevronDown size={14} /></button>
               <div className={styles.pageBtn}><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }}/></div>

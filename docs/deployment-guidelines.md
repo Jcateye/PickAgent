@@ -71,6 +71,27 @@ Browser
 
 ### 4.1 远程数据库连接方式
 
+当前 PickAgent 远程 PostgreSQL 的本机密钥文件固定放在：
+
+```bash
+~/clawd/infra/.secrets/staff-postgres-full.env
+```
+
+这个文件应包含 `POSTGRES_USER`、`POSTGRES_PASSWORD`、数据库名等连接信息。当前文件里数据库名可能叫 `POSTGRES_DATABASE`，而 `scripts/migrate` 默认读取 `POSTGRES_DB`；如果只设置了 `POSTGRES_DATABASE`，执行 migration 前需要显式桥接：
+
+```bash
+set -a
+source "$HOME/clawd/infra/.secrets/staff-postgres-full.env"
+set +a
+export POSTGRES_DB="${POSTGRES_DB:-${POSTGRES_DATABASE:-pickagent}}"
+```
+
+**不要使用 `scripts/migrate` 的 docker 默认配置去连远程库**，因为 docker 默认会回退到 `POSTGRES_USER=myuser`，共享 Postgres 里通常没有这个 role，会报：
+
+```text
+role "myuser" does not exist
+```
+
 远程 PostgreSQL 通过 Cloudflare Access TCP 暴露给本机端口，不能直接把远程地址写进 `DATABASE_URL` 后访问。需要先在单独终端启动 TCP 转发：
 
 ```bash
@@ -82,21 +103,35 @@ cloudflared access tcp \
 然后在另一个终端执行 migration 或数据库维护命令。当前项目统一使用 `scripts/migrate --tcp`：
 
 ```bash
-POSTGRES_ENV_FILE=/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env \
-  scripts/migrate --tcp
+set -a
+source "$HOME/clawd/infra/.secrets/staff-postgres-full.env"
+set +a
+POSTGRES_DB="${POSTGRES_DB:-${POSTGRES_DATABASE:-pickagent}}" scripts/migrate --tcp
+```
+
+只应用某一个迁移文件时，显式指定 `MIGRATION_FILE`：
+
+```bash
+set -a
+source "$HOME/clawd/infra/.secrets/staff-postgres-full.env"
+set +a
+POSTGRES_DB="${POSTGRES_DB:-${POSTGRES_DATABASE:-pickagent}}" \
+MIGRATION_FILE=apps/backend/prisma/migrations/20260524103000_add_p0_backend_entities/migration.sql \
+  scripts/migrate --tcp --no-create-db
 ```
 
 默认约定：
 
 - 本机转发地址：`127.0.0.1:15432`
 - 目标数据库：`pickagent`
-- 密钥来源：`POSTGRES_ENV_FILE`
+- 密钥来源：`~/clawd/infra/.secrets/staff-postgres-full.env`
 - TCP 模式需要 `POSTGRES_USER`、`POSTGRES_PASSWORD`，可选 `POSTGRES_DB`、`POSTGRES_MAINTENANCE_DB`、`POSTGRES_LOCAL_HOST`、`POSTGRES_LOCAL_PORT`
 
 注意事项：
 
 - `cloudflared access tcp` 进程必须保持运行，migration 完成后再关闭。
-- 不要把 `/Users/haoqi/clawd/infra/.secrets/staff-postgres-full.env` 或其中内容提交到仓库。
+- 不要把 `~/clawd/infra/.secrets/staff-postgres-full.env` 或其中内容提交到仓库。
+- 远程数据库 migration 优先使用 `--tcp` 和 `POSTGRES_ENV_FILE`；不要依赖 `--docker` 的默认 `POSTGRES_USER=myuser`。
 - 默认会按目录名顺序应用 `apps/backend/prisma/migrations/*/migration.sql`；如果只需要应用单个 SQL 文件，可显式传入 `MIGRATION_FILE=...`。
 - 远程数据库属于共享环境时，执行 migration 前先确认当前分支、migration 范围和回滚思路。
 

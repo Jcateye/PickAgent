@@ -1,11 +1,43 @@
 /* eslint-disable react/no-unescaped-entities */
 'use client'
 
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, ChevronLeft, ChevronRight, Edit2, Copy, Trash2, Clock, User, ChevronDown, Braces } from 'lucide-react'
+import type { RuleSetDetailDto, RuleSetListItemDto } from '../../../../contracts/types/businessFoundation'
+import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './rule-library.module.css'
 
 export function RuleLibraryPage() {
+  const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
+  const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
+  const selectedSummary = rulePage?.items[0]
+
+  useEffect(() => {
+    let cancelled = false
+    fetchActivityApi<PageDto<RuleSetListItemDto>>('/api/rule-sets?pageSize=20')
+      .then((page) => {
+        if (cancelled) return
+        setRulePage(page)
+        const first = page.items[0]
+        if (first) return fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${first.ruleSetId}`)
+        return null
+      })
+      .then((detail) => {
+        if (!cancelled && detail) setSelectedRule(detail)
+      })
+      .catch(() => {
+        if (!cancelled) setRulePage(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const visibleRules = useMemo(() => rulePage?.items.slice(0, 4) ?? null, [rulePage])
+  const ruleCount = rulePage?.total ?? 42
+  const enabledCount = rulePage?.items.filter((item) => item.status === 'ENABLED').length ?? 38
+  const draftCount = rulePage?.items.filter((item) => item.status === 'DRAFT').length ?? 4
+
   return (
     <div className={styles.layout}>
       
@@ -20,25 +52,38 @@ export function RuleLibraryPage() {
             <button className={styles.btnAdd}><Plus size={16} /></button>
           </div>
           <div className={styles.tabs}>
-            <div className={`${styles.tab} ${styles.active}`}>所有 (42)</div>
-            <div className={styles.tab}>已启用 (38)</div>
-            <div className={styles.tab}>草稿 (4)</div>
+            <div className={`${styles.tab} ${styles.active}`}>所有 ({ruleCount})</div>
+            <div className={styles.tab}>已启用 ({enabledCount})</div>
+            <div className={styles.tab}>草稿 ({draftCount})</div>
           </div>
         </div>
 
         <div className={styles.ruleList}>
-          {/* Active Card */}
-          <div className={`${styles.ruleCard} ${styles.active}`}>
-            <div className={styles.ruleTitleRow}>
-              <div className={styles.ruleTitle}>天猫618黄金类目执行清单</div>
-              <span className={`${styles.statusBadge} ${styles.statusActive}`}>已启用</span>
+          {visibleRules ? visibleRules.map((rule, index) => (
+            <div className={`${styles.ruleCard} ${index === 0 ? styles.active : ''}`} key={rule.ruleSetId}>
+              <div className={styles.ruleTitleRow}>
+                <div className={styles.ruleTitle}>{rule.name}</div>
+                <span className={`${styles.statusBadge} ${rule.status === 'DRAFT' ? styles.statusDraft : styles.statusActive}`}>{rule.status === 'DRAFT' ? '草稿' : rule.status === 'DISABLED' ? '已禁用' : '已启用'}</span>
+              </div>
+              <div className={styles.ruleMetaRow}>来源: {rule.source} | 运行中 {rule.activeRunCount} 个</div>
+              <div className={styles.ruleAuthorRow}>
+                <div style={{display:'flex', alignItems:'center', gap:'4px'}}><User size={12}/> by {rule.updatedBy}</div>
+                <span className={styles.versionBadge}>{rule.version}</span>
+              </div>
             </div>
-            <div className={styles.ruleMetaRow}>适用范围: 8个大类 | 42 条规则</div>
-            <div className={styles.ruleAuthorRow}>
-              <div style={{display:'flex', alignItems:'center', gap:'4px'}}><User size={12}/> by op_team</div>
-              <span className={styles.versionBadge}>v2.0</span>
+          )) : (
+          <>
+            <div className={`${styles.ruleCard} ${styles.active}`}>
+              <div className={styles.ruleTitleRow}>
+                <div className={styles.ruleTitle}>天猫618黄金类目执行清单</div>
+                <span className={`${styles.statusBadge} ${styles.statusActive}`}>已启用</span>
+              </div>
+              <div className={styles.ruleMetaRow}>适用范围: 8个大类 | 42 条规则</div>
+              <div className={styles.ruleAuthorRow}>
+                <div style={{display:'flex', alignItems:'center', gap:'4px'}}><User size={12}/> by op_team</div>
+                <span className={styles.versionBadge}>v2.0</span>
+              </div>
             </div>
-          </div>
 
           <div className={styles.ruleCard}>
             <div className={styles.ruleTitleRow}>
@@ -51,6 +96,8 @@ export function RuleLibraryPage() {
               <span className={styles.versionBadge}>v1.5</span>
             </div>
           </div>
+          </>
+          )}
 
           <div className={styles.ruleCard}>
             <div className={styles.ruleTitleRow}>
@@ -90,7 +137,7 @@ export function RuleLibraryPage() {
       <div className={styles.mainPanel}>
         <div className={styles.panelHeader}>
           <div className={styles.headerTitleRow}>
-            <div className={styles.mainTitle}>天猫618黄金类目执行清单</div>
+            <div className={styles.mainTitle}>{selectedRule?.name ?? selectedSummary?.name ?? '天猫618黄金类目执行清单'}</div>
             <div className={styles.headerActions}>
               <button className="secondaryButton"><Edit2 size={14}/> 编辑</button>
               <button className="secondaryButton"><Copy size={14}/> 创建新版本</button>
@@ -98,9 +145,9 @@ export function RuleLibraryPage() {
             </div>
           </div>
           <div className={styles.headerMetaRow}>
-            <div className={styles.metaItem}><span style={{color:'var(--primary)', background:'rgba(36, 107, 255, 0.1)', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:500}}>版本 v2.0 (生产中)</span></div>
+            <div className={styles.metaItem}><span style={{color:'var(--primary)', background:'rgba(36, 107, 255, 0.1)', padding:'2px 6px', borderRadius:'4px', fontSize:'12px', fontWeight:500}}>版本 {selectedRule?.version ?? selectedSummary?.version ?? 'v2.0'} (生产中)</span></div>
             <div className={styles.metaItem}><Clock size={14}/> 生效时间 2025-05-20 ~ 2025-06-20</div>
-            <div className={styles.metaItem}><User size={14}/> 最后更新 昨天 14:30 by op_team</div>
+            <div className={styles.metaItem}><User size={14}/> 最后更新 {selectedRule?.updatedAt ? new Date(selectedRule.updatedAt).toLocaleString('zh-CN') : '昨天 14:30'} by {selectedRule?.updatedBy ?? selectedSummary?.updatedBy ?? 'op_team'}</div>
           </div>
         </div>
 
