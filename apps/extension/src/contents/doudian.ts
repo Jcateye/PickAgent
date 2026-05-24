@@ -119,7 +119,10 @@ function collectCurrentProductListDom(): PageExtractionPreview {
       externalProductId: row.externalProductId,
       title: row.title,
       stock: row.availableStock,
-      price: row.salePrice
+      price: row.salePrice,
+      salesCount: row.raw.domMetrics && typeof row.raw.domMetrics === "object" ? (row.raw.domMetrics as Record<string, unknown>).salesCount : null,
+      positiveRate: row.raw.domMetrics && typeof row.raw.domMetrics === "object" ? (row.raw.domMetrics as Record<string, unknown>).positiveRate : null,
+      qualityScore: row.raw.domMetrics && typeof row.raw.domMetrics === "object" ? (row.raw.domMetrics as Record<string, unknown>).qualityScore : null
     }))
   })
 
@@ -173,11 +176,17 @@ function parseProductRowNode(node: HTMLElement, rowIndex: number): StandardProdu
   const title = extractTitle(text, productId)
   const listingStatus = extractListingStatus(text)
   const availableStock = inferStock(text, stockCandidates)
+  const salesCount = inferSalesCount(text)
+  const positiveRate = inferPositiveRate(text)
+  const quality = inferQuality(text)
   const warnings = [
     productId ? "" : "当前 DOM 行缺少商品 ID。",
     title ? "" : "当前 DOM 行缺少商品标题。",
     availableStock === null ? "当前 DOM 行未可靠识别库存列。" : "",
-    priceText ? "" : "当前 DOM 行未识别价格。"
+    priceText ? "" : "当前 DOM 行未识别价格。",
+    salesCount === null ? "当前 DOM 行未识别总销量。" : "",
+    positiveRate === null ? "当前 DOM 行未识别好评率。" : "",
+    quality.score === null ? "当前 DOM 行未识别质量分。" : ""
   ].filter(Boolean)
 
   return {
@@ -196,6 +205,16 @@ function parseProductRowNode(node: HTMLElement, rowIndex: number): StandardProdu
     raw: {
       source: "current-page-dom",
       productId: productId || null,
+      domMetrics: {
+        price: priceText ? Number(priceText) : null,
+        stock: availableStock,
+        salesCount,
+        positiveRate,
+        qualityLabel: quality.label,
+        qualityScore: quality.score,
+        listedAt: firstMatch(text, /(20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2})?)/) || null,
+        listingStatus
+      },
       textSample: text.slice(0, 600)
     },
     warnings
@@ -217,6 +236,30 @@ function extractListingStatus(text: string): string | null {
   const labels = ["未诊断", "诊断豁免", "及格", "优秀", "暂无评价", "部分SKU售罄", "已售罄", "已下架"]
   const matched = labels.filter((label) => text.includes(label))
   return matched.length ? matched.join(" / ") : null
+}
+
+function inferSalesCount(text: string): number | null {
+  const beforeReview = text.split(/\d+(?:\.\d+)?%好评/)[0] ?? text
+  const afterStock = beforeReview.split(/部分SKU售罄|已售罄|库存|¥\s*[0-9]+(?:\.[0-9]+)?(?:\s*~\s*¥\s*[0-9]+(?:\.[0-9]+)?)?/).slice(-1)[0] ?? beforeReview
+  const candidates = Array.from(afterStock.matchAll(/\b([0-9]{1,8})\b/g)).map((match) => Number(match[1])).filter(Number.isFinite)
+  return candidates.slice(-1)[0] ?? null
+}
+
+function inferPositiveRate(text: string): number | null {
+  const value = firstMatch(text, /([0-9]+(?:\.[0-9]+)?)%好评/)
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed / 100 : null
+}
+
+function inferQuality(text: string): { label: string | null; score: number | null } {
+  const match = text.match(/(优秀|及格|较差|待优化|诊断豁免)\s*([0-9]{1,3})?/)
+  if (!match) return { label: null, score: null }
+  const score = match[2] ? Number(match[2]) : null
+  return {
+    label: match[1] ?? null,
+    score: score !== null && Number.isFinite(score) ? score : null
+  }
 }
 
 function extractActivityLabels(text: string): string[] {
