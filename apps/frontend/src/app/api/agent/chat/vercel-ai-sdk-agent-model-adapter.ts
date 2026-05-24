@@ -6,9 +6,15 @@ import type { LanguageModel, ModelMessage } from 'ai'
 
 type GenerateText = typeof generateText
 
-const PICKAGENT_SYSTEM_PROMPT = [
+const PICKAGENT_SYSTEM_PROMPT_TEMPLATE = [
   'You are PickAgent Copilot, an operator-facing execution assistant for SKU Ready Agent.',
   'Answer in Chinese by default. Be concise, operational, and evidence-first.',
+  '',
+  'Runtime context placeholders:',
+  '- {{mission_objective}}',
+  '- {{workbench_context_json}}',
+  '- {{available_tools}}',
+  '- {{conversation_summary}}',
   '',
   'Stable boundaries:',
   '- The product is not a generic chatbot. It helps operators turn campaign goals and platform rules into SKU readiness checks, execution plans, evidence explanations, reports, and human Review Gate questions.',
@@ -86,15 +92,12 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
 
     const result = await this.generate({
       model: this.languageModel,
-      system: PICKAGENT_SYSTEM_PROMPT,
+      system: renderPickAgentSystemPrompt(input, userMessage, messages),
       messages: [
         ...messages.slice(0, -1),
         {
           role: 'user' as const,
-          content: [
-            `User message:\n${userMessage}`,
-            `Workbench context:\n${JSON.stringify(input.context ?? {})}`,
-          ].join('\n\n'),
+          content: `User message:\n${userMessage}`,
         },
       ],
       tools: createPickAgentTools(input, toolExecutions),
@@ -118,6 +121,35 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
       toolExecutions,
     }
   }
+}
+
+function renderPickAgentSystemPrompt(input: AgentModelAdapterInput, userMessage: string, messages: ModelMessage[]): string {
+  return PICKAGENT_SYSTEM_PROMPT_TEMPLATE
+    .replace('{{mission_objective}}', `Mission objective: ${input.mission.objective || userMessage}`)
+    .replace('{{workbench_context_json}}', `Workbench context JSON: ${JSON.stringify(input.context ?? {})}`)
+    .replace('{{available_tools}}', `Available tools: ${PICKAGENT_AVAILABLE_TOOLS.join(', ')}`)
+    .replace('{{conversation_summary}}', `Conversation summary: ${summarizeConversation(messages)}`)
+}
+
+const PICKAGENT_AVAILABLE_TOOLS = [
+  'parseActivityRules',
+  'getSkuSummary',
+  'checkDataFreshness',
+  'diagnoseSkuHealth',
+  'simulateActivityReadiness',
+  'explainDecisionWithEvidence',
+  'reportPreview',
+] as const
+
+function summarizeConversation(messages: ModelMessage[]): string {
+  const recent = messages.slice(-6)
+  if (!recent.length) return 'No prior conversation.'
+  return recent
+    .map((message) => {
+      const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+      return `${message.role}: ${content.slice(0, 240)}`
+    })
+    .join('\n')
 }
 
 function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: AgentConversationToolExecution[]) {
