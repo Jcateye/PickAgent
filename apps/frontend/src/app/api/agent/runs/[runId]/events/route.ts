@@ -1,5 +1,8 @@
 import { fail, finalAgentRuntime, ok, parsePositiveInt } from '../../../../_final-api-runtime'
 
+import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
+import { createLocalPrismaConversationClient } from '../../../chat/local-prisma-client'
+
 interface RouteContext {
   params: Promise<{ runId: string }>
 }
@@ -9,7 +12,9 @@ export async function GET(request: Request, context: RouteContext) {
   const url = new URL(request.url)
   const after = parsePositiveInt(url.searchParams.get('after'), 0)
   try {
-    const items = finalAgentRuntime.agentService.listEvents(runId, after)
+    const repository = createConversationRepository()
+    const listEvents = async (cursor: number) => repository ? repository.listEventsAfter(runId, cursor) : finalAgentRuntime.agentService.listEvents(runId, cursor)
+    const items = await listEvents(after)
     const wantsStream = url.searchParams.get('stream') === '1' || request.headers.get('accept')?.includes('text/event-stream')
     if (wantsStream) {
       const encoder = new TextEncoder()
@@ -23,12 +28,17 @@ export async function GET(request: Request, context: RouteContext) {
           items.forEach(send)
           const startedAt = Date.now()
           const interval = setInterval(() => {
-            const nextItems = finalAgentRuntime.agentService.listEvents(runId, cursor)
-            nextItems.forEach(send)
-            if (Date.now() - startedAt > 30000) {
+            void listEvents(cursor).then((nextItems) => {
+              nextItems.forEach(send)
+              const terminal = nextItems.some((event) => event.eventType === 'run.status_changed' && ['DONE', 'FAILED', 'CANCELED', 'SUCCEEDED'].includes(String(event.eventPhase)))
+              if (terminal || Date.now() - startedAt > 30000) {
+                clearInterval(interval)
+                controller.close()
+              }
+            }).catch((error) => {
               clearInterval(interval)
-              controller.close()
-            }
+              controller.error(error)
+            })
           }, 1000)
         },
       })
@@ -43,5 +53,20 @@ export async function GET(request: Request, context: RouteContext) {
     return ok({ items, after })
   } catch (error) {
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent event replay failed', 400, { runId, after })
+  }
+}
+
+function createConversationRepository() {
+  const local = createLocalPrismaConversationClient()
+  if (local.client) return new PrismaAgentConversationRepository(local.client)
+
+  try {
+    const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => unknown }
+    const { PrismaClient } = requireFromNode('@prisma/client')
+    const prisma = new PrismaClient()
+    assertAgentConversationPrismaClient(prisma)
+    return new PrismaAgentConversationRepository(prisma)
+  } catch {
+    return undefined
   }
 }

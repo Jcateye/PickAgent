@@ -1,8 +1,10 @@
 import type { AgentMessage } from "../../domain/entities/AgentMessage";
 import type { AgentMission } from "../../domain/entities/AgentMission";
+import type { AgentReviewGate } from "../../domain/entities/AgentReviewGate";
 import type { AgentRun } from "../../domain/entities/AgentRun";
 import type { AgentRunEvent } from "../../domain/entities/AgentRunEvent";
 import type { AgentSession } from "../../domain/entities/AgentSession";
+import type { AgentToolCall } from "../../domain/entities/AgentToolCall";
 import type { AgentConversationRepository } from "./RealAgentChatRuntime";
 
 type PrismaRecord = Record<string, unknown>;
@@ -22,11 +24,13 @@ export interface AgentConversationPrismaClient {
   agentRun: PrismaDelegate;
   agentMessage: PrismaDelegate;
   agentRunEvent: PrismaDelegate;
+  agentToolCall: PrismaDelegate;
+  agentReviewGate: PrismaDelegate;
 }
 
 export function assertAgentConversationPrismaClient(value: unknown): asserts value is AgentConversationPrismaClient {
   const client = value as Partial<AgentConversationPrismaClient> | null | undefined;
-  const required = ["agentSession", "agentMission", "agentRun", "agentMessage", "agentRunEvent"] as const;
+  const required = ["agentSession", "agentMission", "agentRun", "agentMessage", "agentRunEvent", "agentToolCall", "agentReviewGate"] as const;
   const missing = required.filter((delegateName) => !client?.[delegateName]);
   if (missing.length) {
     throw new Error(`Missing Prisma Agent conversation delegates: ${missing.join(", ")}`);
@@ -150,6 +154,92 @@ export class PrismaAgentConversationRepository implements AgentConversationRepos
     return toRunEvent(record);
   }
 
+  async listMessagesBySessionKey(sessionKey: string, limit: number): Promise<AgentMessage[]> {
+    const session = await this.prisma.agentSession.findUnique({
+      where: { sessionKey },
+    });
+    if (!session) return [];
+    const records = await this.prisma.agentMessage.findMany({
+      where: { sessionId: stringValue(session.id) },
+      orderBy: { orderIndex: "desc" },
+      take: Math.max(1, Math.min(limit, 100)),
+    });
+    return records.map(toMessage).sort((left, right) => left.orderIndex - right.orderIndex);
+  }
+
+  async listEventsAfter(runId: string, after = 0): Promise<AgentRunEvent[]> {
+    const records = await this.prisma.agentRunEvent.findMany({
+      where: { runId, sequence: { gt: after } },
+      orderBy: { sequence: "asc" },
+      take: 200,
+    });
+    return records.map(toRunEvent);
+  }
+
+  async createToolCall(input: {
+    runId: string;
+    externalToolCallId?: string | null;
+    toolName: string;
+    status: string;
+    riskLevel: string;
+    reviewPolicy: string;
+    inputJson?: Record<string, unknown>;
+    outputJson?: Record<string, unknown>;
+    evidenceRefsJson?: Record<string, unknown>;
+    errorMessage?: string | null;
+    blockedReason?: string | null;
+  }): Promise<AgentToolCall> {
+    const now = new Date();
+    const record = await this.prisma.agentToolCall.create({
+      data: {
+        runId: input.runId,
+        externalToolCallId: input.externalToolCallId ?? null,
+        toolName: input.toolName,
+        status: input.status,
+        riskLevel: input.riskLevel,
+        reviewPolicy: input.reviewPolicy,
+        inputJson: input.inputJson ?? {},
+        outputJson: input.outputJson ?? {},
+        evidenceRefsJson: input.evidenceRefsJson ?? { refs: [] },
+        errorMessage: input.errorMessage ?? null,
+        blockedReason: input.blockedReason ?? null,
+        startedAt: now,
+        completedAt: now,
+      },
+    });
+    return toToolCall(record);
+  }
+
+  async createReviewGate(input: {
+    missionId: string;
+    runId: string;
+    toolCallId?: string | null;
+    reasonCode: string;
+    question: string;
+    agentRecommendation?: string | null;
+    riskIfApproved?: string | null;
+    riskIfRejected?: string | null;
+    evidenceRefsJson?: Record<string, unknown>;
+    reviewItemId?: string | null;
+  }): Promise<AgentReviewGate> {
+    const record = await this.prisma.agentReviewGate.create({
+      data: {
+        missionId: input.missionId,
+        runId: input.runId,
+        toolCallId: input.toolCallId ?? null,
+        reviewItemId: input.reviewItemId ?? null,
+        status: "PENDING",
+        reasonCode: input.reasonCode,
+        question: input.question,
+        agentRecommendation: input.agentRecommendation ?? null,
+        riskIfApproved: input.riskIfApproved ?? null,
+        riskIfRejected: input.riskIfRejected ?? null,
+        evidenceRefsJson: input.evidenceRefsJson ?? { refs: [] },
+      },
+    });
+    return toReviewGate(record);
+  }
+
   async markRunStatus(input: { runId: string; status: "SUCCEEDED" | "FAILED"; outputJson?: Record<string, unknown>; errorMessage?: string | null }): Promise<AgentRun> {
     const now = new Date();
     const record = await this.prisma.agentRun.update({
@@ -253,6 +343,51 @@ function toRunEvent(record: PrismaRecord): AgentRunEvent {
     eventPhase: nullableString(record.eventPhase),
     payloadJson: objectValue(record.payloadJson),
     createdAt: isoValue(record.createdAt),
+  };
+}
+
+function toToolCall(record: PrismaRecord): AgentToolCall {
+  return {
+    id: stringValue(record.id),
+    runId: stringValue(record.runId),
+    externalToolCallId: nullableString(record.externalToolCallId),
+    workflowStepId: nullableString(record.workflowStepId),
+    toolName: stringValue(record.toolName),
+    status: stringValue(record.status),
+    riskLevel: stringValue(record.riskLevel),
+    reviewPolicy: stringValue(record.reviewPolicy),
+    inputJson: objectValue(record.inputJson),
+    outputJson: objectValue(record.outputJson),
+    evidenceRefsJson: objectValue(record.evidenceRefsJson),
+    errorMessage: nullableString(record.errorMessage),
+    blockedReason: nullableString(record.blockedReason),
+    startedAt: isoOrNull(record.startedAt),
+    completedAt: isoOrNull(record.completedAt),
+    createdAt: isoValue(record.createdAt),
+    updatedAt: isoValue(record.updatedAt),
+  };
+}
+
+function toReviewGate(record: PrismaRecord): AgentReviewGate {
+  return {
+    id: stringValue(record.id),
+    missionId: stringValue(record.missionId),
+    runId: stringValue(record.runId),
+    toolCallId: nullableString(record.toolCallId),
+    reviewItemId: nullableString(record.reviewItemId),
+    status: stringValue(record.status),
+    reasonCode: stringValue(record.reasonCode),
+    question: stringValue(record.question),
+    agentRecommendation: nullableString(record.agentRecommendation),
+    riskIfApproved: nullableString(record.riskIfApproved),
+    riskIfRejected: nullableString(record.riskIfRejected),
+    evidenceRefsJson: objectValue(record.evidenceRefsJson),
+    decision: nullableString(record.decision),
+    decisionComment: nullableString(record.decisionComment),
+    decidedBy: nullableString(record.decidedBy),
+    decidedAt: isoOrNull(record.decidedAt),
+    createdAt: isoValue(record.createdAt),
+    updatedAt: isoValue(record.updatedAt),
   };
 }
 

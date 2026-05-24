@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useAgentRunEvents } from './use-agent-run-events'
 import type { AgentEvidenceRef, AgentLinkedEntity, AgentMessage, AgentReviewGate, AgentToolTrace, WorkbenchContext } from './types'
@@ -30,8 +30,12 @@ interface ChatResponse {
   fallbackUsed: boolean
 }
 
+interface SessionMessagesResponse {
+  items: Array<AgentMessage & { runId?: string | null; createdAt?: string }>
+}
+
 export function AgentCopilotChatShell({ context, compact = false }: { context: WorkbenchContext; compact?: boolean }) {
-  const [sessionKey] = useState(() => `agent-chat-${Math.random().toString(36).slice(2, 10)}`)
+  const [sessionKey] = useState(() => stableSessionKey(context))
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [turns, setTurns] = useState<Record<string, ChatTurnMeta>>({})
@@ -39,6 +43,37 @@ export function AgentCopilotChatShell({ context, compact = false }: { context: W
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const runEvents = useAgentRunEvents(activeRunId)
+
+  useEffect(() => {
+    let disposed = false
+    async function recover() {
+      try {
+        const response = await fetch(`/api/agent/sessions/${encodeURIComponent(sessionKey)}/messages?limit=50`, {
+          headers: { accept: 'application/json' },
+          cache: 'no-store',
+        })
+        if (!response.ok) return
+        const envelope = (await response.json()) as { code: string; data?: SessionMessagesResponse }
+        if (disposed || envelope.code !== 'OK' || !envelope.data) return
+        setMessages(envelope.data.items.map((item) => ({
+          id: item.id,
+          role: item.role,
+          content: item.content,
+          status: item.status,
+          linkedEntityIds: item.linkedEntityIds,
+          evidenceRefIds: item.evidenceRefIds,
+        })))
+        const latestRunId = envelope.data.items.findLast((item) => item.runId)?.runId
+        if (latestRunId) setActiveRunId(latestRunId)
+      } catch {
+        // Recovery is best-effort; sending a new message will surface hard failures.
+      }
+    }
+    void recover()
+    return () => {
+      disposed = true
+    }
+  }, [sessionKey])
 
   async function submit() {
     const content = draft.trim()
@@ -238,4 +273,15 @@ export function AgentCopilotChatShell({ context, compact = false }: { context: W
       </Panel>
     </div>
   )
+}
+
+function stableSessionKey(context: WorkbenchContext): string {
+  const storageKey = 'pickagent.agentCopilot.sessionKey'
+  if (typeof window === 'undefined') return `agent-chat-${context.route || 'server'}`
+  const existing = window.localStorage.getItem(storageKey)
+  if (existing) return existing
+  const route = context.route.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'console'
+  const key = `agent-chat-local-${route}-${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`
+  window.localStorage.setItem(storageKey, key)
+  return key
 }
