@@ -37,6 +37,21 @@ interface DoudianStockAutomationResult {
   readonly previews: Awaited<ReturnType<typeof collectDoudianStockPages>>
 }
 
+interface PageSnapshot {
+  readonly href: string
+  readonly title: string
+  readonly readyState: string
+  readonly bodyTextSample: string
+  readonly counts: {
+    readonly buttons: number
+    readonly fields: number
+    readonly tables: number
+  }
+  readonly buttons: ReadonlyArray<Record<string, string>>
+  readonly fields: ReadonlyArray<Record<string, string>>
+  readonly tables: ReadonlyArray<Record<string, string>>
+}
+
 interface ChromeLike {
   tabs?: {
     query?: (queryInfo: { active: boolean; currentWindow: boolean }, callback: (tabs: Array<{ id?: number; url?: string }>) => void) => void
@@ -137,6 +152,7 @@ export function SidePanelApp() {
   const [useUnsupportedPage, setUseUnsupportedPage] = useState(false)
   const [previewTab, setPreviewTab] = useState<PreviewTab>("products")
   const [runState, setRunState] = useState<CollectionTaskState>(() => createInitialTaskState(Math.max(syntheticDoudianPages.length, syntheticDoudianCommentPages.length)))
+  const [pageSnapshot, setPageSnapshot] = useState<PageSnapshot | undefined>()
 
   const activeProductPage = useUnsupportedPage ? unsupportedSyntheticPage : syntheticDoudianPages[activeProductPageIndex]
   const activeCommentPage = activeCommentPageIndex >= syntheticDoudianCommentPages.length ? emptySyntheticDoudianCommentPage : syntheticDoudianCommentPages[activeCommentPageIndex]
@@ -216,6 +232,46 @@ export function SidePanelApp() {
         status: "failed",
         lastEvent: "FAIL",
         lastError: error instanceof Error ? error.message : "真实抖店库存采集失败；请确认已登录抖店并授权插件访问。"
+      }))
+    }
+  }
+
+  const inspectCurrentPage = async () => {
+    try {
+      setRunState((state) => ({ ...state, status: "recognizing", lastEvent: "PAGE_RECOGNIZED", lastError: undefined }))
+      const snapshot = await sendToActiveTab<PageSnapshot>({ type: "PICKAGENT_PAGE_SNAPSHOT" })
+      setPageSnapshot(snapshot)
+      setRunState((state) =>
+        refreshTaskStatistics({
+          ...state,
+          status: "ready",
+          activePageType: snapshot.href.includes("fxg.jinritemai.com") ? "product-list" : "unsupported",
+          lastRecognition: {
+            status: snapshot.href.includes("fxg.jinritemai.com") ? "needs-confirmation" : "unsupported",
+            confidence: snapshot.href.includes("fxg.jinritemai.com") ? 0.66 : 0,
+            platform: "抖店商家后台",
+            pageType: "page-dom-snapshot",
+            sourceKind: "product",
+            pageIndex: 1,
+            totalPages: 1,
+            reasons: [
+              `URL: ${snapshot.href}`,
+              `buttons=${snapshot.counts.buttons}`,
+              `fields=${snapshot.counts.fields}`,
+              `tables=${snapshot.counts.tables}`
+            ],
+            unsupportedReason: snapshot.href.includes("fxg.jinritemai.com") ? undefined : "当前 tab 不是抖店页面。"
+          },
+          lastEvent: "PAGE_RECOGNIZED",
+          lastError: undefined
+        })
+      )
+    } catch (error) {
+      setRunState((state) => ({
+        ...state,
+        status: "failed",
+        lastEvent: "FAIL",
+        lastError: error instanceof Error ? error.message : "页面 DOM 调试失败。"
       }))
     }
   }
@@ -333,6 +389,9 @@ export function SidePanelApp() {
                 </button>
               </div>
               <div className="button-row">
+                <button className="secondary-button" type="button" onClick={() => void inspectCurrentPage()}>
+                  调试当前页面
+                </button>
                 <button className="primary-button" type="button" onClick={() => void collectRealDoudianStock()}>
                   真实采集库存页
                 </button>
@@ -415,6 +474,35 @@ export function SidePanelApp() {
               ))}
             </div>
           </ModuleCard>
+
+          {pageSnapshot ? (
+            <ModuleCard title="页面 DOM 调试" right={<span className="muted-text">{pageSnapshot.readyState}</span>}>
+              <div className="recognition-layout__grid">
+                <div className="recognition-layout__fact">
+                  <div className="recognition-layout__fact-label">URL</div>
+                  <div className="recognition-layout__fact-value">{pageSnapshot.href}</div>
+                </div>
+                <div className="recognition-layout__fact">
+                  <div className="recognition-layout__fact-label">标题</div>
+                  <div className="recognition-layout__fact-value">{pageSnapshot.title || "无"}</div>
+                </div>
+                <div className="recognition-layout__fact">
+                  <div className="recognition-layout__fact-label">候选按钮</div>
+                  <div className="recognition-layout__fact-value">{pageSnapshot.buttons.slice(0, 12).map((item) => item.text || item.ariaLabel || item.title).filter(Boolean).join(" / ") || "无"}</div>
+                </div>
+                <div className="recognition-layout__fact">
+                  <div className="recognition-layout__fact-label">输入框</div>
+                  <div className="recognition-layout__fact-value">{pageSnapshot.fields.slice(0, 12).map((item) => item.placeholder || item.name || item.id).filter(Boolean).join(" / ") || "无"}</div>
+                </div>
+              </div>
+              <CollapsibleSection title="页面文本样本" meta={`${pageSnapshot.bodyTextSample.length} chars`}>
+                <pre className="payload-preview">{pageSnapshot.bodyTextSample}</pre>
+              </CollapsibleSection>
+              <CollapsibleSection title="完整 DOM 摘要" meta={`${pageSnapshot.counts.buttons} buttons · ${pageSnapshot.counts.fields} fields`}>
+                <pre className="payload-preview">{JSON.stringify(pageSnapshot, null, 2)}</pre>
+              </CollapsibleSection>
+            </ModuleCard>
+          ) : null}
 
           <section className="module-card">
             <div className="tab-row">
