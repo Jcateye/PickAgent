@@ -67,6 +67,9 @@ function evidence(type: EvidenceLinkDto["type"], entityId: string, label: string
 export class NormalizationService {
   normalize(row: IngestRowDto, skuProfileId: string, collectedAt: string): NormalizedSkuSnapshotDto {
     const productName = row.productName?.trim() || String(row.raw.productName ?? row.raw.title ?? row.externalSkuId);
+    const domMetrics = readDomMetrics(row.raw);
+    const sales30d = firstNumber(row.sales30d, domMetrics.salesCount);
+    const positiveRate = firstNumber(row.positiveRate, domMetrics.positiveRate);
     return {
       snapshotId: nextId("snapshot"),
       skuProfileId,
@@ -74,8 +77,8 @@ export class NormalizationService {
       productName,
       category: row.category,
       brand: row.brand,
-      sales30d: row.sales30d,
-      positiveRate: row.positiveRate,
+      sales30d,
+      positiveRate,
       stock: row.stock,
       originalPrice: row.originalPrice,
       lowestPrice30d: row.lowestPrice30d,
@@ -88,12 +91,44 @@ export class NormalizationService {
         storeId: row.storeId,
         externalSkuId: row.externalSkuId,
         productName,
-        sales30d: row.sales30d ?? null,
+        sales30d: sales30d ?? null,
+        positiveRate: positiveRate ?? null,
         stock: row.stock ?? null,
+        qualityScore: domMetrics.qualityScore ?? null,
+        qualityLabel: domMetrics.qualityLabel ?? null,
         certificateStatus: row.certificateStatus ?? null,
       },
     };
   }
+}
+
+function readDomMetrics(raw: Record<string, unknown>): {
+  salesCount?: number;
+  positiveRate?: number;
+  qualityScore?: number;
+  qualityLabel?: string;
+} {
+  const value = raw.domMetrics;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const metrics = value as Record<string, unknown>;
+  return {
+    salesCount: numberValue(metrics.salesCount),
+    positiveRate: numberValue(metrics.positiveRate),
+    qualityScore: numberValue(metrics.qualityScore),
+    qualityLabel: typeof metrics.qualityLabel === "string" ? metrics.qualityLabel : undefined,
+  };
+}
+
+function firstNumber(...values: Array<unknown>): number | undefined {
+  for (const value of values) {
+    const parsed = numberValue(value);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 export class HealthAssessmentService {

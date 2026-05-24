@@ -150,6 +150,36 @@ test("douyin fxg captured stock records map into ingest payload and business cha
   assert.equal(ruleSet.parseStatus, "NEEDS_REVIEW");
 });
 
+test("ingest normalizes browser DOM metrics when top-level metrics are missing", () => {
+  const runtime = createBusinessFoundationRuntime();
+  const result = runtime.ingestService.ingest({
+    connectorId: "doudian-browser-extension",
+    collectedAt: "2026-05-24T09:30:00.000Z",
+    rows: [
+      {
+        platform: "doudian",
+        storeId: "fxg.jinritemai.com",
+        externalSkuId: "3818388858177978472",
+        productName: "韩版夏季短袖上衣",
+        stock: 98,
+        raw: {
+          domMetrics: {
+            salesCount: 4,
+            positiveRate: 1,
+            qualityScore: 85,
+            qualityLabel: "优秀",
+          },
+        },
+      },
+    ],
+  });
+
+  assert.equal(result.snapshots[0]?.sales30d, 4);
+  assert.equal(result.snapshots[0]?.positiveRate, 1);
+  assert.equal(result.snapshots[0]?.normalized.qualityScore, 85);
+  assert.equal(result.diagnoses[0]?.dataQualityScore, 100);
+});
+
 test("activity rule parser preserves numeric thresholds and business chance manual review context", () => {
   const runtime = createBusinessFoundationRuntime();
   const ruleSet = runtime.activityRuleService.parseRules({
