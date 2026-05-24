@@ -144,13 +144,13 @@ h4 {
 
 .sidebarPrimaryNav {
   flex: 1;
-  margin-top: 12px;
-  gap: 4px;
+  margin-top: 10px;
+  gap: 3px;
 }
 
 .sidebarPrimaryNavGroup {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .navLabel {
@@ -170,42 +170,84 @@ h4 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 34px;
-  padding: 6px 12px;
+  min-height: 38px;
+  padding: 8px 10px;
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(226, 237, 248, 0.72);
   border: 1px solid transparent;
   text-decoration: none;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(247, 251, 255, 0.94);
 }
 
 .navItem--active {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
 
 .navLeft {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
+  min-width: 0;
 }
 
 .navIcon {
   width: 18px;
+  height: 18px;
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
   text-align: center;
+}
+
+.navText {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navChevron {
+  flex: 0 0 auto;
+  color: rgba(226, 237, 248, 0.48);
+  transition: transform 0.2s ease;
 }
 
 .sidebarSubNav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-  padding-left: 34px;
+  gap: 3px;
+  padding: 0 0 2px 28px;
+}
+
+.sidebarSubNavItem {
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: rgba(226, 237, 248, 0.7);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  text-decoration: none;
+}
+
+.sidebarSubNavItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(247, 251, 255, 0.92);
+}
+
+.sidebarSubNavItem--active {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
 }
 
 .mainShell {

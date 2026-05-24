@@ -53,19 +53,17 @@ export function SidebarNav() {
                   onClick={() => toggleExpand(menu.key)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <span className="navLeft" style={{ color: isActive ? 'white' : 'var(--muted)' }}>
+                  <span className="navLeft">
                     <span className="navIcon">{ICON_MAP[menu.icon]}</span>
-                    <span style={{ fontSize: '14px', fontWeight: isActive ? 500 : 400 }}>{menu.label}</span>
+                    <span className="navText">{menu.label}</span>
                   </span>
-                  <ChevronDown size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: 'var(--muted)' }} />
+                  <ChevronDown className="navChevron" size={14} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }} />
                 </div>
               ) : (
-                <Link href={menu.href!} className={cn('navItem')} style={{ 
-                  background: pathname === menu.href ? 'var(--primary)' : 'transparent',
-                }}>
-                  <span className="navLeft" style={{ color: pathname === menu.href ? 'white' : 'var(--muted)' }}>
+                <Link href={menu.href!} className={cn('navItem', pathname === menu.href && 'navItem--active')}>
+                  <span className="navLeft">
                     <span className="navIcon">{ICON_MAP[menu.icon]}</span>
-                    <span style={{ fontSize: '14px', fontWeight: pathname === menu.href ? 500 : 400 }}>{menu.label}</span>
+                    <span className="navText">{menu.label}</span>
                   </span>
                 </Link>
               )}
@@ -73,17 +71,10 @@ export function SidebarNav() {
               {hasChildren && isExpanded && (
                 <div className="sidebarSubNav">
                   {menu.children!.map(child => (
-                    <Link 
+                    <Link
                       key={child.key} 
                       href={child.href}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: '13px',
-                        color: pathname === child.href ? 'white' : 'var(--muted)',
-                        background: pathname === child.href ? 'rgba(255,255,255,0.1)' : 'transparent',
-                        borderRadius: '6px',
-                        textDecoration: 'none'
-                      }}
+                      className={cn('sidebarSubNavItem', pathname === child.href && 'sidebarSubNavItem--active')}
                     >
                       {child.label}
                     </Link>
