@@ -142,6 +142,17 @@ h4 {
   gap: 6px;
 }
 
+.sidebarPrimaryNav {
+  flex: 1;
+  margin-top: 12px;
+  gap: 4px;
+}
+
+.sidebarPrimaryNavGroup {
+  display: grid;
+  gap: 2px;
+}
+
 .navLabel {
   padding: 0 10px;
   color: rgba(255, 255, 255, 0.48);
@@ -158,10 +169,13 @@ h4 {
 .navItem {
   display: flex;
   align-items: center;
-  padding: 12px 14px;
-  border-radius: 14px;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 6px;
   color: rgba(255, 255, 255, 0.82);
   border: 1px solid transparent;
+  text-decoration: none;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -184,6 +198,14 @@ h4 {
 .navIcon {
   width: 18px;
   text-align: center;
+}
+
+.sidebarSubNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding-left: 34px;
 }
 
 .mainShell {

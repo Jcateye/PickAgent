@@ -39,21 +39,21 @@ export function SidebarNav() {
         </div>
       </div>
 
-      <nav className="navSection" style={{ marginTop: '16px', flex: 1 }}>
+      <nav className="navSection sidebarPrimaryNav">
         {appMenus.map((menu) => {
           const isExpanded = expandedKeys.includes(menu.key)
           const hasChildren = menu.children && menu.children.length > 0
           const isActive = pathname === menu.href || (hasChildren && menu.children?.some(c => pathname === c.href))
 
           return (
-            <div key={menu.key} style={{ marginBottom: '2px' }}>
+            <div key={menu.key} className="sidebarPrimaryNavGroup">
               {hasChildren ? (
                 <div 
                   className={cn('navItem', isActive && !isExpanded && 'navItem--active')} 
                   onClick={() => toggleExpand(menu.key)}
-                  style={{ cursor: 'pointer', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  style={{ cursor: 'pointer' }}
                 >
-                  <span className="navLeft" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: isActive ? 'white' : 'var(--muted)' }}>
+                  <span className="navLeft" style={{ color: isActive ? 'white' : 'var(--muted)' }}>
                     <span className="navIcon">{ICON_MAP[menu.icon]}</span>
                     <span style={{ fontSize: '14px', fontWeight: isActive ? 500 : 400 }}>{menu.label}</span>
                   </span>
@@ -61,13 +61,9 @@ export function SidebarNav() {
                 </div>
               ) : (
                 <Link href={menu.href!} className={cn('navItem')} style={{ 
-                  padding: '8px 12px', 
-                  display: 'flex', 
-                  alignItems: 'center',
                   background: pathname === menu.href ? 'var(--primary)' : 'transparent',
-                  borderRadius: '6px'
                 }}>
-                  <span className="navLeft" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: pathname === menu.href ? 'white' : 'var(--muted)' }}>
+                  <span className="navLeft" style={{ color: pathname === menu.href ? 'white' : 'var(--muted)' }}>
                     <span className="navIcon">{ICON_MAP[menu.icon]}</span>
                     <span style={{ fontSize: '14px', fontWeight: pathname === menu.href ? 500 : 400 }}>{menu.label}</span>
                   </span>
@@ -75,7 +71,7 @@ export function SidebarNav() {
               )}
 
               {hasChildren && isExpanded && (
-                <div style={{ paddingLeft: '34px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div className="sidebarSubNav">
                   {menu.children!.map(child => (
                     <Link 
                       key={child.key} 
