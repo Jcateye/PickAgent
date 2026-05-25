@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -492,4 +492,36 @@ test("prisma connector run validates connector before writing workflow audit", a
     /Connector not found: missing_connector/,
   );
   assert.deepEqual(writes, []);
+});
+
+test("workflow audit query service reads prisma workflow runs for run console", async () => {
+  const service = new WorkflowAuditQueryService({
+    prisma: {
+      workflowRun: {
+        findMany: async (args: Record<string, unknown>) => {
+          assert.deepEqual(args, { orderBy: { startedAt: "desc" }, take: 50 });
+          return [
+            {
+              id: "workflow_prisma_1",
+              workflowType: "report_export",
+              status: "SUCCEEDED",
+              subjectType: "report",
+              subjectId: "report_1",
+              inputJson: { format: "PDF" },
+              outputJson: { exportJobId: "export_1" },
+              startedAt: new Date("2026-05-24T10:00:00.000Z"),
+            },
+          ];
+        },
+      },
+    } as never,
+  });
+
+  const audits = await service.list(tenantA, 50);
+
+  assert.equal(audits[0]?.workflowRunId, "workflow_prisma_1");
+  assert.equal(audits[0]?.workflowType, "report_export");
+  assert.deepEqual(audits[0]?.input, { format: "PDF" });
+  assert.deepEqual(audits[0]?.output, { exportJobId: "export_1" });
+  assert.equal(audits[0]?.createdAt, "2026-05-24T10:00:00.000Z");
 });

@@ -72,21 +72,20 @@ export async function GET(request: Request) {
     ],
   })))
 
-  if (finalApiRuntime.adapter === 'memory') {
-    runs.push(...Array.from(finalApiRuntime.store.workflowAudits.values()).map((audit) => ({
-      runId: audit.workflowRunId,
-      type: audit.workflowType,
-      status: audit.status,
-      subject: `${audit.subjectType}:${audit.subjectId ?? '-'}`,
-      startedAt: audit.createdAt,
-      completedAt: audit.createdAt,
-      summary: `${audit.workflowType} -> ${audit.subjectType}`,
-      logs: [
-        { time: audit.createdAt, tag: 'Workflow', message: `输入：${JSON.stringify(audit.input).slice(0, 240)}` },
-        { time: audit.createdAt, tag: 'Workflow', message: `输出：${JSON.stringify(audit.output).slice(0, 240)}` },
-      ],
-    })))
-  }
+  const workflowAudits = await finalApiRuntime.workflowAuditService.list(boundary, 50)
+  runs.push(...workflowAudits.map((audit) => ({
+    runId: audit.workflowRunId,
+    type: audit.workflowType,
+    status: audit.status,
+    subject: `${audit.subjectType ?? 'workflow'}:${audit.subjectId ?? '-'}`,
+    startedAt: audit.createdAt,
+    completedAt: audit.createdAt,
+    summary: `${audit.workflowType} -> ${audit.subjectType ?? 'workflow'}`,
+    logs: [
+      { time: audit.createdAt, tag: 'Workflow', message: `输入：${JSON.stringify(audit.input).slice(0, 240)}` },
+      { time: audit.createdAt, tag: 'Workflow', message: `输出：${JSON.stringify(audit.output).slice(0, 240)}` },
+    ],
+  })))
 
   const sorted = runs.sort((left, right) => Date.parse(right.startedAt ?? right.completedAt ?? '') - Date.parse(left.startedAt ?? left.completedAt ?? ''))
   return ok({ items: sorted.slice(0, 50), total: sorted.length, page: 1, pageSize: 50 })

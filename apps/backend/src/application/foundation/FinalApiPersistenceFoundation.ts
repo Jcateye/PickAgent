@@ -184,10 +184,10 @@ interface SkuProfileRecord {
   brand?: string;
 }
 
-interface WorkflowAuditRecord {
+export interface WorkflowAuditRecord {
   workflowRunId: string;
   workflowType: string;
-  status: "SUCCEEDED";
+  status: string;
   subjectType?: string;
   subjectId?: string;
   input: Record<string, unknown>;
@@ -2008,6 +2008,29 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   }
 }
 
+export class WorkflowAuditQueryService {
+  constructor(private readonly source: { store?: FinalApiPersistenceStore; prisma?: PrismaPersistenceClient }) {}
+
+  async list(_boundary: P0AuthContextDto, limit = 50): Promise<WorkflowAuditRecord[]> {
+    if (this.source.prisma) {
+      const rows = await this.source.prisma.workflowRun.findMany({ orderBy: { startedAt: "desc" }, take: limit });
+      return rows.map((row) => ({
+        workflowRunId: String(row.id),
+        workflowType: String(row.workflowType),
+        status: String(row.status ?? "SUCCEEDED"),
+        subjectType: typeof row.subjectType === "string" ? row.subjectType : undefined,
+        subjectId: typeof row.subjectId === "string" ? row.subjectId : undefined,
+        input: asRecord(row.inputJson),
+        output: asRecord(row.outputJson),
+        createdAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? row.completedAt ?? ""),
+      }));
+    }
+    return Array.from(this.source.store?.workflowAudits.values() ?? [])
+      .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+      .slice(0, limit);
+  }
+}
+
 function toPrismaHealthStatus(status: HealthDiagnosisDto["healthStatus"]): string {
   if (status === "READY") return "READY";
   if (status === "BLOCKED") return "BLOCKED";
@@ -3616,7 +3639,8 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
     const browserConnectorService = new BrowserConnectorService();
     const ruleSetService = new RuleSetService(tx, new PrismaIngestRepository(), new PrismaRuleSetRepository(options.prisma));
     const workspaceSettingsService = new WorkspaceSettingsService(tx, new PrismaIngestRepository(), new PrismaWorkspaceSettingsRepository(options.prisma));
-    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService };
+    const workflowAuditService = new WorkflowAuditQueryService({ prisma: options.prisma });
+    return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService, workflowAuditService };
   }
   const store = new FinalApiPersistenceStore();
   const tx = new InMemoryTransactionManager(store);
@@ -3632,5 +3656,6 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
   const auditRepository = new IngestRepository();
   const ruleSetService = new RuleSetService(tx, auditRepository, new RuleSetRepository(store));
   const workspaceSettingsService = new WorkspaceSettingsService(tx, auditRepository, new WorkspaceSettingsRepository(store));
-  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService };
+  const workflowAuditService = new WorkflowAuditQueryService({ store });
+  return { adapter, store, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService, workflowAuditService };
 }
