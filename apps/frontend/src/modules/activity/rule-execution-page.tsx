@@ -2,13 +2,15 @@
 
 import React, { useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
-import type { ActivityRuleSetDto } from '../../../../contracts/types/businessFoundation'
+import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi } from './api-client'
 import styles from './rule-execution.module.css'
 
 export function RuleExecutionPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [ruleSet, setRuleSet] = useState<ActivityRuleSetDto | null>(null)
+  const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
   async function runCheck() {
     setBusy(true)
@@ -21,6 +23,7 @@ export function RuleExecutionPage() {
           sourceText: '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。',
         }),
       })
+      setRuleSet(ruleSet)
       setMessage(`运行检查已完成：${ruleSet.ruleSetId}，解析 ${ruleSet.rules.length} 条规则，置信度 ${ruleSet.confidence}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
@@ -28,6 +31,52 @@ export function RuleExecutionPage() {
       setBusy(false)
     }
   }
+
+  async function createChecklistReviews(action: 'assign' | 'mark') {
+    const selectedItems = checklistItems.filter((item) => selectedChecks.includes(item.id))
+    if (!selectedItems.length) {
+      setMessage('请先选择检查项')
+      return
+    }
+    setBusy(true)
+    try {
+      const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: selectedItems.map((item) => ({
+            sourceType: 'agent',
+            sourceId: item.id,
+            question: action === 'assign' ? `指派处理检查项：${item.label}` : `确认检查项已完成：${item.label}`,
+            recommendation: action === 'assign' ? `${item.owner} 跟进 ${item.requiredData}` : `复核 ${item.requiredData} 后标记为完成`,
+            riskLevel: item.status === 'missing' || item.status === 'pending' ? 'L2' : 'L1',
+            evidence: [
+              {
+                type: 'rule',
+                entityId: ruleSet?.ruleSetId ?? item.id,
+                label: item.label,
+                summary: `${item.requiredData} / ${item.source} / ${item.method}`,
+              },
+            ],
+          })),
+        }),
+      })
+      setMessage(`${action === 'assign' ? '批量指派' : '批量标记复核'}已生成 Review：${created.map((item) => item.reviewItemId).join(', ')}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '批量操作失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function toggleCheck(id: string) {
+    setSelectedChecks((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  }
+
+  function toggleAllChecks() {
+    setSelectedChecks((current) => current.length === checklistItems.length ? [] : checklistItems.map((item) => item.id))
+  }
+
+  const structuredRules = ruleSet?.rules.length ? ruleSet.rules : defaultStructuredRules
 
   return (
     <div className="pageStack">
@@ -97,50 +146,20 @@ export function RuleExecutionPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>R618-001</td>
-                  <td>近30天销量</td>
-                  <td>≥ 100</td>
-                  <td>硬条件</td>
-                  <td className={styles.highConfidence}>高 0.98</td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                </tr>
-                <tr>
-                  <td>R618-002</td>
-                  <td>好评率</td>
-                  <td>≥ 95%</td>
-                  <td>硬条件</td>
-                  <td className={styles.highConfidence}>高 0.97</td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                </tr>
-                <tr>
-                  <td>R618-003</td>
-                  <td>库存</td>
-                  <td>≥ 500</td>
-                  <td>硬条件</td>
-                  <td className={styles.highConfidence}>高 0.96</td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                </tr>
-                <tr>
-                  <td>R618-004</td>
-                  <td>活动价</td>
-                  <td>≤ 近30天最低价</td>
-                  <td>硬条件</td>
-                  <td className={styles.medConfidence}>中 0.82</td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                </tr>
-                <tr>
-                  <td>R618-005</td>
-                  <td>品牌日互斥</td>
-                  <td>同品牌同时间段仅1个主玩法</td>
-                  <td>互斥条件</td>
-                  <td className={styles.medConfidence}>中 0.78</td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                </tr>
+                {structuredRules.map((rule) => (
+                  <tr key={rule.id}>
+                    <td>{rule.id}</td>
+                    <td>{rule.field ?? rule.compareField ?? '-'}</td>
+                    <td>{ruleCondition(rule)}</td>
+                    <td>{ruleTypeLabel(rule.type, rule.severity)}</td>
+                    <td className={(ruleSet?.confidence ?? 0.9) >= 0.9 ? styles.highConfidence : styles.medConfidence}>{confidenceLabel(ruleSet?.confidence ?? 0.9)}</td>
+                    <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
-              <span>共 5 条</span>
+              <span>共 {structuredRules.length} 条</span>
               <button type="button" onClick={() => setMessage('置信度来自规则解析 API 的 confidence 字段；低置信度应进入 Review。')} style={{ color: 'var(--muted)', border: 0, background: 'transparent' }}>置信度说明 ⓘ</button>
             </div>
           </div>
@@ -152,8 +171,8 @@ export function RuleExecutionPage() {
                 执行检查清单 <span style={{ color: 'var(--muted)', fontWeight: 'normal', fontSize: '13px', marginLeft: '8px' }}>(默认视图: 结论与下一步)</span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="secondaryButton" type="button" onClick={() => setMessage('批量指派需要接入团队/用户目录；当前已记录为 Review 后续动作。')} style={{ height: '32px', fontSize: '13px' }}>批量指派</button>
-                <button className="secondaryButton" type="button" onClick={() => setMessage('批量标记会在接入 checklist persistence 后落库。')} style={{ height: '32px', fontSize: '13px', display: 'flex', alignItems: 'center' }}>
+                <button className="secondaryButton" type="button" onClick={() => void createChecklistReviews('assign')} disabled={busy} style={{ height: '32px', fontSize: '13px' }}>批量指派</button>
+                <button className="secondaryButton" type="button" onClick={() => void createChecklistReviews('mark')} disabled={busy} style={{ height: '32px', fontSize: '13px', display: 'flex', alignItems: 'center' }}>
                   <CheckSquare size={14} style={{ marginRight: '6px' }} /> 批量标记 ∨
                 </button>
                 <button className="iconButton" type="button" onClick={() => void runCheck()} style={{ height: '32px', width: '32px' }}><RefreshCw size={14} /></button>
@@ -162,7 +181,7 @@ export function RuleExecutionPage() {
             <table className={styles.dataTable}>
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}><input type="checkbox" /></th>
+                  <th style={{ width: '40px' }}><input type="checkbox" checked={selectedChecks.length === checklistItems.length} onChange={toggleAllChecks} /></th>
                   <th>检查项</th>
                   <th>所需数据</th>
                   <th>数据来源</th>
@@ -173,56 +192,18 @@ export function RuleExecutionPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><input type="checkbox" /></td>
-                  <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> 近30天销量 ≥ 100</td>
-                  <td>近30天实付销量</td>
-                  <td>生意参谋-商品分析</td>
-                  <td>数值比较 (≥100)</td>
-                  <td><span className={styles.tagReady}>✓ 已完成</span></td>
-                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>运营同学</div></td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看</a></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" /></td>
-                  <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> 好评率 ≥ 95%</td>
-                  <td>近30天好评率</td>
-                  <td>生意参谋-商品评价</td>
-                  <td>数值比较 (≥95%)</td>
-                  <td><span className={styles.tagReady}>✓ 已完成</span></td>
-                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>运营同学</div></td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看</a></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" /></td>
-                  <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> 库存 ≥ 500</td>
-                  <td>可售库存</td>
-                  <td>天猫库存中心</td>
-                  <td>数值比较 (≥500)</td>
-                  <td><span className={styles.tagMissing}>✗ 缺少数据</span></td>
-                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>数据同学</div></td>
-                  <td><a href="/data-sources" style={{ color: 'var(--primary)' }}>补数</a></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" /></td>
-                  <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> 活动价 ≤ 近30天最低价</td>
-                  <td>近30天最低价、活动价</td>
-                  <td>价格中心</td>
-                  <td>数值比较 (≤最低价)</td>
-                  <td><span className={styles.tagExternal} style={{ color: '#d4a017', background: 'rgba(212,160,23,0.1)' }}>/ 待确认</span></td>
-                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>运营同学</div></td>
-                  <td><a href="/review-approvals" style={{ color: 'var(--primary)' }}>确认</a></td>
-                </tr>
-                <tr>
-                  <td><input type="checkbox" /></td>
-                  <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> 品牌日互斥</td>
-                  <td>同品牌活动报名记录</td>
-                  <td>活动中心-报名记录</td>
-                  <td>互斥校验 (唯一性)</td>
-                  <td><span className={styles.tagExternal} style={{ color: '#d4a017', background: 'rgba(212,160,23,0.1)' }}>/ 待确认</span></td>
-                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>运营同学</div></td>
-                  <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看</a></td>
-                </tr>
+                {checklistItems.map((item) => (
+                  <tr key={item.id}>
+                    <td><input type="checkbox" checked={selectedChecks.includes(item.id)} onChange={() => toggleCheck(item.id)} /></td>
+                    <td><FileText size={14} style={{ marginRight: '6px', color: 'var(--primary)', verticalAlign: 'middle' }}/> {item.label}</td>
+                    <td>{item.requiredData}</td>
+                    <td>{item.source}</td>
+                    <td>{item.method}</td>
+                    <td>{renderChecklistStatus(item.status, styles)}</td>
+                    <td><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'20px', height:'20px', background:'#eee', borderRadius:'50%'}}></div>{item.owner}</div></td>
+                    <td><a href={item.actionHref} style={{ color: 'var(--primary)' }}>{item.actionLabel}</a></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
@@ -359,4 +340,53 @@ export function RuleExecutionPage() {
       </div>
     </div>
   )
+}
+
+const defaultStructuredRules: CanonicalRuleDto[] = [
+  { id: 'R618-001', type: 'threshold', field: 'sales30d', operator: 'gte', value: 100, message: '近30天销量 ≥ 100', severity: 'blocking' },
+  { id: 'R618-002', type: 'threshold', field: 'positiveRate', operator: 'gte', value: 95, message: '好评率 ≥ 95%', severity: 'blocking' },
+  { id: 'R618-003', type: 'threshold', field: 'stock', operator: 'gte', value: 500, message: '库存 ≥ 500', severity: 'blocking' },
+  { id: 'R618-004', type: 'field_compare', field: 'campaignPrice', operator: 'lte', compareField: 'lowestPrice30d', message: '活动价 ≤ 近30天最低价', severity: 'warning' },
+  { id: 'R618-005', type: 'boolean_block', field: 'joinedBrandDay', operator: 'eq', value: false, message: '品牌日互斥', severity: 'warning' },
+]
+
+const checklistItems = [
+  { id: 'sales30d', label: '近30天销量 ≥ 100', requiredData: '近30天实付销量', source: '生意参谋-商品分析', method: '数值比较 (≥100)', status: 'ready', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
+  { id: 'positive_rate', label: '好评率 ≥ 95%', requiredData: '近30天好评率', source: '生意参谋-商品评价', method: '数值比较 (≥95%)', status: 'ready', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
+  { id: 'stock', label: '库存 ≥ 500', requiredData: '可售库存', source: '天猫库存中心', method: '数值比较 (≥500)', status: 'missing', owner: '数据同学', actionHref: '/data-sources', actionLabel: '补数' },
+  { id: 'price', label: '活动价 ≤ 近30天最低价', requiredData: '近30天最低价、活动价', source: '价格中心', method: '数值比较 (≤最低价)', status: 'pending', owner: '运营同学', actionHref: '/review-approvals', actionLabel: '确认' },
+  { id: 'brand_conflict', label: '品牌日互斥', requiredData: '同品牌活动报名记录', source: '活动中心-报名记录', method: '互斥校验 (唯一性)', status: 'pending', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
+] as const
+
+function ruleCondition(rule: CanonicalRuleDto): string {
+  if (rule.compareField) return `${operatorLabel(rule.operator)} ${rule.compareField}`
+  if (rule.value !== undefined) return `${operatorLabel(rule.operator)} ${String(rule.value)}`
+  return rule.message
+}
+
+function operatorLabel(operator: CanonicalRuleDto['operator']): string {
+  if (operator === 'gte') return '≥'
+  if (operator === 'lte') return '≤'
+  if (operator === 'eq') return '='
+  if (operator === 'neq') return '≠'
+  return '-'
+}
+
+function ruleTypeLabel(type: CanonicalRuleDto['type'], severity: CanonicalRuleDto['severity']): string {
+  if (type === 'manual_review') return '人工确认'
+  if (type === 'boolean_block') return '互斥条件'
+  if (type === 'field_compare') return severity === 'blocking' ? '硬条件' : '需确认'
+  if (type === 'data_required') return '数据必填'
+  if (type === 'quota') return '名额规则'
+  return severity === 'blocking' ? '硬条件' : '提示条件'
+}
+
+function confidenceLabel(confidence: number): string {
+  return `${confidence >= 0.9 ? '高' : '中'} ${confidence.toFixed(2)}`
+}
+
+function renderChecklistStatus(status: typeof checklistItems[number]['status'], styleMap: typeof styles) {
+  if (status === 'ready') return <span className={styleMap.tagReady}>✓ 已完成</span>
+  if (status === 'missing') return <span className={styleMap.tagMissing}>✗ 缺少数据</span>
+  return <span className={styleMap.tagExternal} style={{ color: '#d4a017', background: 'rgba(212,160,23,0.1)' }}>/ 待确认</span>
 }

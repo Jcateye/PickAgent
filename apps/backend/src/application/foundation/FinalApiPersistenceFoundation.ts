@@ -597,7 +597,7 @@ export class RuleSetRepository {
 
   create(boundary: P0AuthContextDto, input: CreateRuleSetInputDto): RuleSetDetailDto | Promise<RuleSetDetailDto> {
     const ruleSet: ActivityRuleSetDto = {
-      ruleSetId: nextId("rules"),
+      ruleSetId: nextUuid(),
       name: input.name,
       platform: input.platform,
       sourceText: input.sourceText,
@@ -2058,7 +2058,7 @@ export class FinalActivityService {
   async parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityRuleSetDto> {
     const rules = input.rules ?? deterministicRules(input.sourceText);
     const ruleSet: ActivityRuleSetDto = {
-      ruleSetId: nextId("rules"),
+      ruleSetId: nextUuid(),
       name: input.name,
       platform: input.platform,
       sourceText: input.sourceText,
@@ -2088,7 +2088,7 @@ export class FinalActivityService {
       const changedSnapshot = request.whatIf ? { ...detail.latestSnapshot, ...request.whatIf } : detail.latestSnapshot;
       const changed = evaluate(changedSnapshot, ruleSet.rules);
       return {
-        simulationResultId: nextId("simulation"),
+        simulationResultId: nextUuid(),
         skuProfileId,
         ruleSetId: activityRuleSetId,
         eligibility: changed.eligibility,
@@ -2099,7 +2099,7 @@ export class FinalActivityService {
       } satisfies SimulationResultDto;
     }));
     return this.repository.saveSimulationRun(boundary, {
-      simulationRunId: nextId("simulation_run"),
+      simulationRunId: nextUuid(),
       activityRuleSetId,
       status: "SUCCEEDED",
       scope: { skuProfileIds: request.skuProfileIds, whatIf: request.whatIf },
