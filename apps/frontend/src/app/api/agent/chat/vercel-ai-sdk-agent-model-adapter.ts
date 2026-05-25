@@ -263,6 +263,9 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'setRuleSetStatus',
   'retryRun',
   'listReports',
+  'getReportDetail',
+  'listReportVersions',
+  'getReportVersion',
   'exportReport',
   'subscribeReport',
 ] as const
@@ -324,6 +327,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       runId: { type: 'string' },
       runType: { type: 'string', enum: ['connector_sync', 'agent_run'] },
       reportId: { type: 'string' },
+      versionId: { type: 'string' },
       reviewItemId: { type: 'string' },
       decision: { type: 'string', enum: ['APPROVE', 'REJECT', 'REQUEST_CHANGES'] },
       decisionBy: { type: 'string' },
@@ -512,6 +516,21 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '读取报告中心报告列表，用于查找 reportId、最新报告、导出状态和报告时间。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('listReports', inputJson),
+    }),
+    getReportDetail: tool({
+      description: '读取真实报告详情。需要 reportId，返回摘要、风险、修复建议、证据和各标签页内容所需数据。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getReportDetail', inputJson),
+    }),
+    listReportVersions: tool({
+      description: '读取指定 reportId 的真实报告版本列表，用于用户询问历史版本或版本对比前查找 versionId。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listReportVersions', inputJson),
+    }),
+    getReportVersion: tool({
+      description: '读取指定 reportId/versionId 的真实报告版本详情。需要 reportId 和 versionId。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getReportVersion', inputJson),
     }),
     exportReport: tool({
       description: '为指定 reportId 创建真实报告导出任务。支持 format=PDF/EXCEL/PPT。',

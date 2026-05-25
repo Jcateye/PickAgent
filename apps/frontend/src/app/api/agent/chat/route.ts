@@ -112,7 +112,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport'])
 const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -491,6 +491,30 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, [{ type: 'report', entityId: 'reports', label: '报告列表', summary: `读取 ${result.items.length} 份报告` }], `读取报告：${result.items.length} 份`, result.items[0] ? { type: 'report', id: result.items[0].reportId } : { type: 'dashboard', id: 'reports' })
     }
 
+    if (toolName === 'getReportDetail') {
+      const reportId = String(input.reportId ?? '')
+      if (!reportId) throw new Error('reportId is required')
+      const result = await finalApiRuntime.reportService.getDetail(reportId, agentToolAuthContext())
+      if (!result) throw new Error(`Report not found: ${reportId}`)
+      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), `读取报告详情：${result.title}`, { type: 'report', id: result.reportId })
+    }
+
+    if (toolName === 'listReportVersions') {
+      const reportId = String(input.reportId ?? '')
+      if (!reportId) throw new Error('reportId is required')
+      const result = await finalApiRuntime.reportService.listVersions(reportId, agentToolAuthContext())
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告版本', summary: `读取 ${result.items.length} 个版本` }], `读取报告版本：${result.items.length} 个`, { type: 'report', id: reportId })
+    }
+
+    if (toolName === 'getReportVersion') {
+      const reportId = String(input.reportId ?? '')
+      const versionId = String(input.versionId ?? '')
+      if (!reportId || !versionId) throw new Error('reportId and versionId are required')
+      const result = await finalApiRuntime.reportService.getVersion(reportId, versionId, agentToolAuthContext())
+      if (!result) throw new Error(`Report version not found: ${reportId}/${versionId}`)
+      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), `读取报告版本：${result.version}`, { type: 'report', id: reportId })
+    }
+
     if (toolName === 'exportReport') {
       const reportId = String(input.reportId ?? '')
       if (!reportId) throw new Error('reportId is required')
@@ -741,6 +765,15 @@ function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['deci
 function reviewEvidenceToAgentEvidence(ref: { entityId: string; label: string; evidenceText?: string; field?: string; sourceId: string }): EvidenceLinkDto {
   return {
     type: 'review',
+    entityId: ref.entityId,
+    label: ref.label,
+    summary: ref.evidenceText ?? ref.field ?? ref.sourceId,
+  }
+}
+
+function reportEvidenceToAgentEvidence(ref: { entityId: string; label: string; evidenceText?: string; field?: string; sourceId: string }): EvidenceLinkDto {
+  return {
+    type: 'report',
     entityId: ref.entityId,
     label: ref.label,
     summary: ref.evidenceText ?? ref.field ?? ref.sourceId,
