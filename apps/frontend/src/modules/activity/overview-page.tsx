@@ -80,6 +80,7 @@ export function OverviewPage() {
   const runs = runPage?.items ?? []
   const latestRun = runs[0] ?? null
   const latestRunLogs = latestRun?.logs.slice(0, 5) ?? []
+  const missionSteps = buildMissionSteps(runs, reviewPage?.items ?? [])
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
   const visiblePages = paginationWindow(page, totalPages)
 
@@ -342,71 +343,20 @@ export function OverviewPage() {
           
           <div className={styles.stepListTitle}>执行步骤</div>
           
-          <div className={`${styles.vStep} ${styles.completed}`}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>1. 规则解析</span>
-              <div className={styles.vStepStatus}>
-                <span className={`${styles.statusBadge} ${styles.completed}`}>已完成</span>
-                <span className={styles.vStepTime}>10:33</span>
+          {missionSteps.map((step) => (
+            <div className={`${styles.vStep} ${step.status === 'completed' ? styles.completed : step.status === 'running' ? styles.running : ''}`} key={step.label}>
+              <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
+              <div className={styles.vStepContent}>
+                <span className={styles.vStepLabel}>{step.label}</span>
+                <div className={styles.vStepStatus}>
+                  {step.status === 'waiting'
+                    ? <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{step.statusText}</span>
+                    : <span className={`${styles.statusBadge} ${step.status === 'completed' ? styles.completed : styles.running}`}>{step.statusText}</span>}
+                  <span className={styles.vStepTime}>{formatTime(step.time)}</span>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className={`${styles.vStep} ${styles.completed}`}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>2. 数据检查</span>
-              <div className={styles.vStepStatus}>
-                <span className={`${styles.statusBadge} ${styles.completed}`}>已完成</span>
-                <span className={styles.vStepTime}>10:36</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={`${styles.vStep} ${styles.completed}`}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>3. 插件采集</span>
-              <div className={styles.vStepStatus}>
-                <span className={`${styles.statusBadge} ${styles.completed}`}>已完成</span>
-                <span className={styles.vStepTime}>{formatTime(latestRun?.startedAt ?? latestRun?.completedAt)}</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={`${styles.vStep} ${styles.running}`}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>4. SKU 诊断</span>
-              <div className={styles.vStepStatus}>
-                <span className={`${styles.statusBadge} ${styles.running}`}>运行中</span>
-                <span className={styles.vStepTime}>10:41</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={styles.vStep}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>5. 准入模拟</span>
-              <div className={styles.vStepStatus}>
-                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>排队中</span>
-                <span className={styles.vStepTime}>—</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={styles.vStep}>
-            <div className={styles.vStepIndicator}><div className={styles.vStepCircle}></div></div>
-            <div className={styles.vStepContent}>
-              <span className={styles.vStepLabel}>6. Review 生成</span>
-              <div className={styles.vStepStatus}>
-                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>等待中</span>
-                <span className={styles.vStepTime}>—</span>
-              </div>
-            </div>
-          </div>
+          ))}
 
         </div>
 
@@ -472,6 +422,44 @@ function runIcon(type: string) {
   if (type.includes('review')) return <FileCheck2 size={14} />
   if (type.includes('activity')) return <ShieldAlert size={14} />
   return <FileText size={14} />
+}
+
+type MissionStepStatus = 'completed' | 'running' | 'waiting'
+
+interface MissionStepView {
+  label: string
+  status: MissionStepStatus
+  statusText: string
+  time?: string
+}
+
+function buildMissionSteps(runs: RunConsoleItemDto[], reviews: ReviewListItemDto[]): MissionStepView[] {
+  const connectorRun = runs.find((run) => run.type === 'connector_sync')
+  const activityRun = runs.find((run) => run.type.includes('activity') || run.subject.includes('规则') || run.subject.includes('模拟'))
+  const reviewRun = runs.find((run) => run.type.includes('review'))
+  const latestRun = runs[0]
+  const completedConnector = connectorRun && isSucceeded(connectorRun.status)
+  const completedActivity = activityRun && isSucceeded(activityRun.status)
+  const pendingReviews = reviews.filter((review) => review.status === 'PENDING').length
+  return [
+    stepFromRun('1. 规则解析', activityRun ?? latestRun, Boolean(activityRun)),
+    stepFromRun('2. 数据检查', connectorRun ?? latestRun, Boolean(connectorRun)),
+    stepFromRun('3. 插件采集', connectorRun, Boolean(completedConnector)),
+    stepFromRun('4. SKU 诊断', latestRun, Boolean(latestRun && isSucceeded(latestRun.status))),
+    stepFromRun('5. 准入模拟', activityRun, Boolean(completedActivity)),
+    {
+      label: '6. Review 生成',
+      status: reviewRun && isSucceeded(reviewRun.status) ? 'completed' : pendingReviews > 0 ? 'running' : 'waiting',
+      statusText: reviewRun && isSucceeded(reviewRun.status) ? '已完成' : pendingReviews > 0 ? `${pendingReviews} 项待审` : '等待中',
+      time: reviewRun?.completedAt ?? reviewRun?.startedAt,
+    },
+  ]
+}
+
+function stepFromRun(label: string, run: RunConsoleItemDto | undefined, completed: boolean): MissionStepView {
+  if (completed) return { label, status: 'completed', statusText: '已完成', time: run?.completedAt ?? run?.startedAt }
+  if (run && !isSucceeded(run.status)) return { label, status: 'running', statusText: statusLabel(run.status), time: run.startedAt ?? run.completedAt }
+  return { label, status: 'waiting', statusText: '等待中' }
 }
 
 function healthStatusLabel(status: DashboardSkuListItemDto['healthStatus']): string {
