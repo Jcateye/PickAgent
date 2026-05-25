@@ -115,8 +115,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
-const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport', 'answerAgentRunQuestion'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
+const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 export function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -316,6 +316,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         items: result.items.map(toSkuCandidate),
       }
       return succeeded(payload, skuListEvidence(payload.items), `查询 SKU：命中 ${result.total} 条`, result.items[0] ? { type: 'sku_profile', id: result.items[0].skuProfileId } : { type: 'dashboard', id: 'sku-search' })
+    }
+
+    if (toolName === 'exportSkuList') {
+      const query = skuListQueryFromToolInput(input, 500)
+      const result = await finalApiRuntime.skuReadinessQueryService.exportList(query, agentToolAuthContext())
+      const evidence: EvidenceLinkDto[] = [{
+        type: 'tool_trace',
+        entityId: result.workflowRunId ?? result.fileName,
+        label: 'SKU 导出',
+        summary: `导出 ${result.rowCount} 行 SKU，文件 ${result.fileName}`,
+      }]
+      return succeeded(result, evidence, `导出 SKU：${result.rowCount} 行`, result.workflowRunId ? { type: 'workflow_run', id: result.workflowRunId } : { type: 'dashboard', id: 'sku-export' })
     }
 
     if (toolName === 'listRuleSets') {

@@ -303,6 +303,36 @@ test('agent chat retryRun tool supports activity simulation retries', async () =
   assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
 })
 
+test('agent chat exportSkuList tool creates auditable sku csv export', async () => {
+  const externalSkuId = `agent_export_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_export_store',
+        externalSkuId,
+        productName: 'Agent 导出 SKU',
+        stock: 31,
+        positiveRate: 0.98,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const execution = await executeFinalApiTool('exportSkuList', {
+    q: externalSkuId,
+    sortBy: 'updatedAt',
+    sortOrder: 'desc',
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const result = execution.result as { csv: string; rowCount: number; workflowRunId?: string }
+  assert.equal(result.rowCount, 1)
+  assert.match(result.csv, /skuProfileId,displaySku,productName/)
+  assert.ok(result.workflowRunId)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+})
+
 test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
@@ -319,6 +349,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('runConnectorSync'), 'L1')
   assert.equal(agentToolRiskLevel('setSkuNextAction'), 'L1')
   assert.equal(agentToolRiskLevel('exportReport'), 'L1')
+  assert.equal(agentToolRiskLevel('exportSkuList'), 'L1')
   assert.equal(agentToolRiskLevel('subscribeReport'), 'L1')
   assert.equal(agentToolRiskLevel('answerAgentRunQuestion'), 'L1')
   assert.equal(agentToolRiskLevel('getWorkspaceSettings'), 'L1')
@@ -333,6 +364,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRequiresReviewGate('runConnectorSync'), false)
   assert.equal(agentToolRequiresReviewGate('setSkuNextAction'), false)
   assert.equal(agentToolRequiresReviewGate('exportReport'), false)
+  assert.equal(agentToolRequiresReviewGate('exportSkuList'), false)
   assert.equal(agentToolRequiresReviewGate('subscribeReport'), false)
   assert.equal(agentToolRequiresReviewGate('answerAgentRunQuestion'), false)
   assert.equal(agentToolRequiresReviewGate('getWorkspaceSettings'), false)

@@ -239,6 +239,7 @@ export const defaultAgentToolNames = [
   "getDashboardContext",
   "listRunConsole",
   "searchSkus",
+  "exportSkuList",
   "listRuleSets",
   "getRuleSetDetail",
   "createRuleSet",

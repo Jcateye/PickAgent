@@ -400,6 +400,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('searchSkus', inputJson),
     }),
+    exportSkuList: tool({
+      description: '按当前筛选条件创建真实 SKU CSV 导出并写入 workflow audit。支持 query/q、category、platform、healthStatus、eligibilityStatus、库存/销量/评分区间、排序。返回 csv、fileName、rowCount 和 workflowRunId。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('exportSkuList', inputJson),
+    }),
     listRuleSets: tool({
       description: '读取可用活动规则集列表，用于用户只说活动/规则但没有 ruleSetId 的场景。',
       inputSchema: objectSchema,
