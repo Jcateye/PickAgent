@@ -152,6 +152,9 @@ test("prisma agent conversation repository decides review gate with continuation
   assert.equal(decision.continuationRun.missionId, mission.id);
   assert.equal(decision.continuationRun.sessionId, session.id);
   assert.equal(decision.continuationRun.inputJson.reviewGateId, gate.id);
+  assert.equal(decision.continuationRun.inputJson.approvedToolCallId, toolCall.id);
+  assert.equal(decision.continuationRun.inputJson.approvedToolName, "generateReport");
+  assert.equal(decision.approvedToolCall?.id, toolCall.id);
   assert.equal(decision.event.eventType, "run.continuation_started");
   assert.equal(decision.event.payloadJson.previousRunId, run.id);
 });

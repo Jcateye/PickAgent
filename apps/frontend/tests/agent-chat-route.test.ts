@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
+import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/[sessionKey]/messages/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
@@ -142,4 +143,53 @@ test('agent chat session recovery preserves review gate turns', () => {
   assert.equal(turn?.toolTrace[0]?.reviewPolicy, 'review_gate')
   assert.equal(turn?.reviewGate?.id, 'gate_review_1')
   assert.equal(turn?.reviewGate?.status, 'PENDING')
+})
+
+test('approved chat review gate executes original write tool on continuation run', async () => {
+  const beforeReportCount = finalApiRuntime.store.reports.size
+  const calls: Array<{ kind: string; input: Record<string, unknown> }> = []
+  const repository = {
+    createToolCall: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'toolCall', input })
+      return { id: 'tool_call_executed_1', ...input }
+    },
+    appendRunEvent: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'event', input })
+      return { id: 'event_executed_1', ...input }
+    },
+    markRunStatus: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'runStatus', input })
+      return { id: input.runId, status: input.status, outputJson: input.outputJson }
+    },
+  }
+
+  const result = await executeApprovedChatReviewGateTool(repository as never, {
+    gate: { status: 'APPROVED' },
+    continuationRun: { id: 'run_continuation_1' } as never,
+    approvedToolCall: {
+      id: 'tool_call_review_1',
+      runId: 'run_review_1',
+      externalToolCallId: null,
+      workflowStepId: null,
+      toolName: 'generateReport',
+      status: 'WAITING_FOR_APPROVAL',
+      riskLevel: 'L2',
+      reviewPolicy: 'REVIEW_GATE',
+      inputJson: { skuProfileIds: ['sku_missing_but_report_writes'] },
+      outputJson: {},
+      evidenceRefsJson: {},
+      errorMessage: null,
+      blockedReason: null,
+      startedAt: '2026-05-24T00:00:00.000Z',
+      completedAt: null,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z',
+    },
+  })
+
+  assert.equal(finalApiRuntime.store.reports.size, beforeReportCount + 1)
+  assert.equal((result as { executedToolCall?: { toolName?: string } }).executedToolCall?.toolName, 'generateReport')
+  assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'event', 'runStatus'])
+  assert.equal(calls[0]?.input.runId, 'run_continuation_1')
+  assert.equal(calls[2]?.input.status, 'SUCCEEDED')
 })

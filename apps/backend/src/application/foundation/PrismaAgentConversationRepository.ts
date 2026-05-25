@@ -240,13 +240,16 @@ export class PrismaAgentConversationRepository implements AgentConversationRepos
     return toReviewGate(record);
   }
 
-  async decideReviewGate(gateId: string, input: { decision: "APPROVE" | "REJECT" | "REQUEST_CHANGES"; decidedBy: string; decisionComment?: string | null }): Promise<{ gate: AgentReviewGate; continuationRun: AgentRun; event: AgentRunEvent }> {
+  async decideReviewGate(gateId: string, input: { decision: "APPROVE" | "REJECT" | "REQUEST_CHANGES"; decidedBy: string; decisionComment?: string | null }): Promise<{ gate: AgentReviewGate; continuationRun: AgentRun; event: AgentRunEvent; approvedToolCall?: AgentToolCall | null }> {
     const gate = await this.prisma.agentReviewGate.findUnique({ where: { id: gateId } });
     if (!gate) throw new Error(`Agent review gate not found: ${gateId}`);
     const currentGate = toReviewGate(gate);
     if (currentGate.status !== "PENDING") throw new Error(`Agent review gate is not pending: ${gateId}`);
     const previousRun = await this.prisma.agentRun.findUnique({ where: { id: currentGate.runId } });
     if (!previousRun) throw new Error(`Agent run not found: ${currentGate.runId}`);
+    const approvedToolCall = currentGate.toolCallId
+      ? await this.prisma.agentToolCall.findUnique({ where: { id: currentGate.toolCallId } })
+      : null;
     const decidedAt = new Date();
     const statusByDecision = {
       APPROVE: "APPROVED",
@@ -271,7 +274,14 @@ export class PrismaAgentConversationRepository implements AgentConversationRepos
         status: "RUNNING",
         modelProvider: previous.modelProvider,
         modelName: previous.modelName,
-        inputJson: { continuationOfRunId: currentGate.runId, reviewGateId: gateId, decision: input.decision },
+        inputJson: {
+          continuationOfRunId: currentGate.runId,
+          reviewGateId: gateId,
+          decision: input.decision,
+          approvedToolCallId: approvedToolCall ? String(approvedToolCall.id) : null,
+          approvedToolName: approvedToolCall ? String(approvedToolCall.toolName) : null,
+          approvedToolInputJson: approvedToolCall ? objectValue(approvedToolCall.inputJson) : null,
+        },
         outputJson: {},
         usageJson: {},
         metadataJson: {},
@@ -291,7 +301,7 @@ export class PrismaAgentConversationRepository implements AgentConversationRepos
         payloadJson: { missionId: currentGate.missionId, reviewGateId: gateId, previousRunId: currentGate.runId },
       },
     });
-    return { gate: toReviewGate(updatedGate), continuationRun: toRun(continuationRun), event: toRunEvent(event) };
+    return { gate: toReviewGate(updatedGate), continuationRun: toRun(continuationRun), event: toRunEvent(event), approvedToolCall: approvedToolCall ? toToolCall(approvedToolCall) : null };
   }
 
   async markRunStatus(input: { runId: string; status: "SUCCEEDED" | "FAILED"; outputJson?: Record<string, unknown>; errorMessage?: string | null }): Promise<AgentRun> {
