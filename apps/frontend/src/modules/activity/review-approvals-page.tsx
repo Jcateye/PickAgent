@@ -36,12 +36,12 @@ export function ReviewApprovalsPage() {
   const [reviews, setReviews] = useState<ReviewListItemDto[]>([])
   const [selectedItem, setSelectedItem] = useState<string | null>(() => getInitialReviewItemId())
   const [detail, setDetail] = useState<ReviewDetailDto | null>(null)
-  const [activeTab, setActiveTab] = useState<ReviewTab>('PENDING')
-  const [detailTab, setDetailTab] = useState<ReviewDetailTab>('recommendation')
-  const [typeFilter, setTypeFilter] = useState<ReviewWorkbenchType | 'all'>('all')
-  const [riskFilter, setRiskFilter] = useState<ReviewRiskLevel | 'all'>('all')
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
+  const [activeTab, setActiveTab] = useState<ReviewTab>(() => getInitialReviewTab())
+  const [detailTab, setDetailTab] = useState<ReviewDetailTab>(() => getInitialReviewDetailTab())
+  const [typeFilter, setTypeFilter] = useState<ReviewWorkbenchType | 'all'>(() => getInitialReviewType())
+  const [riskFilter, setRiskFilter] = useState<ReviewRiskLevel | 'all'>(() => getInitialReviewRisk())
+  const [query, setQuery] = useState(() => getInitialReviewParam('q') ?? '')
+  const [page, setPage] = useState(() => getInitialReviewPage())
   const [total, setTotal] = useState(0)
   const [remark, setRemark] = useState('')
   const [draftRecommendation, setDraftRecommendation] = useState('')
@@ -59,6 +59,7 @@ export function ReviewApprovalsPage() {
     if (typeFilter !== 'all') params.set('type', typeFilter)
     if (riskFilter !== 'all') params.set('riskLevel', riskFilter)
     if (query.trim()) params.set('q', query.trim())
+    syncReviewUrl({ reviewItemId: selectedItem, activeTab, typeFilter, riskFilter, query, page, detailTab })
     const nextPage = await fetchActivityApi<PageDto<ReviewListItemDto>>(`/api/reviews?${params.toString()}`)
     setReviews(nextPage.items)
     setTotal(nextPage.total)
@@ -76,7 +77,7 @@ export function ReviewApprovalsPage() {
   useEffect(() => {
     if (!selectedItem) {
       setDetail(null)
-      syncReviewUrl(null)
+      syncReviewUrl({ reviewItemId: null, activeTab, typeFilter, riskFilter, query, page, detailTab })
       return
     }
     let cancelled = false
@@ -85,8 +86,7 @@ export function ReviewApprovalsPage() {
         if (!cancelled) {
           setDetail(nextDetail)
           setDraftRecommendation(nextDetail.recommendation.content)
-          setDetailTab('recommendation')
-          syncReviewUrl(nextDetail.reviewItemId)
+          syncReviewUrl({ reviewItemId: nextDetail.reviewItemId, activeTab, typeFilter, riskFilter, query, page, detailTab })
         }
       })
       .catch(() => {
@@ -209,7 +209,7 @@ export function ReviewApprovalsPage() {
           </div>
 
           {reviews.map((item) => (
-            <button className={`${styles.tableRow} ${selectedItem === item.reviewItemId ? styles.selected : ''}`} key={item.reviewItemId} type="button" onClick={() => { setSelectedItem(item.reviewItemId); syncReviewUrl(item.reviewItemId) }}>
+            <button className={`${styles.tableRow} ${selectedItem === item.reviewItemId ? styles.selected : ''}`} key={item.reviewItemId} type="button" onClick={() => { setSelectedItem(item.reviewItemId); syncReviewUrl({ reviewItemId: item.reviewItemId, activeTab, typeFilter, riskFilter, query, page, detailTab }) }}>
               <div><input type="radio" checked={selectedItem === item.reviewItemId} readOnly /></div>
               <div><span className={`${styles.priorityBadge} ${priorityClass(item.riskLevel)}`}>{priorityLabel(item.riskLevel)}</span></div>
               <div className={styles.rowType}>{reviewIcon(item.type)} {sourceTypeLabel(item.type)}</div>
@@ -260,13 +260,13 @@ export function ReviewApprovalsPage() {
                 Review ID: {selectedReview.reviewItemId}
               </div>
             </div>
-            <button className="iconButton" type="button" onClick={() => setSelectedItem(null)}><X size={18} color="var(--muted)" /></button>
+            <button className="iconButton" type="button" onClick={() => { setSelectedItem(null); syncReviewUrl({ reviewItemId: null, activeTab, typeFilter, riskFilter, query, page, detailTab }) }}><X size={18} color="var(--muted)" /></button>
           </div>
 
           <div className={styles.drawerBody}>
             <div className={styles.drawerTabs}>
               {detailTabs.map((tab) => (
-                <button className={`${styles.tab} ${detailTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setDetailTab(tab.value)}>
+                <button className={`${styles.tab} ${detailTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDetailTab(tab.value); syncReviewUrl({ reviewItemId: selectedReview.reviewItemId, activeTab, typeFilter, riskFilter, query, page, detailTab: tab.value }) }}>
                   {tab.label}
                 </button>
               ))}
@@ -465,18 +465,57 @@ function isReviewDetail(item: ReviewDetailDto | ReviewListItemDto): item is Revi
 }
 
 function getInitialReviewItemId(): string | null {
-  if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get('reviewItemId')
+  return getInitialReviewParam('reviewItemId')
 }
 
-function syncReviewUrl(reviewItemId: string | null) {
+function getInitialReviewParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function getInitialReviewPage(): number {
+  const value = Number(getInitialReviewParam('page') ?? 1)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1
+}
+
+function getInitialReviewTab(): ReviewTab {
+  const value = getInitialReviewParam('tab')
+  return value === 'PENDING' || value === 'APPROVED' || value === 'REJECTED' || value === 'MODIFIED' || value === 'all' ? value : 'PENDING'
+}
+
+function getInitialReviewDetailTab(): ReviewDetailTab {
+  const value = getInitialReviewParam('detailTab')
+  return value === 'recommendation' || value === 'risk' || value === 'evidence' || value === 'rules' || value === 'history' ? value : 'recommendation'
+}
+
+function getInitialReviewType(): ReviewWorkbenchType | 'all' {
+  const value = getInitialReviewParam('type')
+  return value === 'REPLENISHMENT' || value === 'CERTIFICATE' || value === 'RULE_AMBIGUITY' || value === 'ACTIVITY_CONFLICT' || value === 'PRICE' || value === 'AGENT_REVIEW_GATE' ? value : 'all'
+}
+
+function getInitialReviewRisk(): ReviewRiskLevel | 'all' {
+  const value = getInitialReviewParam('riskLevel')
+  return value === 'HIGH' || value === 'MEDIUM' || value === 'LOW' ? value : 'all'
+}
+
+function syncReviewUrl(state: {
+  reviewItemId: string | null
+  activeTab: ReviewTab
+  typeFilter: ReviewWorkbenchType | 'all'
+  riskFilter: ReviewRiskLevel | 'all'
+  query: string
+  page: number
+  detailTab: ReviewDetailTab
+}) {
   if (typeof window === 'undefined') return
-  const params = new URLSearchParams(window.location.search)
-  if (reviewItemId) {
-    params.set('reviewItemId', reviewItemId)
-  } else {
-    params.delete('reviewItemId')
-  }
+  const params = new URLSearchParams()
+  if (state.reviewItemId) params.set('reviewItemId', state.reviewItemId)
+  if (state.activeTab !== 'PENDING') params.set('tab', state.activeTab)
+  if (state.typeFilter !== 'all') params.set('type', state.typeFilter)
+  if (state.riskFilter !== 'all') params.set('riskLevel', state.riskFilter)
+  if (state.query.trim()) params.set('q', state.query.trim())
+  if (state.page > 1) params.set('page', String(state.page))
+  if (state.detailTab !== 'recommendation') params.set('detailTab', state.detailTab)
   const nextSearch = params.toString()
   const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
