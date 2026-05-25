@@ -94,6 +94,8 @@ function fakePrisma() {
     agentRun: new FakeDelegate("run"),
     agentMessage: new FakeDelegate("message"),
     agentRunEvent: new FakeDelegate("event"),
+    agentToolCall: new FakeDelegate("tool"),
+    agentReviewGate: new FakeDelegate("gate"),
   } satisfies AgentConversationPrismaClient;
 }
 
@@ -126,6 +128,32 @@ test("prisma agent conversation repository writes ordered chat records for real 
   assert.deepEqual(prisma.agentRunEvent.records.map((item) => item.eventType), ["message.user", "assistant.message"]);
   assert.deepEqual(prisma.agentRunEvent.records.map((item) => item.sequence), [1, 2]);
   assert.equal(prisma.agentRun.records[0].status, "DONE");
+});
+
+test("prisma agent conversation repository decides review gate with continuation run", async () => {
+  const prisma = fakePrisma();
+  const repository = new PrismaAgentConversationRepository(prisma);
+  const session = await repository.getOrCreateSession({ sessionKey: "review-gate-session", surface: "agent-copilot" });
+  const mission = await repository.createMission({ sessionId: session.id, objective: "需要人工确认", sourceSurface: "agent-copilot" });
+  const run = await repository.createRun({ sessionId: session.id, missionId: mission.id, modelProvider: "vercel-ai-sdk", modelName: "test-model", inputJson: {} });
+  const toolCall = await repository.createToolCall({ runId: run.id, toolName: "generateReport", status: "WAITING_FOR_APPROVAL", riskLevel: "L2", reviewPolicy: "REVIEW_GATE" });
+  const gate = await repository.createReviewGate({
+    missionId: mission.id,
+    runId: run.id,
+    toolCallId: toolCall.id,
+    reasonCode: "chat_write_tool_requires_review",
+    question: "是否允许 Agent 执行 generateReport？",
+  });
+
+  const decision = await repository.decideReviewGate(gate.id, { decision: "APPROVE", decidedBy: "ops@example.test", decisionComment: "允许继续" });
+
+  assert.equal(decision.gate.status, "APPROVED");
+  assert.equal(decision.gate.decidedBy, "ops@example.test");
+  assert.equal(decision.continuationRun.missionId, mission.id);
+  assert.equal(decision.continuationRun.sessionId, session.id);
+  assert.equal(decision.continuationRun.inputJson.reviewGateId, gate.id);
+  assert.equal(decision.event.eventType, "run.continuation_started");
+  assert.equal(decision.event.payloadJson.previousRunId, run.id);
 });
 
 test("prisma agent conversation client check fails closed when delegates are absent", () => {

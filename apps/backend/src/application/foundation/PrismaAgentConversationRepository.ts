@@ -240,6 +240,60 @@ export class PrismaAgentConversationRepository implements AgentConversationRepos
     return toReviewGate(record);
   }
 
+  async decideReviewGate(gateId: string, input: { decision: "APPROVE" | "REJECT" | "REQUEST_CHANGES"; decidedBy: string; decisionComment?: string | null }): Promise<{ gate: AgentReviewGate; continuationRun: AgentRun; event: AgentRunEvent }> {
+    const gate = await this.prisma.agentReviewGate.findUnique({ where: { id: gateId } });
+    if (!gate) throw new Error(`Agent review gate not found: ${gateId}`);
+    const currentGate = toReviewGate(gate);
+    if (currentGate.status !== "PENDING") throw new Error(`Agent review gate is not pending: ${gateId}`);
+    const previousRun = await this.prisma.agentRun.findUnique({ where: { id: currentGate.runId } });
+    if (!previousRun) throw new Error(`Agent run not found: ${currentGate.runId}`);
+    const decidedAt = new Date();
+    const statusByDecision = {
+      APPROVE: "APPROVED",
+      REJECT: "REJECTED",
+      REQUEST_CHANGES: "MODIFIED",
+    } as const;
+    const updatedGate = await this.prisma.agentReviewGate.update({
+      where: { id: gateId },
+      data: {
+        status: statusByDecision[input.decision],
+        decision: input.decision,
+        decisionComment: input.decisionComment ?? null,
+        decidedBy: input.decidedBy,
+        decidedAt,
+      },
+    });
+    const previous = toRun(previousRun);
+    const continuationRun = await this.prisma.agentRun.create({
+      data: {
+        sessionId: previous.sessionId,
+        missionId: currentGate.missionId,
+        status: "RUNNING",
+        modelProvider: previous.modelProvider,
+        modelName: previous.modelName,
+        inputJson: { continuationOfRunId: currentGate.runId, reviewGateId: gateId, decision: input.decision },
+        outputJson: {},
+        usageJson: {},
+        metadataJson: {},
+        startedAt: decidedAt,
+      },
+    });
+    const latestEvent = (await this.prisma.agentRunEvent.findMany({
+      where: { runId: String(continuationRun.id) },
+      orderBy: { sequence: "desc" },
+    }))[0];
+    const event = await this.prisma.agentRunEvent.create({
+      data: {
+        runId: String(continuationRun.id),
+        sequence: Number(latestEvent?.sequence ?? 0) + 1,
+        eventType: "run.continuation_started",
+        eventPhase: "started",
+        payloadJson: { missionId: currentGate.missionId, reviewGateId: gateId, previousRunId: currentGate.runId },
+      },
+    });
+    return { gate: toReviewGate(updatedGate), continuationRun: toRun(continuationRun), event: toRunEvent(event) };
+  }
+
   async markRunStatus(input: { runId: string; status: "SUCCEEDED" | "FAILED"; outputJson?: Record<string, unknown>; errorMessage?: string | null }): Promise<AgentRun> {
     const now = new Date();
     const record = await this.prisma.agentRun.update({
