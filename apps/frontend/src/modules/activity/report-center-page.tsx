@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, RefreshCw } from 'lucide-react'
 import type { ReportComparisonDto, ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto, ReportVersionDto } from '../../../../contracts/types/reviewReportCenter'
 import { fetchActivityApi, type PageDto } from './api-client'
@@ -33,14 +33,17 @@ export function ReportCenterPage() {
   const [subscriptionRecipients, setSubscriptionRecipients] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const hydratedSelectionRef = useRef<{ reportId: string; versionId: string | null } | null>(null)
 
-  async function loadReports(preferredId?: string | null) {
+  async function loadReports(preferredId?: string | null, preferredVersionId?: string | null) {
     const page = await fetchActivityApi<PageDto<ReportListItemDto>>('/api/reports')
     const list = page.items
     setReports(list)
-    const nextId = preferredId ?? getInitialReportId() ?? selectedReportId ?? list[0]?.reportId ?? null
+    const initialReportId = getInitialReportId()
+    const initialVersionId = getInitialVersionId()
+    const nextId = preferredId ?? initialReportId ?? selectedReportId ?? list[0]?.reportId ?? null
     setSelectedReportId(nextId)
-    if (nextId) await loadReportDetail(nextId)
+    if (nextId) await loadReportDetail(nextId, preferredVersionId ?? (nextId === initialReportId ? initialVersionId : selectedVersionId))
   }
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export function ReportCenterPage() {
 
   useEffect(() => {
     if (!selectedReportId) return
+    if (hydratedSelectionRef.current?.reportId === selectedReportId) return
     loadReportDetail(selectedReportId)
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '报告详情加载失败'))
   }, [selectedReportId])
@@ -63,6 +67,8 @@ export function ReportCenterPage() {
     setVersions(nextVersions)
     setSelectedVersionId(nextVersion?.versionId ?? null)
     setDetail(nextVersion ?? nextDetail)
+    hydratedSelectionRef.current = { reportId, versionId: nextVersion?.versionId ?? null }
+    syncReportUrl(reportId, nextVersion?.versionId ?? null)
     setSubscriptionFrequency(nextDetail.subscription?.frequency ?? 'OFF')
     setSubscriptionRecipients(nextDetail.subscription?.recipients.join('\n') ?? '')
     setActiveTab((current) => (nextDetail.tabs.includes(current) ? current : nextDetail.tabs[0] ?? 'SUMMARY'))
@@ -73,6 +79,8 @@ export function ReportCenterPage() {
     if (!version) return
     setSelectedVersionId(versionId)
     setDetail(version)
+    hydratedSelectionRef.current = { reportId: version.reportId, versionId }
+    syncReportUrl(version.reportId, versionId)
     setMessage(`已切换报告版本：${version.version}`)
   }
 
@@ -99,7 +107,7 @@ export function ReportCenterPage() {
         body: JSON.stringify({ format, includeCharts, includeDetails, idempotencyKey: `${detail.reportId}:${format}:${includeCharts}:${includeDetails}:${Date.now()}` }),
       })
       setMessage(`已创建导出任务：${job.exportJobId} / 图表 ${job.includeCharts ? '包含' : '不包含'} / 明细 ${job.includeDetails ? '包含' : '不包含'}`)
-      await loadReports(detail.reportId)
+      await loadReports(detail.reportId, selectedVersionId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出报告失败')
     } finally {
@@ -131,9 +139,11 @@ export function ReportCenterPage() {
 
   async function copyReportLink() {
     if (!detail) return
-    const link = `${window.location.origin}/report-center?reportId=${detail.reportId}`
+    const params = new URLSearchParams({ reportId: detail.reportId })
+    if (selectedVersionId) params.set('versionId', selectedVersionId)
+    const link = `${window.location.origin}/report-center?${params.toString()}`
     await navigator.clipboard.writeText(link)
-    setMessage(`已复制报告链接：${detail.reportId}`)
+    setMessage(`已复制报告链接：${detail.reportId}${selectedVersionId ? ` / ${selectedVersionId}` : ''}`)
   }
 
   async function compareReports() {
@@ -355,7 +365,7 @@ function ReportSummaryTab({ detail, totalSku, passRate, categoryRows, riskRows, 
               {categoryRows.map((row) => (
                 <div className={styles.dataRow} key={row.category}>
                   <span>{row.category}</span><span>{row.passed}</span><span>{row.repairable}</span><span>{row.blocked}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div className={styles.barWrapper}><div className={styles.barFill} style={{ width: `${row.passRate}%` }}></div></div>{row.passRate.toFixed(1)}%</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div className={styles.barWrapper}><div className={styles.barFill} style={{ width: `${ratioToPercent(row.passRate)}%` }}></div></div>{formatRatioPercent(row.passRate)}</div>
                 </div>
               ))}
             </div>
@@ -468,7 +478,7 @@ function RiskTable({ riskRows }: { riskRows: ReportDetailDto['summary']['majorRi
     <div className={styles.dataTable}>
       <div className={`${styles.dataRow} ${styles.head}`}><span>风险类型</span><span>影响 SKU</span><span>占比</span><span>风险趋势</span><span>示例问题</span></div>
       {riskRows.length ? riskRows.map((row) => (
-        <div className={styles.dataRow} key={row.riskType}><span>{row.riskType}</span><span>{row.affectedSku}</span><span>{row.ratio}%</span><span style={{ color: '#e11d48' }}>需处理</span><span>{row.sampleIssue}</span></div>
+        <div className={styles.dataRow} key={formatReportValue(row.riskType)}><span>{formatReportValue(row.riskType)}</span><span>{row.affectedSku}</span><span>{formatRatioPercent(row.ratio)}</span><span style={{ color: '#e11d48' }}>需处理</span><span>{formatReportValue(row.sampleIssue)}</span></div>
       )) : <EmptyTableRow text="当前报告没有主要风险。" />}
     </div>
   )
@@ -493,7 +503,50 @@ function parseRecipients(value: string): string[] {
     .filter(Boolean)
 }
 
+function ratioToPercent(value: number): number {
+  const percent = Number.isFinite(value) ? (value <= 1 ? value * 100 : value) : 0
+  return Math.max(0, Math.min(100, percent))
+}
+
+function formatRatioPercent(value: number): string {
+  return `${ratioToPercent(value).toFixed(1)}%`
+}
+
+function formatReportValue(value: unknown): string {
+  if (value === null || value === undefined) return '-'
+  if (typeof value === 'string') return value === '[object Object]' ? '结构化风险' : value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(formatReportValue).filter((item) => item !== '-').join(' / ') || '-'
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const preferred = record.message ?? record.label ?? record.summary ?? record.reason ?? record.field ?? record.id
+    if (preferred !== undefined) return formatReportValue(preferred)
+    return JSON.stringify(record)
+  }
+  return String(value)
+}
+
 function getInitialReportId(): string | null {
   if (typeof window === 'undefined') return null
   return new URLSearchParams(window.location.search).get('reportId')
+}
+
+function getInitialVersionId(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('versionId')
+}
+
+function syncReportUrl(reportId: string, versionId?: string | null) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  params.set('reportId', reportId)
+  if (versionId) {
+    params.set('versionId', versionId)
+  } else {
+    params.delete('versionId')
+  }
+  const nextUrl = `${window.location.pathname}?${params.toString()}`
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }

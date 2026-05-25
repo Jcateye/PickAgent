@@ -3697,7 +3697,7 @@ function toSkuSummaryFromProjection(row: Record<string, unknown>): SkuSummaryDto
     healthStatus: toContractHealthStatus(row.healthStatus),
     healthScore: Number(row.healthScore ?? 0),
     dataQualityScore: Number(row.dataQualityScore ?? 0),
-    topIssues: asArray(row.topIssuesJson).map(String),
+    topIssues: asArray(row.topIssuesJson).map(readableReportText),
     nextActions: [],
   };
 }
@@ -3730,8 +3730,8 @@ function toDiagnosisDto(row: Record<string, unknown>): HealthDiagnosisDto {
     healthStatus: toContractHealthStatus(row.healthStatus),
     healthScore: Number(row.healthScore ?? 0),
     dataQualityScore: Number(row.dataQualityScore ?? 0),
-    issues: asArray(row.issuesJson).map(String),
-    nextActions: asArray(row.nextActionsJson).map(String),
+    issues: asArray(row.issuesJson).map(readableReportText),
+    nextActions: asArray(row.nextActionsJson).map(readableReportText),
     evidence: asArray(row.evidenceJson) as HealthDiagnosisDto["evidence"],
     diagnosedAt: row.diagnosedAt instanceof Date ? row.diagnosedAt.toISOString() : String(row.diagnosedAt ?? ""),
   };
@@ -4058,6 +4058,19 @@ function inferFieldMappings(rows: Array<Record<string, unknown>>): Array<{ sourc
     certificateStatus: "certificateStatus",
   };
   return keys.slice(0, 12).map((key) => ({ sourceField: key, targetField: targets[key] ?? key, confidence: targets[key] ? 0.9 : 0.55 }));
+}
+
+function readableReportText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value === "[object Object]" ? "结构化风险" : value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(readableReportText).filter(Boolean).join(" / ");
+  if (isRecord(value)) {
+    const preferred = value.message ?? value.label ?? value.summary ?? value.reason ?? value.field ?? value.id;
+    if (preferred !== undefined) return readableReportText(preferred);
+    return JSON.stringify(value);
+  }
+  return String(value);
 }
 
 export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" | "prisma"; prisma?: PrismaPersistenceClient; boundary?: PersistenceBoundary } = {}) {
