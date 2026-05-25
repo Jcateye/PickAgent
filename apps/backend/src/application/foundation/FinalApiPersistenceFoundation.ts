@@ -965,6 +965,28 @@ export class ReportRepository {
     return subscription;
   }
 
+  recordComparison(boundary: P0AuthContextDto, comparison: ReportComparisonDto): void | Promise<void> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(comparison.baseReportId), comparison.baseReportId);
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(comparison.targetReportId), comparison.targetReportId);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "report_compare",
+      status: "SUCCEEDED",
+      subjectType: "report",
+      subjectId: comparison.baseReportId,
+      input: { actorId: boundary.actorId, baseReportId: comparison.baseReportId, targetReportId: comparison.targetReportId },
+      output: {
+        comparisonId: comparison.comparisonId,
+        baseReportId: comparison.baseReportId,
+        targetReportId: comparison.targetReportId,
+        metrics: comparison.metrics,
+      },
+      createdAt: comparison.generatedAt,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+  }
+
   getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(id), id);
     return this.store.simulationResults.get(id) ?? null;
@@ -1991,6 +2013,27 @@ export class PrismaReportRepository extends ReportRepository {
     return subscription;
   }
 
+  async recordComparison(boundary: P0AuthContextDto, comparison: ReportComparisonDto): Promise<void> {
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "report_compare",
+        status: "SUCCEEDED",
+        subjectType: "report",
+        subjectId: comparison.baseReportId,
+        inputJson: { actorId: boundary.actorId, baseReportId: comparison.baseReportId, targetReportId: comparison.targetReportId },
+        outputJson: {
+          comparisonId: comparison.comparisonId,
+          baseReportId: comparison.baseReportId,
+          targetReportId: comparison.targetReportId,
+          metrics: comparison.metrics,
+        },
+        startedAt: new Date(comparison.generatedAt),
+        completedAt: new Date(comparison.generatedAt),
+      },
+    });
+  }
+
   async getSimulationResult(_boundary: P0AuthContextDto, id: string): Promise<SimulationResultDto | null> {
     const row = await this.prisma.activitySimulationResult.findUnique({ where: { id } });
     if (!row) return null;
@@ -2454,7 +2497,7 @@ export class FinalReportService {
     const deltaPassedSku = base.summary.passedSku - target.summary.passedSku;
     const deltaRepairableSku = base.summary.repairableSku - target.summary.repairableSku;
     const deltaBlockedSku = base.summary.blockedSku - target.summary.blockedSku;
-    return {
+    const comparison = {
       comparisonId: nextId("report_compare"),
       baseReportId,
       targetReportId,
@@ -2472,6 +2515,8 @@ export class FinalReportService {
       summary: `${base.title} 对比 ${target.title}：通过率 ${formatRate(basePassRate)} vs ${formatRate(targetPassRate)}，通过 SKU ${signed(deltaPassedSku)}，可修复 SKU ${signed(deltaRepairableSku)}，阻断 SKU ${signed(deltaBlockedSku)}。`,
       evidenceSummary: [...base.evidenceSummary.slice(0, 5), ...target.evidenceSummary.slice(0, 5)],
     };
+    await this.repository.recordComparison(boundary, comparison);
+    return comparison;
   }
 
   async export(reportId: string, request: ReportExportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportExportJobDto> {

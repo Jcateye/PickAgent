@@ -64,6 +64,18 @@ test("review workbench detail, decision audit, report versions, export and subsc
   const version = await runtime.reportService.getVersion(preview.reportId, versions.items[0].versionId, boundary);
   assert.equal(version?.reportId, preview.reportId);
 
+  const secondPreview = await runtime.reportService.generate(
+    {
+      type: "HEALTH",
+      skuProfileIds: ingest.summaries.map((item) => item.skuProfileId),
+      simulationResultIds: [],
+    },
+    boundary,
+  );
+  const comparison = await runtime.reportService.compare(preview.reportId, secondPreview.reportId, boundary);
+  assert.equal(comparison.baseReportId, preview.reportId);
+  assert.equal(comparison.targetReportId, secondPreview.reportId);
+
   const firstExport = await runtime.reportService.export(preview.reportId, { format: "PDF", idempotencyKey: "same-export" }, boundary);
   const secondExport = await runtime.reportService.export(preview.reportId, { format: "PDF", idempotencyKey: "same-export" }, boundary);
   assert.equal(secondExport.exportJobId, firstExport.exportJobId);
@@ -73,5 +85,6 @@ test("review workbench detail, decision audit, report versions, export and subsc
 
   const audits = await runtime.workflowAuditService.list(boundary, 50);
   assert.equal(audits.filter((audit) => audit.workflowType === "report_export" && audit.subjectId === preview.reportId).length, 1);
+  assert.ok(audits.some((audit) => audit.workflowType === "report_compare" && audit.subjectId === preview.reportId));
   assert.ok(audits.some((audit) => audit.workflowType === "report_subscription" && audit.subjectId === preview.reportId));
 });
