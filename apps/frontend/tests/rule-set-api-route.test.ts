@@ -4,7 +4,9 @@ import test from 'node:test'
 import { DELETE as deleteRuleSet, GET as getRuleSet, PATCH as updateRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/route'
 import { POST as disableRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/disable/route'
 import { POST as enableRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/enable/route'
+import { POST as simulateRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/simulations/route'
 import { GET as listRuleSetVersions, POST as createRuleSetVersion } from '../src/app/api/rule-sets/[ruleSetId]/versions/route'
+import { POST as createRuleSet } from '../src/app/api/rule-sets/route'
 
 const authHeaders = {
   'content-type': 'application/json',
@@ -63,4 +65,42 @@ test('rule set version routes reject missing rule set instead of returning empty
   const createEnvelope = await createResponse.json()
   assert.equal(createResponse.status, 404)
   assert.equal(createEnvelope.code, 'RULE.NOT_FOUND')
+})
+
+test('rule set simulation route rejects missing sku and disabled rules with stable codes', async () => {
+  const createdResponse = await createRuleSet(
+    new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Route Simulation Rule', sourceText: '库存不得低于 20 件。', platform: 'tmall', status: 'ENABLED' }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const ruleSetId = createdEnvelope.data.ruleSetId
+
+  const missingSkuResponse = await simulateRuleSet(
+    new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ skuProfileIds: ['missing_sku_for_rule_simulation'] }),
+    }),
+    { params: Promise.resolve({ ruleSetId }) },
+  )
+  const missingSkuEnvelope = await missingSkuResponse.json()
+  assert.equal(missingSkuResponse.status, 404)
+  assert.equal(missingSkuEnvelope.code, 'SKU.NOT_FOUND')
+
+  await disableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/disable`, { method: 'POST', headers: authHeaders }), { params: Promise.resolve({ ruleSetId }) })
+  const disabledResponse = await simulateRuleSet(
+    new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ skuProfileIds: ['missing_sku_for_rule_simulation'] }),
+    }),
+    { params: Promise.resolve({ ruleSetId }) },
+  )
+  const disabledEnvelope = await disabledResponse.json()
+  assert.equal(disabledResponse.status, 409)
+  assert.equal(disabledEnvelope.code, 'RULE.CONFLICT')
 })

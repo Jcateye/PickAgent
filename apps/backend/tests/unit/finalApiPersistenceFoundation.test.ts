@@ -826,6 +826,27 @@ test("disabled rule sets cannot be used for simulations", async () => {
   );
 });
 
+test("activity simulations reject missing sku scope before writing run", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const created = await runtime.ruleSetService.create(
+    {
+      name: "缺失 SKU 模拟保护",
+      platform: "tmall",
+      sourceText: "活动库存不得低于 50 件。",
+      source: "INTERNAL",
+      status: "ENABLED",
+    },
+    tenantA,
+  );
+
+  await assert.rejects(
+    () => runtime.activityService.simulate(created.ruleSetId, { skuProfileIds: ["missing_sku_for_simulation"] }, tenantA),
+    /SKU detail not found for simulation: missing_sku_for_simulation/,
+  );
+  assert.equal(runtime.store.simulationRuns.size, 0);
+  assert.equal(runtime.store.simulationResults.size, 0);
+});
+
 test("prisma activity simulation rejects disabled rule set before writing run", async () => {
   const writes: string[] = [];
   const repository = new PrismaActivityRepository({

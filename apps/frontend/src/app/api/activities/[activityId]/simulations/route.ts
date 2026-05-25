@@ -20,6 +20,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (error instanceof Error && error.message.includes('Activity rule set is required')) {
       return fail('ACTIVITY.CONFLICT', error.message, 409, { activityId }, boundary.requestId)
     }
+    if (error instanceof Error && error.message.includes('SKU detail not found for simulation')) {
+      return fail('SKU.NOT_FOUND', error.message, 404, { activityId }, boundary.requestId)
+    }
+    if (error instanceof Error && error.message.includes('Rule set is disabled')) {
+      return fail('RULE.CONFLICT', error.message, 409, { activityId }, boundary.requestId)
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'activity simulation failed', 400, { activityId }, boundary.requestId)
   }
 }

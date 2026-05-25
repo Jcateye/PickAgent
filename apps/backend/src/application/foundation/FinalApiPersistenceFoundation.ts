@@ -2423,12 +2423,14 @@ export class FinalActivityService {
     if (!ruleSet || ruleSet.parseStatus === "FAILED") throw new Error("Valid rule set is required before simulation");
     const ruleSetStatus = await this.repository.getRuleSetStatus(boundary, activityRuleSetId);
     if (ruleSetStatus === "DISABLED") throw new Error(`Rule set is disabled: ${activityRuleSetId}`);
+    const detailEntries = await Promise.all(request.skuProfileIds.map(async (skuProfileId) => ({ skuProfileId, detail: await this.skuQueryRepository.detail(boundary, skuProfileId) })));
+    const missingSkuProfileIds = detailEntries.filter((item) => !item.detail?.latestSnapshot).map((item) => item.skuProfileId);
+    if (missingSkuProfileIds.length) throw new Error(`SKU detail not found for simulation: ${missingSkuProfileIds.join(", ")}`);
     const startedAt = new Date().toISOString();
-    const results = await Promise.all(request.skuProfileIds.map(async (skuProfileId) => {
-      const detail = await this.skuQueryRepository.detail(boundary, skuProfileId);
-      if (!detail?.latestSnapshot) throw new Error(`SKU detail not found: ${skuProfileId}`);
-      const original = evaluate(detail.latestSnapshot, ruleSet.rules);
-      const changedSnapshot = request.whatIf ? { ...detail.latestSnapshot, ...request.whatIf } : detail.latestSnapshot;
+    const results = detailEntries.map(({ skuProfileId, detail }) => {
+      const latestSnapshot = detail!.latestSnapshot!;
+      const original = evaluate(latestSnapshot, ruleSet.rules);
+      const changedSnapshot = request.whatIf ? { ...latestSnapshot, ...request.whatIf } : latestSnapshot;
       const changed = evaluate(changedSnapshot, ruleSet.rules);
       return {
         simulationResultId: nextUuid(),
@@ -2436,11 +2438,11 @@ export class FinalActivityService {
         ruleSetId: activityRuleSetId,
         eligibility: changed.eligibility,
         failedRules: changed.failedRules,
-        evidence: [evidence("rule", activityRuleSetId, "活动规则集", "准入模拟基于持久化规则集执行"), evidence("snapshot", detail.latestSnapshot.snapshotId, "SKU 快照", "模拟读取当前 SKU 快照，不修改长期健康状态")],
+        evidence: [evidence("rule", activityRuleSetId, "活动规则集", "准入模拟基于持久化规则集执行"), evidence("snapshot", latestSnapshot.snapshotId, "SKU 快照", "模拟读取当前 SKU 快照，不修改长期健康状态")],
         repairSuggestions: changed.failedRules.map((rule) => repairSuggestion(rule)),
         originalEligibility: request.whatIf ? original.eligibility : undefined,
       } satisfies SimulationResultDto;
-    }));
+    });
     return this.repository.saveSimulationRun(boundary, {
       simulationRunId: nextUuid(),
       activityRuleSetId,
