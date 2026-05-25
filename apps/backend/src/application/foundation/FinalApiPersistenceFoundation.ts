@@ -2623,11 +2623,13 @@ export class FinalReportService {
   }
 
   async export(reportId: string, request: ReportExportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportExportJobDto> {
+    validateReportExportRequest(request);
     await this.requireReport(reportId, boundary);
     return this.repository.createExport(boundary, reportId, request);
   }
 
   async saveSubscription(reportId: string, request: ReportSubscriptionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportSubscriptionDto> {
+    validateReportSubscriptionRequest(request);
     await this.requireReport(reportId, boundary);
     return this.repository.saveSubscription(boundary, reportId, request);
   }
@@ -2940,6 +2942,15 @@ function normalizeWorkspaceSettings(input: Partial<WorkspaceSettingsDto>): Works
 
 function toToolPolicy(settings: WorkspaceSettingsDto, updatedBy: string, updatedAt = new Date().toISOString()): ToolPolicyDto {
   return { allowedAgentTools: settings.allowedAgentTools, deniedRuntimeTools: settings.deniedRuntimeTools, policyVersion: toolPolicyVersion, updatedAt, updatedBy };
+}
+
+function validateReportExportRequest(request: ReportExportRequestDto): void {
+  if (request.format !== "PDF" && request.format !== "EXCEL" && request.format !== "PPT") throw new Error("Report export format must be PDF, EXCEL, or PPT");
+}
+
+function validateReportSubscriptionRequest(request: ReportSubscriptionRequestDto): void {
+  if (request.frequency !== "DAILY" && request.frequency !== "WEEKLY" && request.frequency !== "MONTHLY" && request.frequency !== "OFF") throw new Error("Report subscription frequency must be DAILY, WEEKLY, MONTHLY, or OFF");
+  if (request.frequency !== "OFF" && !request.recipients.length) throw new Error("Report subscription recipients are required unless frequency is OFF");
 }
 
 function defaultSettingsUsers(): SettingsUserDto[] {

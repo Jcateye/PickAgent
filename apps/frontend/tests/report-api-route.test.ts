@@ -6,6 +6,7 @@ import { POST as compareReports } from '../src/app/api/reports/compare/route'
 import { POST as exportReport } from '../src/app/api/reports/[reportId]/export/route'
 import { POST as subscribeReport } from '../src/app/api/reports/[reportId]/subscriptions/route'
 import { GET as listReportVersions } from '../src/app/api/reports/[reportId]/versions/route'
+import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
   'content-type': 'application/json',
@@ -77,4 +78,44 @@ test('report create route rejects missing sku evidence instead of creating empty
   assert.equal(response.status, 400)
   assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
   assert.match(envelope.message, /SKU not found for report: missing_sku_profile_for_route/)
+})
+
+test('report write routes reject invalid export and subscription values before persistence', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+  const created = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const createdEnvelope = await created.json()
+  assert.equal(created.status, 200)
+  const reportId = createdEnvelope.data.reportId
+
+  const exportResponse = await exportReport(
+    new Request(`http://localhost/api/reports/${reportId}/export`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ format: 'TXT' }),
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const exportEnvelope = await exportResponse.json()
+  assert.equal(exportResponse.status, 400)
+  assert.equal(exportEnvelope.code, 'COMMON.VALIDATION_ERROR')
+
+  const subscriptionResponse = await subscribeReport(
+    new Request(`http://localhost/api/reports/${reportId}/subscriptions`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ frequency: 'YEARLY', recipients: ['ops@example.test'] }),
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const subscriptionEnvelope = await subscriptionResponse.json()
+  assert.equal(subscriptionResponse.status, 400)
+  assert.equal(subscriptionEnvelope.code, 'COMMON.VALIDATION_ERROR')
 })

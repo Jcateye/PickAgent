@@ -16,6 +16,9 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     return ok(await finalApiRuntime.reportService.saveSubscription(reportId, payload, authContextFromRequest(request)))
   } catch (error) {
+    if (error instanceof Error && !error.message.includes('Report not found')) {
+      return fail('COMMON.VALIDATION_ERROR', error.message, 400, { reportId })
+    }
     return fail('REPORT.NOT_FOUND', error instanceof Error ? error.message : 'Report not found', 404, { reportId })
   }
 }

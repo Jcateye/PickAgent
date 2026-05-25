@@ -435,6 +435,16 @@ test("report export and subscription reject missing reports before writes", asyn
   assert.deepEqual(writes, []);
 });
 
+test("report export and subscription reject invalid enum values before writes", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
+  const report = await runtime.reportService.generate({ type: "HEALTH", skuProfileIds: [ingest.summaries[0]!.skuProfileId], simulationResultIds: [] }, tenantA);
+
+  await assert.rejects(() => runtime.reportService.export(report.reportId, { format: "TXT" as never }, tenantA), /Report export format/);
+  await assert.rejects(() => runtime.reportService.saveSubscription(report.reportId, { frequency: "YEARLY" as never, recipients: ["ops@example.test"] }, tenantA), /Report subscription frequency/);
+  await assert.rejects(() => runtime.reportService.saveSubscription(report.reportId, { frequency: "WEEKLY", recipients: [] }, tenantA), /recipients are required/);
+});
+
 test("prisma review repository records create audit history", async () => {
   const workflowRuns: Array<Record<string, unknown>> = [];
   const reviewRow = {
