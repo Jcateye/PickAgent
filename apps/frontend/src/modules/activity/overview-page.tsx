@@ -25,6 +25,14 @@ interface RunConsolePageDto {
   total: number
 }
 
+interface SkuExportDto {
+  fileName: string
+  contentType: 'text/csv'
+  csv: string
+  rowCount: number
+  workflowRunId?: string
+}
+
 export function OverviewPage() {
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
@@ -35,6 +43,7 @@ export function OverviewPage() {
   const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
   const [page, setPage] = useState(1)
   const [message, setMessage] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -100,6 +109,28 @@ export function OverviewPage() {
   const reviewRate = overview.total > 0 ? `${((overview.reviewCount / overview.total) * 100).toFixed(1)}%` : '0.0%'
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
   const visiblePages = paginationWindow(page, totalPages)
+
+  async function exportCurrentSkuRows() {
+    setExporting(true)
+    try {
+      const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: {
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+            healthStatus: statusFilter === 'ALL' ? undefined : statusFilter,
+          },
+        }),
+      })
+      downloadCsv(exported)
+      setMessage(`已导出 Overview SKU 清单：${exported.rowCount} 行${exported.workflowRunId ? ` / Run ${exported.workflowRunId}` : ''}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '导出 SKU 失败')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className={styles.layout}>
@@ -266,7 +297,7 @@ export function OverviewPage() {
               <button className="secondaryButton" type="button" onClick={() => { setStatusFilter('ALL'); setPage(1) }} style={{ height: '32px', fontSize: '13px' }}>
                 <Filter size={14} /> 重置筛选
               </button>
-              <button className="secondaryButton" type="button" onClick={() => exportOverviewRows(apiRows)} style={{ height: '32px', fontSize: '13px' }}>
+              <button className="secondaryButton" type="button" onClick={() => void exportCurrentSkuRows()} disabled={exporting} style={{ height: '32px', fontSize: '13px' }}>
                 <Download size={14} /> 导出
               </button>
             </div>
@@ -490,17 +521,12 @@ function paginationWindow(currentPage: number, totalPages: number): number[] {
   return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 }
 
-function exportOverviewRows(rows: DashboardSkuListItemDto[]) {
-  const header = ['skuProfileId', 'displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction']
-  const csv = [
-    header.join(','),
-    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextAction' ? row.nextAction.label : row[key as keyof DashboardSkuListItemDto] ?? '')).join(',')),
-  ].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+function downloadCsv(exported: SkuExportDto) {
+  const blob = new Blob([exported.csv], { type: `${exported.contentType};charset=utf-8` })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `overview-skus-${Date.now()}.csv`
+  link.download = exported.fileName
   link.click()
   URL.revokeObjectURL(url)
 }

@@ -102,6 +102,14 @@ export interface HealthSummaryDto {
   blocked: number;
 }
 
+export interface SkuExportDto {
+  fileName: string;
+  contentType: "text/csv";
+  csv: string;
+  rowCount: number;
+  workflowRunId?: string;
+}
+
 export interface IngestResponseDto {
   summaries: SkuSummaryDto[];
   snapshots: NormalizedSkuSnapshotDto[];
@@ -2698,7 +2706,11 @@ export class FinalReportService {
 }
 
 export class SkuReadinessQueryService {
-  constructor(private readonly repository: DashboardSkuReadModelRepository) {}
+  constructor(
+    private readonly repository: DashboardSkuReadModelRepository,
+    private readonly tx?: TransactionManager,
+    private readonly auditRepository?: IngestRepository,
+  ) {}
 
   async list(query: DashboardSkuListQuery, boundary: P0AuthContextDto): Promise<PageDto<DashboardSkuListItemDto>> {
     const page = query.page ?? 1;
@@ -2722,6 +2734,25 @@ export class SkuReadinessQueryService {
   async updateNextAction(skuProfileId: string, input: UpdateSkuNextActionInputDto, boundary: P0AuthContextDto): Promise<DashboardSkuReadinessDetailDto> {
     const record = await this.repository.updateNextAction(boundary, skuProfileId, input);
     return toDashboardSkuDetail(record);
+  }
+
+  async exportList(query: DashboardSkuListQuery, boundary: P0AuthContextDto): Promise<SkuExportDto> {
+    const filtered = (await this.repository.list(boundary)).filter((record) => matchesDashboardSkuQuery(record, query));
+    const sorted = sortDashboardSkuRecords(filtered, query);
+    const items = sorted.map(toDashboardSkuListItem);
+    const fileName = `sku-access-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+    const csv = buildSkuListCsv(items);
+    let workflowRunId: string | undefined;
+    if (this.tx && this.auditRepository) {
+      const audit = await this.tx.transaction((tx) => this.auditRepository!.recordWorkflowAudit(tx, boundary, {
+        workflowType: "sku_export",
+        subjectType: "sku_batch",
+        input: { query, actorId: boundary.actorId, tenantId: boundary.tenantId, sessionId: boundary.sessionId, surface: boundary.surface },
+        output: { rowCount: items.length, fileName, skuProfileIds: items.map((item) => item.skuProfileId).slice(0, 200) },
+      }));
+      workflowRunId = audit.workflowRunId;
+    }
+    return { fileName, contentType: "text/csv", csv, rowCount: items.length, workflowRunId };
   }
 }
 
@@ -3224,6 +3255,35 @@ function toDashboardSkuListItem(record: DashboardSkuReadModelRecord): DashboardS
     collectedAt: keyMetrics.collectedAt,
     updatedAt: record.updatedAt,
   };
+}
+
+function buildSkuListCsv(items: DashboardSkuListItemDto[]): string {
+  const columns: Array<{ key: string; value: (item: DashboardSkuListItemDto) => unknown }> = [
+    { key: "skuProfileId", value: (item) => item.skuProfileId },
+    { key: "displaySku", value: (item) => item.displaySku },
+    { key: "productName", value: (item) => item.productName },
+    { key: "category", value: (item) => item.category ?? "" },
+    { key: "sourceKind", value: (item) => item.sourceKind ?? "" },
+    { key: "sales30d", value: (item) => item.sales30d ?? "" },
+    { key: "positiveRate", value: (item) => item.positiveRate ?? "" },
+    { key: "stock", value: (item) => item.stock ?? "" },
+    { key: "qualityScore", value: (item) => item.qualityScore ?? "" },
+    { key: "healthStatus", value: (item) => item.healthStatus },
+    { key: "eligibilityStatus", value: (item) => item.eligibilityStatus ?? "" },
+    { key: "eligibilityLabel", value: (item) => item.eligibilityLabel },
+    { key: "nextAction", value: (item) => item.nextAction.label },
+    { key: "evidenceCount", value: (item) => item.evidenceCount },
+    { key: "collectedAt", value: (item) => item.collectedAt ?? "" },
+    { key: "updatedAt", value: (item) => item.updatedAt },
+  ];
+  return [
+    columns.map((column) => column.key).join(","),
+    ...items.map((item) => columns.map((column) => csvCell(column.value(item))).join(",")),
+  ].join("\n");
+}
+
+function csvCell(value: unknown): string {
+  return JSON.stringify(String(value ?? ""));
 }
 
 function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSkuReadinessDetailDto {
@@ -4007,16 +4067,17 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
     const tx = new PrismaTransactionManager(options.prisma, options.boundary);
     const skuQueryRepository = new PrismaSkuQueryRepository(options.prisma);
     const dashboardSkuRepository = new PrismaDashboardSkuReadModelRepository(options.prisma);
-    const ingestService = new FinalIngestService(tx, new PrismaIngestRepository(), skuQueryRepository);
-    const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository);
+    const auditRepository = new PrismaIngestRepository();
+    const ingestService = new FinalIngestService(tx, auditRepository, skuQueryRepository);
+    const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository, tx, auditRepository);
     const activityService = new FinalActivityService(new PrismaActivityRepository(options.prisma), skuQueryRepository);
     const memoryStore = new FinalApiPersistenceStore();
     const reviewService = new FinalReviewService(new PrismaReviewRepository(options.prisma));
     const reportService = new FinalReportService(new PrismaReportRepository(options.prisma), skuQueryRepository);
     const connectorService = new ConnectorManagementService(new PrismaConnectorRepositoryV2(options.prisma));
     const browserConnectorService = new BrowserConnectorService();
-    const ruleSetService = new RuleSetService(tx, new PrismaIngestRepository(), new PrismaRuleSetRepository(options.prisma));
-    const workspaceSettingsService = new WorkspaceSettingsService(tx, new PrismaIngestRepository(), new PrismaWorkspaceSettingsRepository(options.prisma));
+    const ruleSetService = new RuleSetService(tx, auditRepository, new PrismaRuleSetRepository(options.prisma));
+    const workspaceSettingsService = new WorkspaceSettingsService(tx, auditRepository, new PrismaWorkspaceSettingsRepository(options.prisma));
     const workflowAuditService = new WorkflowAuditQueryService({ prisma: options.prisma });
     return { adapter, store: memoryStore, tx, ingestService, skuReadinessQueryService, activityService, reviewService, reportService, connectorService, browserConnectorService, ruleSetService, workspaceSettingsService, workflowAuditService };
   }
@@ -4024,14 +4085,14 @@ export function createFinalApiPersistenceRuntime(options: { adapter?: "memory" |
   const tx = new InMemoryTransactionManager(store);
   const skuQueryRepository = new SkuQueryRepository(store);
   const dashboardSkuRepository = new DashboardSkuReadModelRepository(store);
-  const ingestService = new FinalIngestService(tx, new IngestRepository(), skuQueryRepository);
-  const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository);
+  const auditRepository = new IngestRepository();
+  const ingestService = new FinalIngestService(tx, auditRepository, skuQueryRepository);
+  const skuReadinessQueryService = new SkuReadinessQueryService(dashboardSkuRepository, tx, auditRepository);
   const activityService = new FinalActivityService(new ActivityRepository(store), skuQueryRepository);
   const reviewService = new FinalReviewService(new ReviewRepository(store));
   const reportService = new FinalReportService(new ReportRepository(store), skuQueryRepository);
   const connectorService = new ConnectorManagementService(new ConnectorRepositoryV2(store));
   const browserConnectorService = new BrowserConnectorService();
-  const auditRepository = new IngestRepository();
   const ruleSetService = new RuleSetService(tx, auditRepository, new RuleSetRepository(store));
   const workspaceSettingsService = new WorkspaceSettingsService(tx, auditRepository, new WorkspaceSettingsRepository(store));
   const workflowAuditService = new WorkflowAuditQueryService({ store });

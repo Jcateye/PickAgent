@@ -9,6 +9,13 @@ import styles from './sku-access.module.css'
 
 type SkuDrawerTab = 'overview' | 'evidence' | 'raw' | 'history'
 type SkuNextAction = DashboardSkuListItemDto['nextAction']
+interface SkuExportDto {
+  fileName: string
+  contentType: 'text/csv'
+  csv: string
+  rowCount: number
+  workflowRunId?: string
+}
 
 const skuDrawerTabs: Array<{ value: SkuDrawerTab; label: string }> = [
   { value: 'overview', label: '概览' },
@@ -245,6 +252,31 @@ export function SkuAccessPage() {
     }
   }
 
+  async function exportCurrentRows() {
+    setBusy('export')
+    try {
+      const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: {
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+            q: query.trim() || undefined,
+            healthStatus: healthStatus === 'ALL' ? undefined : healthStatus,
+            sourceKind: sourceKind === 'ALL' ? undefined : sourceKind,
+            category: category === 'ALL' ? undefined : category,
+          },
+        }),
+      })
+      downloadCsv(exported)
+      setMessage(`已导出 SKU 当前筛选结果：${exported.rowCount} 行${exported.workflowRunId ? ` / Run ${exported.workflowRunId}` : ''}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '导出 SKU 失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   function toggleAllRows() {
     setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !rows.some((item) => item.skuProfileId === id)) : Array.from(new Set([...current, ...rows.map((item) => item.skuProfileId)])))
   }
@@ -336,7 +368,7 @@ export function SkuAccessPage() {
               {nextActionOptions.map((option) => <option value={option.type} key={option.type}>{option.label}</option>)}
             </select>
             <button className="secondaryButton" type="button" onClick={() => void updateNextActions(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步</button>
-            <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
+            <button className="secondaryButton" type="button" onClick={() => void exportCurrentRows()} disabled={busy === 'export'} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
             <button className="secondaryButton" type="button" onClick={() => void generateHealthReport()} disabled={!rows.length || busy === 'report'} style={{ height: '32px', fontSize: '13px' }}>生成健康报告</button>
           </div>
         </div>
@@ -609,17 +641,12 @@ function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleM
   return <span className={styleMap.tagRepair}>可修复</span>
 }
 
-function exportRows(rows: DashboardSkuListItemDto[]) {
-  const header = ['skuProfileId', 'displaySku', 'productName', 'category', 'healthStatus', 'eligibilityLabel', 'nextAction']
-  const csv = [
-    header.join(','),
-    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextAction' ? row.nextAction.label : row[key as keyof DashboardSkuListItemDto] ?? '')).join(',')),
-  ].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+function downloadCsv(exported: SkuExportDto) {
+  const blob = new Blob([exported.csv], { type: `${exported.contentType};charset=utf-8` })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `sku-access-${Date.now()}.csv`
+  link.download = exported.fileName
   link.click()
   URL.revokeObjectURL(url)
 }
