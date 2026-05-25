@@ -2,6 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { generateText, jsonSchema, stepCountIs, tool } from 'ai'
 
 import type { AgentConversationToolExecution, AgentModelAdapter, AgentModelAdapterInput, AgentModelAdapterOutput } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
+import { defaultAgentToolNames } from '../../../../../../contracts/types/businessFoundation'
 import type { LanguageModel, ModelMessage } from 'ai'
 
 type GenerateText = typeof generateText
@@ -108,7 +109,7 @@ export class VercelAiSdkAgentModelAdapter implements AgentModelAdapter {
         ],
         tools: createPickAgentTools(input, toolExecutions),
         toolChoice: 'auto',
-        stopWhen: stepCountIs(3),
+        stopWhen: stepCountIs(6),
       })
 
       return {
@@ -236,58 +237,7 @@ function renderPickAgentSystemPrompt(input: AgentModelAdapterInput, userMessage:
     .replace('{{conversation_summary}}', `Conversation summary: ${summarizeConversation(messages)}`)
 }
 
-const PICKAGENT_AVAILABLE_TOOLS = [
-  'getDashboardContext',
-  'searchSkus',
-  'listRuleSets',
-  'getRuleSetDetail',
-  'createRuleSet',
-  'updateRuleSet',
-  'createRuleSetVersion',
-  'listActivities',
-  'createActivity',
-  'updateActivity',
-  'getActivityExecutionPlan',
-  'startActivityRun',
-  'parseActivityRules',
-  'getSkuSummary',
-  'checkDataFreshness',
-  'diagnoseSkuHealth',
-  'simulateActivityReadiness',
-  'explainDecisionWithEvidence',
-  'generateReport',
-  'createReviewItems',
-  'getReviewDetail',
-  'updateReviewItem',
-  'decideReviewItem',
-  'setSkuNextAction',
-  'listConnectors',
-  'getConnectorDetail',
-  'createConnector',
-  'updateConnector',
-  'detectBrowserPage',
-  'previewBrowserScan',
-  'runConnectorSync',
-  'setConnectorStatus',
-  'setRuleSetStatus',
-  'retryRun',
-  'listAgentMissions',
-  'getAgentMission',
-  'createAgentMission',
-  'startAgentRun',
-  'getAgentRunDetail',
-  'pauseAgentRun',
-  'cancelAgentRun',
-  'answerAgentRunQuestion',
-  'decideAgentReviewGate',
-  'listReports',
-  'getReportDetail',
-  'listReportVersions',
-  'getReportVersion',
-  'compareReports',
-  'exportReport',
-  'subscribeReport',
-] as const
+const PICKAGENT_AVAILABLE_TOOLS = defaultAgentToolNames
 
 function summarizeConversation(messages: ModelMessage[]): string {
   const recent = messages.slice(-6)
@@ -529,6 +479,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '生成真实健康或活动报告，并写入报告中心。需要 type 和 skuProfileIds。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('generateReport', inputJson),
+    }),
+    generateReportPreview: tool({
+      description: '生成真实健康或活动报告预览，并写入报告中心。需要 type 和 skuProfileIds；当前后端与 generateReport 使用同一持久化流程。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('generateReportPreview', inputJson),
     }),
     createReviewItems: tool({
       description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',
