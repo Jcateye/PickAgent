@@ -14,6 +14,7 @@ export function SkuAccessPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -21,13 +22,13 @@ export function SkuAccessPage() {
     let cancelled = false
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
-      fetchActivityApi<PageDto<DashboardSkuListItemDto>>('/api/skus?pageSize=20&sortBy=updatedAt&sortOrder=desc'),
+      fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?page=${page}&pageSize=20&sortBy=updatedAt&sortOrder=desc`),
     ])
       .then(([nextSummary, nextSkuPage]) => {
         if (cancelled) return
         setSummary(nextSummary)
         setSkuPage(nextSkuPage)
-        setSelectedId((current) => current ?? nextSkuPage.items[0]?.skuProfileId ?? null)
+        setSelectedId((current) => nextSkuPage.items.some((item) => item.skuProfileId === current) ? current : nextSkuPage.items[0]?.skuProfileId ?? null)
       })
       .catch(() => {
         if (!cancelled) {
@@ -38,7 +39,7 @@ export function SkuAccessPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [page])
 
   useEffect(() => {
     if (!selectedId) return
@@ -61,6 +62,8 @@ export function SkuAccessPage() {
     return sourceRows.filter((item) => !normalizedQuery || [item.displaySku, item.productName, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery)))
   }, [query, skuPage])
   const selectedRow = rows.find((item) => item.skuProfileId === selectedId) ?? rows[0]
+  const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 20)))
+  const visiblePages = paginationWindow(page, totalPages)
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
     const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length
@@ -178,7 +181,7 @@ export function SkuAccessPage() {
             <Search size={16} color="var(--muted)" />
             <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
-          <button className="secondaryButton" type="button" onClick={() => setQuery('')} style={{ height: '32px' }}>重置</button>
+          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setPage(1) }} style={{ height: '32px' }}>重置</button>
         </div>
 
         <div className={styles.summaryCards}>
@@ -258,16 +261,14 @@ export function SkuAccessPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', fontSize: '13px', color: 'var(--muted)' }}>
           <span>共 {stats.total.toLocaleString()} 条</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>20 条/页 ∨</span>
-            <button className="iconButton" type="button" disabled style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
-            <button className="primaryButton" type="button" disabled style={{ width: '28px', height: '28px', padding: 0 }}>1</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>2</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>3</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>4</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>5</button>
-            <span>...</span>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>63</button>
-            <button className="iconButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px' }}><ChevronRight size={16} /></button>
+            <span>{skuPage?.pageSize ?? 20} 条/页</span>
+            <button className="iconButton" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
+            {visiblePages[0] > 1 ? <span>...</span> : null}
+            {visiblePages.map((pageNumber) => (
+              <button key={pageNumber} className={pageNumber === page ? 'primaryButton' : 'secondaryButton'} type="button" disabled={pageNumber === page} onClick={() => setPage(pageNumber)} style={{ width: '28px', height: '28px', padding: 0 }}>{pageNumber}</button>
+            ))}
+            {visiblePages.at(-1)! < totalPages ? <span>...</span> : null}
+            <button className="iconButton" type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} style={{ width: '28px', height: '28px' }}><ChevronRight size={16} /></button>
           </div>
         </div>
 
@@ -400,6 +401,12 @@ function checklistLabel(status: DashboardSkuReadinessDetailDto['readinessCheckli
   if (status === 'FAILED') return '失败'
   if (status === 'MANUAL_REVIEW') return '待确认'
   return '缺数据'
+}
+
+function paginationWindow(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+  const end = Math.min(totalPages, start + 4)
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
 }
 
 function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleMap: typeof styles) {
