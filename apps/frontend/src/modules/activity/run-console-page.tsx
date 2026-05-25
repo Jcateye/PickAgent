@@ -1,174 +1,176 @@
 'use client'
 
-import React, { useState } from 'react'
-import { RotateCcw, Download, ExternalLink } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Download, ExternalLink, RotateCcw } from 'lucide-react'
+import { fetchActivityApi } from './api-client'
 import styles from './run-console.module.css'
 
+interface RunConsoleItemDto {
+  runId: string
+  type: string
+  status: string
+  subject: string
+  startedAt?: string
+  completedAt?: string
+  summary: string
+  logs: Array<{ time?: string; tag: string; message: string; payload?: unknown }>
+}
+
+interface RunConsolePageDto {
+  items: RunConsoleItemDto[]
+  total: number
+}
+
 export function RunConsolePage() {
+  const [runs, setRuns] = useState<RunConsoleItemDto[]>([])
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  async function loadRuns() {
+    setLoading(true)
+    try {
+      const page = await fetchActivityApi<RunConsolePageDto>('/api/run-console')
+      setRuns(page.items)
+      setSelectedRunId((current) => current && page.items.some((item) => item.runId === current) ? current : page.items[0]?.runId ?? null)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Run Console 加载失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadRuns()
+  }, [])
+
+  const selectedRun = useMemo(() => runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null, [runs, selectedRunId])
+
   function exportLogs() {
-    const blob = new Blob(['Run #20250509-1041\nStatus: Success\nSource: Agent triggered\n'], { type: 'text/plain;charset=utf-8' })
+    if (!selectedRun) return
+    const content = [
+      `Run ${selectedRun.runId}`,
+      `Type: ${selectedRun.type}`,
+      `Status: ${selectedRun.status}`,
+      `Subject: ${selectedRun.subject}`,
+      '',
+      ...selectedRun.logs.map((log) => `[${formatTime(log.time)}] [${log.tag}] ${log.message}${log.payload ? ` ${JSON.stringify(log.payload)}` : ''}`),
+    ].join('\n')
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'run-20250509-1041.log'
+    link.download = `run-${selectedRun.runId}.log`
     link.click()
     URL.revokeObjectURL(url)
-    setMessage('已导出当前 Run 日志。')
+    setMessage(`已导出 Run 日志：${selectedRun.runId}`)
   }
+
+  function retryRun() {
+    if (!selectedRun) return
+    if (!isFailed(selectedRun.status)) {
+      setMessage(`当前 Run 状态为 ${selectedRun.status}，不需要重试。`)
+      return
+    }
+    setMessage('失败重试会创建新的 connector sync 或 agent run；请从对应业务页面发起。')
+  }
+
   return (
     <div className={styles.layout}>
-      
-      {/* Sidebar */}
       <div className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
           <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px' }}>Run History</div>
-          <select style={{ width: '100%', height: '32px', borderRadius: '6px', border: '1px solid var(--line)', padding: '0 8px', fontSize: '13px' }}>
-            <option>活动：天猫618大促</option>
-          </select>
+          <button className="secondaryButton" type="button" onClick={() => void loadRuns()} disabled={loading} style={{ width: '100%', height: '32px' }}>刷新运行记录</button>
         </div>
         <div className={styles.runList}>
-          <div className={`${styles.runItem} ${styles.active}`}>
-            <div className={styles.runIdRow}>
-              <span>#20250509-1041</span>
-              <span className={styles.statusSuccess}>Success</span>
-            </div>
-            <div className={styles.runMetaRow}>
-              <span>Today 10:41</span>
-              <span>1m 23s</span>
-            </div>
-          </div>
-          <div className={styles.runItem}>
-            <div className={styles.runIdRow}>
-              <span>#20250509-0912</span>
-              <span className={styles.statusFailed}>Failed</span>
-            </div>
-            <div className={styles.runMetaRow}>
-              <span>Today 09:12</span>
-              <span>45s</span>
-            </div>
-          </div>
-          <div className={styles.runItem}>
-            <div className={styles.runIdRow}>
-              <span>#20250508-1830</span>
-              <span className={styles.statusSuccess}>Success</span>
-            </div>
-            <div className={styles.runMetaRow}>
-              <span>Yesterday 18:30</span>
-              <span>1m 15s</span>
-            </div>
-          </div>
-          <div className={styles.runItem}>
-            <div className={styles.runIdRow}>
-              <span>#20250507-1000</span>
-              <span className={styles.statusSuccess}>Success</span>
-            </div>
-            <div className={styles.runMetaRow}>
-              <span>May 07 10:00</span>
-              <span>1m 30s</span>
-            </div>
-          </div>
+          {runs.map((run) => (
+            <button className={`${styles.runItem} ${run.runId === selectedRun?.runId ? styles.active : ''}`} key={run.runId} type="button" onClick={() => setSelectedRunId(run.runId)}>
+              <div className={styles.runIdRow}>
+                <span>#{shortId(run.runId)}</span>
+                <span className={statusClass(run.status, styles)}>{run.status}</span>
+              </div>
+              <div className={styles.runMetaRow}>
+                <span>{formatTime(run.startedAt ?? run.completedAt)}</span>
+                <span>{run.type}</span>
+              </div>
+            </button>
+          ))}
+          {!loading && runs.length === 0 ? <div style={{ padding: '16px', color: 'var(--muted)', fontSize: '13px' }}>暂无运行记录。</div> : null}
         </div>
       </div>
 
-      {/* Main Area */}
       <div className={styles.mainArea}>
         <div className={styles.mainHeader}>
           <div className={styles.runTitleInfo}>
-            <div className={styles.runTitle}>Run #20250509-1041</div>
-            <div className={styles.runBadges}>
-              <span className={`${styles.badge} ${styles.badgeSuccess}`}>状态: 成功</span>
-              <span className={styles.badge}>来源: Agent 触发</span>
-              <span className={styles.badge}>耗时: 1m 23s</span>
-            </div>
+            <div className={styles.runTitle}>{selectedRun ? `Run #${shortId(selectedRun.runId)}` : 'Run Console'}</div>
+            {selectedRun ? (
+              <div className={styles.runBadges}>
+                <span className={`${styles.badge} ${isSucceeded(selectedRun.status) ? styles.badgeSuccess : ''}`}>状态: {selectedRun.status}</span>
+                <span className={styles.badge}>类型: {selectedRun.type}</span>
+                <span className={styles.badge}>对象: {selectedRun.subject}</span>
+              </div>
+            ) : null}
           </div>
           <div className={styles.headerActions}>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('当前选中 Run 为成功状态，没有失败项需要重试。')} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
-            <button className="secondaryButton" type="button" onClick={exportLogs} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
+            <button className="secondaryButton" type="button" onClick={retryRun} disabled={!selectedRun} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
+            <button className="secondaryButton" type="button" onClick={exportLogs} disabled={!selectedRun} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
             <a className="iconButton" href="/agent-mission" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>
         </div>
-        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>{message}</div> : null}
+        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', margin: '12px 24px 0' }}>{message}</div> : null}
 
         <div className={styles.tabsBar}>
           <div className={`${styles.tab} ${styles.active}`}>Timeline</div>
           <div className={styles.tab}>Raw Logs</div>
-          <div className={styles.tab}>Plugin Traces</div>
+          <div className={styles.tab}>Tool Traces</div>
         </div>
 
         <div className={styles.terminalContainer}>
           <div className={styles.terminalBox}>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:00.000]</span>
-              <span className={`${styles.logTag} ${styles.logTagSystem}`}>[System]</span>
-              <span className={styles.logContent}>Initialize Run for activity &apos;天猫618大促&apos;, fetching configuration...</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:00.120]</span>
-              <span className={`${styles.logTag} ${styles.logTagSystem}`}>[System]</span>
-              <span className={styles.logContent}>Loaded 28 rules. Target SKU count: 1258.</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:02.045]</span>
-              <span className={`${styles.logTag} ${styles.logTagData}`}>[Data]</span>
-              <span className={styles.logContent}>检查本地缓存数据新鲜度... <span className={styles.logSuccess}>(OK)</span> 98% data within 1 hour freshness.</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:03.500]</span>
-              <span className={`${styles.logTag} ${styles.logTagData}`}>[Data]</span>
-              <span className={styles.logContent}>Identified 2 missing fields: &apos;可售库存&apos;, &apos;同品牌活动报名记录&apos;.</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:05.112]</span>
-              <span className={`${styles.logTag} ${styles.logTagPlugin}`}>[Plugin]</span>
-              <span className={styles.logContent}>触发浏览器插件数据采集任务... Dispatching to connected extension client (ID: ext_8a9b2c).</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}></span>
-              <span className={styles.logTag}></span>
-              <div className={styles.logContent}>
-                <pre className={styles.jsonPayload}>
-{`{
-  "taskId": "task_99120",
-  "action": "scrape_inventory_and_events",
-  "urls": [
-    "https://inventory.tmall.com/query?skuId=...",
-    "https://campaign.tmall.com/history?brandId=..."
-  ],
-  "timeout": 30000
-}`}
-                </pre>
+            {selectedRun?.logs.map((log, index) => (
+              <div className={styles.logLine} key={`${selectedRun.runId}:${index}`}>
+                <span className={styles.logTime}>[{formatTime(log.time)}]</span>
+                <span className={`${styles.logTag} ${tagClass(log.tag, styles)}`}>[{log.tag}]</span>
+                <span className={styles.logContent}>{log.message}</span>
               </div>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:40.800]</span>
-              <span className={`${styles.logTag} ${styles.logTagPlugin}`}>[Plugin]</span>
-              <span className={styles.logContent}>Extension response received. <span className={styles.logSuccess}>Status: 200 OK.</span> Extracted 1258 inventory records, 52 event records.</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:41:45.000]</span>
-              <span className={`${styles.logTag} ${styles.logTagAgent}`}>[Agent]</span>
-              <span className={styles.logContent}>接收到插件返回数据，开始诊断 SKU 规则... (Batch size: 100)</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:42:01.300]</span>
-              <span className={`${styles.logTag} ${styles.logTagAgent}`}>[Agent]</span>
-              <span className={styles.logContent}>Processing batch 12/13...</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:42:23.150]</span>
-              <span className={`${styles.logTag} ${styles.logTagSystem}`}>[System]</span>
-              <span className={styles.logContent}>诊断完成。1258 SKUs processed. <span className={styles.logSuccess}>862 Passed</span>, 246 Repairable, <span style={{color: '#ff8b00'}}>142 Needs Review</span>, <span className={styles.logError}>8 Rejected</span>.</span>
-            </div>
-            <div className={styles.logLine}>
-              <span className={styles.logTime}>[10:42:23.200]</span>
-              <span className={`${styles.logTag} ${styles.logTagSystem}`}>[System]</span>
-              <span className={styles.logContent}>Run finished successfully. Closing trace.</span>
-            </div>
+            ))}
+            {selectedRun?.logs.some((log) => log.payload) ? (
+              <pre className={styles.jsonPayload}>{JSON.stringify(selectedRun.logs.filter((log) => log.payload).map((log) => log.payload), null, 2)}</pre>
+            ) : null}
+            {!selectedRun ? <div className={styles.logLine}><span className={styles.logContent}>No run selected.</span></div> : null}
           </div>
         </div>
       </div>
-
     </div>
   )
+}
+
+function shortId(value: string): string {
+  return value.slice(0, 8)
+}
+
+function formatTime(value?: string): string {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN')
+}
+
+function isSucceeded(status: string): boolean {
+  return ['SUCCEEDED', 'SUCCESS', 'succeeded', 'completed'].includes(status)
+}
+
+function isFailed(status: string): boolean {
+  return ['FAILED', 'failed', 'ERROR', 'CANCELED'].includes(status)
+}
+
+function statusClass(status: string, styleMap: typeof styles): string {
+  if (isSucceeded(status)) return styleMap.statusSuccess
+  if (isFailed(status)) return styleMap.statusFailed
+  return styleMap.statusRunning
+}
+
+function tagClass(tag: string, styleMap: typeof styles): string {
+  if (tag === 'Connector') return styleMap.logTagPlugin
+  if (tag === 'Data') return styleMap.logTagData
+  if (tag === 'Agent') return styleMap.logTagAgent
+  return styleMap.logTagSystem
 }
