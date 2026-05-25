@@ -36,15 +36,15 @@ export function SkuAccessPage() {
   const [drawerOpen, setDrawerOpen] = useState(true)
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => getInitialSkuParam('skuProfileId'))
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
-  const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
-  const [sourceKind, setSourceKind] = useState('ALL')
-  const [category, setCategory] = useState('ALL')
-  const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>('overview')
+  const [query, setQuery] = useState(() => getInitialSkuParam('q') ?? '')
+  const [page, setPage] = useState(() => getInitialSkuPage())
+  const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>(() => getInitialHealthStatus())
+  const [sourceKind, setSourceKind] = useState(() => getInitialSkuParam('sourceKind') ?? 'ALL')
+  const [category, setCategory] = useState(() => getInitialSkuParam('category') ?? 'ALL')
+  const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>(() => getInitialDrawerTab())
   const [nextActionType, setNextActionType] = useState<SkuNextAction['type']>('MANUAL_REVIEW')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -69,7 +69,7 @@ export function SkuAccessPage() {
         if (cancelled) return
         setSummary(nextSummary)
         setSkuPage(nextSkuPage)
-        setSelectedId((current) => nextSkuPage.items.some((item) => item.skuProfileId === current) ? current : nextSkuPage.items[0]?.skuProfileId ?? null)
+        setSelectedId((current) => current ?? nextSkuPage.items[0]?.skuProfileId ?? null)
         setSelectedIds((current) => current.filter((id) => nextSkuPage.items.some((item) => item.skuProfileId === id)))
       })
       .catch(() => {
@@ -82,6 +82,10 @@ export function SkuAccessPage() {
       cancelled = true
     }
   }, [page, healthStatus, sourceKind, category, query])
+
+  useEffect(() => {
+    syncSkuUrl({ skuProfileId: selectedId, page, healthStatus, sourceKind, category, query, drawerTab })
+  }, [selectedId, page, healthStatus, sourceKind, category, query, drawerTab])
 
   useEffect(() => {
     if (!selectedId) return
@@ -389,7 +393,7 @@ export function SkuAccessPage() {
           </thead>
           <tbody>
             {rows.map((item) => (
-              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true) }}>
+              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true); syncSkuUrl({ skuProfileId: item.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab }) }}>
                 <td><input type="checkbox" checked={selectedIds.includes(item.skuProfileId)} onChange={(event) => { event.stopPropagation(); toggleRowSelection(item.skuProfileId) }} onClick={(event) => event.stopPropagation()} /></td>
                 <td>{shortSku(item.displaySku)}</td>
                 <td className={styles.productCell}>
@@ -443,7 +447,7 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.drawerTabs}>
             {skuDrawerTabs.map((tab) => (
-              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setDrawerTab(tab.value)}>
+              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDrawerTab(tab.value); syncSkuUrl({ skuProfileId: selectedRow.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab: tab.value }) }}>
                 {tab.label}{tab.value === 'evidence' ? ` (${selectedRow.evidenceCount})` : ''}
               </button>
             ))}
@@ -649,4 +653,49 @@ function downloadCsv(exported: SkuExportDto) {
   link.download = exported.fileName
   link.click()
   URL.revokeObjectURL(url)
+}
+
+function getInitialSkuParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function getInitialSkuPage(): number {
+  const value = Number(getInitialSkuParam('page') ?? 1)
+  return Number.isInteger(value) && value > 0 ? value : 1
+}
+
+function getInitialHealthStatus(): DashboardSkuListItemDto['healthStatus'] | 'ALL' {
+  const value = getInitialSkuParam('healthStatus')
+  return value === 'READY' || value === 'REPAIRABLE' || value === 'RISKY' || value === 'BLOCKED' ? value : 'ALL'
+}
+
+function getInitialDrawerTab(): SkuDrawerTab {
+  const value = getInitialSkuParam('drawerTab')
+  return value === 'overview' || value === 'evidence' || value === 'raw' || value === 'history' ? value : 'overview'
+}
+
+function syncSkuUrl(state: {
+  skuProfileId: string | null
+  page: number
+  healthStatus: DashboardSkuListItemDto['healthStatus'] | 'ALL'
+  sourceKind: string
+  category: string
+  query: string
+  drawerTab: SkuDrawerTab
+}) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (state.skuProfileId) params.set('skuProfileId', state.skuProfileId)
+  if (state.page > 1) params.set('page', String(state.page))
+  if (state.healthStatus !== 'ALL') params.set('healthStatus', state.healthStatus)
+  if (state.sourceKind !== 'ALL') params.set('sourceKind', state.sourceKind)
+  if (state.category !== 'ALL') params.set('category', state.category)
+  if (state.query.trim()) params.set('q', state.query.trim())
+  if (state.drawerTab !== 'overview') params.set('drawerTab', state.drawerTab)
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
