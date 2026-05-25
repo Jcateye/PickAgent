@@ -1,4 +1,4 @@
-import { fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
@@ -111,8 +111,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'listReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -379,6 +379,42 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       }
       const result = await finalApiRuntime.connectorService.createSyncRun(connectorId, runInput, agentToolAuthContext())
       return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器采集运行', summary: `状态：${result.status}，行数：${result.rowCount}` }], `创建连接器采集运行：${result.connectorRunId}`, { type: 'connector', id: connectorId })
+    }
+
+    if (toolName === 'setConnectorStatus') {
+      const connectorId = String(input.connectorId ?? '')
+      if (!connectorId) throw new Error('connectorId is required')
+      const status = input.status === 'DISABLED' || input.status === 'INACTIVE' || input.status === 'NEEDS_AUTH' || input.status === 'FAILED' ? input.status : 'ACTIVE'
+      const result = await finalApiRuntime.connectorService.update(connectorId, {
+        status,
+        config: isRecord(input.config) ? input.config : undefined,
+      }, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器状态', summary: `连接器状态已更新为：${result.status}` }], `更新连接器状态：${result.status}`, { type: 'connector', id: connectorId })
+    }
+
+    if (toolName === 'retryRun') {
+      const runType = String(input.runType ?? input.type ?? '')
+      const sourceId = String(input.sourceId ?? input.connectorId ?? input.missionId ?? '')
+      const retryOf = optionalString(input.runId)
+      if (!sourceId) throw new Error('sourceId is required')
+      if (runType === 'connector_sync' || input.connectorId) {
+        const result = await finalApiRuntime.connectorService.createSyncRun(sourceId, {
+          rowCount: optionalNumber(input.rowCount),
+          qualityScore: optionalNumber(input.qualityScore),
+          warnings: ['Agent 请求重试运行', ...stringArray(input.warnings)],
+          summary: { retryOf, triggeredBy: 'agent-chat-tool', ...(isRecord(input.summary) ? input.summary : {}) },
+        }, agentToolAuthContext())
+        return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建连接器重试运行：${result.connectorRunId}`, { type: 'connector', id: sourceId })
+      }
+      if (runType === 'agent_run' || input.missionId) {
+        const result = finalAgentRuntime.agentService.startRun(sourceId, {
+          modelProvider: optionalString(input.modelProvider) ?? 'pi',
+          modelName: optionalString(input.modelName) ?? 'sku-ready-agent',
+          inputJson: { retryOf, triggeredBy: 'agent-chat-tool', ...(isRecord(input.inputJson) ? input.inputJson : {}) },
+        })
+        return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent 重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建 Agent 重试运行：${result.id}`, { type: 'workflow_run', id: result.id })
+      }
+      throw new Error('runType must be connector_sync or agent_run')
     }
 
     if (toolName === 'listReports') {

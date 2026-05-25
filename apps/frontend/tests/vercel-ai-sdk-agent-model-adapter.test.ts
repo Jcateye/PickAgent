@@ -170,6 +170,8 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
     generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
       await input.tools?.listConnectors?.execute?.({ pageSize: 5 })
       await input.tools?.runConnectorSync?.execute?.({ connectorId: 'connector_1', rowCount: 12, qualityScore: 98 })
+      await input.tools?.setConnectorStatus?.execute?.({ connectorId: 'connector_1', status: 'DISABLED' })
+      await input.tools?.retryRun?.execute?.({ runType: 'connector_sync', sourceId: 'connector_1', runId: 'run_failed_1' })
       await input.tools?.generateReport?.execute?.({ type: 'HEALTH', skuProfileIds: ['sku_1'] })
       await input.tools?.listReports?.execute?.({})
       await input.tools?.exportReport?.execute?.({ reportId: 'report_1', format: 'PDF' })
@@ -206,7 +208,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'generateReport', 'listReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'setConnectorStatus', 'retryRun', 'generateReport', 'listReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 
