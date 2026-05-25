@@ -8,6 +8,7 @@ import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../.
 import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
+import { buildRunConsolePage } from '../../run-console/run-console-data'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
@@ -288,6 +289,20 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         recommendedNextTools: ['searchSkus', 'getSkuSummary', 'diagnoseSkuHealth', 'checkDataFreshness', 'simulateActivityReadiness'],
       }
       return succeeded(result, dashboardEvidence(result), `读取 Dashboard 上下文：${skuCandidates.total} 个 SKU 候选`, { type: 'dashboard', id: 'dashboard' })
+    }
+
+    if (toolName === 'listRunConsole') {
+      const pageSize = Math.min(numberOr(input.pageSize, 20), 50)
+      const result = await buildRunConsolePage(agentToolAuthContext(), pageSize)
+      const typeFilter = optionalString(input.type)
+      const statusFilter = optionalString(input.status)
+      const items = result.items.filter((item) => {
+        if (typeFilter && item.type !== typeFilter) return false
+        if (statusFilter && item.status !== statusFilter) return false
+        return true
+      })
+      const filtered = { ...result, items, total: items.length, pageSize }
+      return succeeded(filtered, items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.runId, label: item.type, summary: item.summary })), `读取 Run Console：${items.length} 条运行记录`, { type: 'dashboard', id: 'run-console' })
     }
 
     if (toolName === 'searchSkus') {

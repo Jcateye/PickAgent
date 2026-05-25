@@ -168,6 +168,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
     modelName: 'test-model',
     model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
     generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
+      await input.tools?.listRunConsole?.execute?.({ pageSize: 10, type: 'report_generate' })
       await input.tools?.listConnectors?.execute?.({ pageSize: 5 })
       await input.tools?.getConnectorDetail?.execute?.({ connectorId: 'connector_1' })
       await input.tools?.createConnector?.execute?.({ name: 'Agent 创建连接器', connectorKind: 'platform_api', platform: 'tmall', config: { endpoint: 'mock' } })
@@ -228,7 +229,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
     executeTool: async (input) => {
       executedTools.push({ toolName: input.toolName, inputJson: input.inputJson })
       return {
-        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: input.toolName === 'listConnectors' || input.toolName === 'listReports' ? 'L1' : 'L2', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: input.toolName === 'listConnectors' || input.toolName === 'listReports' || input.toolName === 'listRunConsole' ? 'L1' : 'L2', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
         status: 'SUCCEEDED',
         summary: 'ok',
         data: {},
@@ -240,7 +241,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'ingestBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'ingestSkus', 'retryRun', 'listAgentMissions', 'createAgentMission', 'getAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listRunConsole', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'ingestBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'ingestSkus', 'retryRun', 'listAgentMissions', 'createAgentMission', 'getAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.equal(executedTools.find((item) => item.toolName === 'retryRun')?.inputJson.runType, 'activity_simulation')
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })

@@ -76,6 +76,26 @@ test('agent chat tools write backend workflow audits with agent auth context', a
   assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
 })
 
+test('agent chat listRunConsole tool reads workflow audits from run console', async () => {
+  const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
+  const parse = await executeFinalApiTool('parseActivityRules', {
+    name: 'Agent Chat Run Console 审计',
+    platform: 'tmall',
+    sourceText: '库存不得低于 40 件。',
+  })
+  assert.equal(parse.status, 'SUCCEEDED')
+  const audit = Array.from(finalApiRuntime.store.workflowAudits.entries())
+    .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
+    .map(([, value]) => value)
+    .find((item) => item.workflowType === 'activity_rule_parse')
+  assert.ok(audit)
+
+  const execution = await executeFinalApiTool('listRunConsole', { pageSize: 20, type: 'activity_rule_parse' })
+  assert.equal(execution.status, 'SUCCEEDED')
+  const result = execution.result as { items: Array<{ runId: string; type: string; sourceId?: string }> }
+  assert.ok(result.items.some((item) => item.runId === audit.workflowRunId && item.type === 'activity_rule_parse' && item.sourceId === audit.subjectId))
+})
+
 test('agent chat updateRuleSet tool persists status-only updates', async () => {
   const created = await executeFinalApiTool('createRuleSet', {
     name: 'Agent Chat 状态更新规则集',
