@@ -21,6 +21,7 @@ export function SkuAccessPage() {
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -47,6 +48,7 @@ export function SkuAccessPage() {
         setSummary(nextSummary)
         setSkuPage(nextSkuPage)
         setSelectedId((current) => nextSkuPage.items.some((item) => item.skuProfileId === current) ? current : nextSkuPage.items[0]?.skuProfileId ?? null)
+        setSelectedIds((current) => current.filter((id) => nextSkuPage.items.some((item) => item.skuProfileId === id)))
       })
       .catch(() => {
         if (!cancelled) {
@@ -80,6 +82,8 @@ export function SkuAccessPage() {
     return sourceRows.filter((item) => !normalizedQuery || [item.displaySku, item.productName, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery)))
   }, [query, skuPage])
   const selectedRow = rows.find((item) => item.skuProfileId === selectedId) ?? rows[0]
+  const selectedRows = rows.filter((item) => selectedIds.includes(item.skuProfileId))
+  const allVisibleSelected = rows.length > 0 && rows.every((item) => selectedIds.includes(item.skuProfileId))
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 20)))
   const visiblePages = paginationWindow(page, totalPages)
   const stats = useMemo(() => {
@@ -102,32 +106,39 @@ export function SkuAccessPage() {
   }, [rows, summary])
 
   async function createReview(item: DashboardSkuListItemDto) {
-    setBusy(item.skuProfileId)
+    await createReviews([item])
+  }
+
+  async function createReviews(items: DashboardSkuListItemDto[]) {
+    if (!items.length) {
+      setMessage('请先选择 SKU')
+      return
+    }
+    const busyKey = items.length === 1 ? items[0].skuProfileId : 'bulk-review'
+    setBusy(busyKey)
     try {
       const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
         method: 'POST',
         body: JSON.stringify({
-          items: [
-            {
-              skuProfileId: item.skuProfileId,
-              sourceType: 'health',
-              sourceId: item.skuProfileId,
-              question: `确认 ${item.displaySku} 的活动准入下一步`,
-              recommendation: item.nextAction.label,
-              riskLevel: item.healthStatus === 'BLOCKED' || item.healthStatus === 'RISKY' ? 'L2' : 'L1',
-              evidence: [
-                {
-                  type: 'diagnosis',
-                  entityId: item.skuProfileId,
-                  label: item.productName,
-                  summary: item.eligibilityLabel,
-                },
-              ],
-            },
-          ],
+          items: items.map((item) => ({
+            skuProfileId: item.skuProfileId,
+            sourceType: 'health',
+            sourceId: item.skuProfileId,
+            question: `确认 ${item.displaySku} 的活动准入下一步`,
+            recommendation: item.nextAction.label,
+            riskLevel: item.healthStatus === 'BLOCKED' || item.healthStatus === 'RISKY' ? 'L2' : 'L1',
+            evidence: [
+              {
+                type: 'diagnosis',
+                entityId: item.skuProfileId,
+                label: item.productName,
+                summary: item.eligibilityLabel,
+              },
+            ],
+          })),
         }),
       })
-      setMessage(`已生成 Review：${created[0]?.reviewItemId ?? item.skuProfileId}`)
+      setMessage(`已生成 Review：${created.map((item) => item.reviewItemId).join(', ')}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '生成 Review 失败')
     } finally {
@@ -136,6 +147,40 @@ export function SkuAccessPage() {
   }
 
   async function updateNextAction(item: DashboardSkuListItemDto) {
+    await updateNextActions([item])
+  }
+
+  async function updateNextActions(items: DashboardSkuListItemDto[]) {
+    if (!items.length) {
+      setMessage('请先选择 SKU')
+      return
+    }
+    if (items.length > 1) {
+      setBusy('bulk-next')
+      try {
+        const details = await Promise.all(items.map((item) => fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            nextAction: item.nextAction,
+            comment: 'sku-access-page-bulk',
+          }),
+        })))
+        const updatedIds = new Set(items.map((item) => item.skuProfileId))
+        setSkuPage((current) => current ? {
+          ...current,
+          items: current.items.map((row) => updatedIds.has(row.skuProfileId) ? { ...row, nextAction: { ...row.nextAction } } : row),
+        } : current)
+        const selected = details.find((detail) => detail.skuProfileId === selectedId)
+        if (selected) setSelectedDetail(selected)
+        setMessage(`已批量设置下一步：${items.length} 个 SKU`)
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : '批量设置下一步失败')
+      } finally {
+        setBusy(null)
+      }
+      return
+    }
+    const item = items[0]
     setBusy(`next:${item.skuProfileId}`)
     try {
       const detail = await fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
@@ -179,6 +224,14 @@ export function SkuAccessPage() {
     } finally {
       setBusy(null)
     }
+  }
+
+  function toggleAllRows() {
+    setSelectedIds((current) => allVisibleSelected ? current.filter((id) => !rows.some((item) => item.skuProfileId === id)) : Array.from(new Set([...current, ...rows.map((item) => item.skuProfileId)])))
+  }
+
+  function toggleRowSelection(skuProfileId: string) {
+    setSelectedIds((current) => current.includes(skuProfileId) ? current.filter((id) => id !== skuProfileId) : [...current, skuProfileId])
   }
 
   return (
@@ -261,10 +314,10 @@ export function SkuAccessPage() {
         </div>
 
         <div className={styles.tableToolbar}>
-          <div className={styles.tableToolbarLeft}>已选择 {selectedRow ? 1 : 0} 项</div>
+          <div className={styles.tableToolbarLeft}>已选择 {selectedRows.length} 项</div>
           <div className={styles.tableToolbarRight}>
-            <button className="secondaryButton" type="button" onClick={() => selectedRow ? void createReview(selectedRow) : undefined} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
-            <button className="secondaryButton" type="button" onClick={() => selectedRow ? void updateNextAction(selectedRow) : setMessage('请先选择 SKU')} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => void createReviews(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
+            <button className="secondaryButton" type="button" onClick={() => void updateNextActions(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
             <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
             <button className="secondaryButton" type="button" onClick={() => void generateHealthReport()} disabled={!rows.length || busy === 'report'} style={{ height: '32px', fontSize: '13px' }}>生成健康报告</button>
           </div>
@@ -273,7 +326,7 @@ export function SkuAccessPage() {
         <table className={styles.dataTable}>
           <thead>
             <tr>
-              <th style={{ width: '40px' }}><input type="checkbox" /></th>
+              <th style={{ width: '40px' }}><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllRows} /></th>
               <th>SKU</th>
               <th style={{ width: '20%' }}>商品名</th>
               <th>类目</th>
@@ -287,7 +340,7 @@ export function SkuAccessPage() {
           <tbody>
             {rows.map((item) => (
               <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true) }}>
-                <td><input type="checkbox" checked={selectedId === item.skuProfileId} readOnly /></td>
+                <td><input type="checkbox" checked={selectedIds.includes(item.skuProfileId)} onChange={(event) => { event.stopPropagation(); toggleRowSelection(item.skuProfileId) }} onClick={(event) => event.stopPropagation()} /></td>
                 <td>{shortSku(item.displaySku)}</td>
                 <td className={styles.productCell}>
                   <span className={styles.productName}>{item.productName}</span>
