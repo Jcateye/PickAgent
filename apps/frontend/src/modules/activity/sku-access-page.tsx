@@ -114,6 +114,29 @@ export function SkuAccessPage() {
     }
   }
 
+  async function updateNextAction(item: DashboardSkuListItemDto) {
+    setBusy(`next:${item.skuProfileId}`)
+    try {
+      const detail = await fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          nextAction: item.nextAction,
+          comment: 'sku-access-page',
+        }),
+      })
+      setSelectedDetail(detail)
+      setSkuPage((current) => current ? {
+        ...current,
+        items: current.items.map((row) => row.skuProfileId === item.skuProfileId ? { ...row, nextAction: { ...item.nextAction } } : row),
+      } : current)
+      setMessage(`已设置下一步：${detail.statusSummary.nextStep}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '设置下一步失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.mainArea}>
@@ -193,7 +216,7 @@ export function SkuAccessPage() {
           <div className={styles.tableToolbarLeft}>已选择 {selectedRow ? 1 : 0} 项</div>
           <div className={styles.tableToolbarRight}>
             <button className="secondaryButton" type="button" onClick={() => selectedRow ? void createReview(selectedRow) : undefined} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage(selectedRow ? `下一步已设置为：${selectedRow.nextAction.label}` : '请先选择 SKU')} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => selectedRow ? void updateNextAction(selectedRow) : setMessage('请先选择 SKU')} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
             <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
             <button className="secondaryButton" type="button" onClick={() => setMessage('更多操作已收敛为：生成 Review、设置下一步、导出。')} style={{ height: '32px', fontSize: '13px' }}>更多 ∨</button>
           </div>
@@ -349,7 +372,7 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.drawerFooter}>
             <button className="secondaryButton" type="button" onClick={() => void createReview(selectedRow)} disabled={busy === selectedRow.skuProfileId}>生成 Review</button>
-            <button className="primaryButton" type="button" onClick={() => setMessage(`已设置下一步：${selectedRow.nextAction.label}`)} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设置下一步 ∨</button>
+            <button className="primaryButton" type="button" onClick={() => void updateNextAction(selectedRow)} disabled={busy === `next:${selectedRow.skuProfileId}`} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设置下一步 ∨</button>
           </div>
         </div>
       )}

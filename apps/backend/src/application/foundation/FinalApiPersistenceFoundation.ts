@@ -136,7 +136,13 @@ interface DashboardSkuReadModelRecord {
   latestDiagnosis: HealthDiagnosisDto | null;
   latestSimulationResult: SimulationResultDto | null;
   relatedReviews: ReviewItemDto[];
+  nextActionOverride?: DashboardSkuListItemDto["nextAction"];
   updatedAt: string;
+}
+
+export interface UpdateSkuNextActionInputDto {
+  nextAction: DashboardSkuListItemDto["nextAction"];
+  comment?: string;
 }
 
 export interface CreateRuleSetInputDto {
@@ -194,6 +200,7 @@ export interface PersistenceBoundary {
 
 type PrismaDelegate = {
   create(args: Record<string, unknown>): Promise<Record<string, unknown>>;
+  findFirst(args?: Record<string, unknown>): Promise<Record<string, unknown> | null>;
   findMany(args?: Record<string, unknown>): Promise<Record<string, unknown>[]>;
   findUnique(args: Record<string, unknown>): Promise<Record<string, unknown> | null>;
   upsert(args: Record<string, unknown>): Promise<Record<string, unknown>>;
@@ -245,6 +252,7 @@ export class FinalApiPersistenceStore {
   readonly connectors = new Map<string, ConnectorRecordDto>();
   readonly connectorRuns = new Map<string, ConnectorRunRecordDto>();
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
+  readonly skuNextActionOverrides = new Map<string, DashboardSkuListItemDto["nextAction"]>();
   readonly tenantByEntityId = new Map<string, string>();
 }
 
@@ -431,6 +439,14 @@ export class DashboardSkuReadModelRepository {
     return summary ? this.toRecord(summary) : null;
   }
 
+  async updateNextAction(boundary: P0AuthContextDto, skuProfileId: string, input: UpdateSkuNextActionInputDto): Promise<DashboardSkuReadModelRecord> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(skuProfileId), skuProfileId);
+    const summary = this.store.projections.get(skuProfileId);
+    if (!summary) throw new Error("SKU not found");
+    this.store.skuNextActionOverrides.set(skuProfileId, input.nextAction);
+    return this.toRecord(summary);
+  }
+
   private toRecord(summary: SkuSummaryDto): DashboardSkuReadModelRecord {
     const latestSnapshot = Array.from(this.store.snapshots.values()).filter((item) => item.skuProfileId === summary.skuProfileId).at(-1) ?? null;
     const latestDiagnosis = Array.from(this.store.diagnoses.values()).filter((item) => item.skuProfileId === summary.skuProfileId).at(-1) ?? null;
@@ -442,6 +458,7 @@ export class DashboardSkuReadModelRepository {
       latestDiagnosis,
       latestSimulationResult,
       relatedReviews,
+      nextActionOverride: this.store.skuNextActionOverrides.get(summary.skuProfileId),
       updatedAt: latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }
@@ -1252,6 +1269,28 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
     return row ? this.toRecordFromProjection(row) : null;
   }
 
+  async updateNextAction(_boundary: P0AuthContextDto, skuProfileId: string, input: UpdateSkuNextActionInputDto): Promise<DashboardSkuReadModelRecord> {
+    const row = await this.prisma.currentSkuProjection.findUnique({
+      where: { skuProfileId },
+      include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
+    });
+    if (!row) throw new Error("SKU not found");
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "sku_next_action_update",
+        status: "SUCCEEDED",
+        subjectType: "sku_profile",
+        subjectId: skuProfileId,
+        inputJson: input,
+        outputJson: { skuProfileId, nextAction: input.nextAction },
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    return this.toRecordFromProjection(row);
+  }
+
   private async toRecordFromProjection(row: Record<string, unknown>): Promise<DashboardSkuReadModelRecord> {
     const summary = toSkuSummaryFromProjection(row);
     const latestSnapshot = row.latestSnapshot ? toSnapshotDto(row.latestSnapshot as Record<string, unknown>) : null;
@@ -1265,12 +1304,17 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
       where: { skuProfileId: summary.skuProfileId },
       orderBy: { createdAt: "desc" },
     });
+    const nextActionRun = await this.prisma.workflowRun.findFirst({
+      where: { workflowType: "sku_next_action_update", subjectType: "sku_profile", subjectId: summary.skuProfileId },
+      orderBy: { startedAt: "desc" },
+    });
     return {
       summary,
       latestSnapshot,
       latestDiagnosis,
       latestSimulationResult: simulationRows[0] ? toSimulationResultDto(simulationRows[0]) : null,
       relatedReviews: reviewRows.map(toReviewItemDto),
+      nextActionOverride: nextActionFromWorkflowRun(nextActionRun),
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }
@@ -2223,6 +2267,11 @@ export class SkuReadinessQueryService {
     const record = await this.repository.detail(boundary, skuProfileId);
     return record ? toDashboardSkuDetail(record) : null;
   }
+
+  async updateNextAction(skuProfileId: string, input: UpdateSkuNextActionInputDto, boundary: P0AuthContextDto): Promise<DashboardSkuReadinessDetailDto> {
+    const record = await this.repository.updateNextAction(boundary, skuProfileId, input);
+    return toDashboardSkuDetail(record);
+  }
 }
 
 export class ConnectorManagementService {
@@ -2653,7 +2702,7 @@ function toDashboardSkuListItem(record: DashboardSkuReadModelRecord): DashboardS
     healthStatus,
     eligibilityStatus,
     eligibilityLabel: eligibilityLabel(eligibilityStatus),
-    nextAction: nextDashboardSkuAction(healthStatus, eligibilityStatus),
+    nextAction: record.nextActionOverride ?? nextDashboardSkuAction(healthStatus, eligibilityStatus),
     evidenceCount: evidenceRefsForRecord(record).length,
     collectedAt: keyMetrics.collectedAt,
     updatedAt: record.updatedAt,
@@ -2677,7 +2726,7 @@ function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSku
       healthStatus,
       eligibilityStatus,
       conclusion: statusConclusion(healthStatus, eligibilityStatus),
-      nextStep: nextDashboardSkuAction(healthStatus, eligibilityStatus).label,
+      nextStep: (record.nextActionOverride ?? nextDashboardSkuAction(healthStatus, eligibilityStatus)).label,
     },
     readinessChecklist: readinessChecklist(record),
     evidenceOverview: {
@@ -2801,6 +2850,20 @@ function nextDashboardSkuAction(healthStatus: DashboardSkuHealthStatus, eligibil
   if (eligibilityStatus === "BLOCKED" || healthStatus === "BLOCKED") return { type: "VIEW_BLOCKER", label: "查看阻塞原因", disabled: true };
   if (eligibilityStatus === "REPAIRABLE_READY" || healthStatus === "REPAIRABLE" || healthStatus === "RISKY") return { type: "REPAIR_ISSUE", label: "查看修复项" };
   return { type: "VIEW_DETAIL", label: "查看详情" };
+}
+
+function nextActionFromWorkflowRun(row: Record<string, unknown> | null | undefined): DashboardSkuListItemDto["nextAction"] | undefined {
+  const output = row ? asRecord(row.outputJson) : {};
+  const input = row ? asRecord(row.inputJson) : {};
+  const candidate = asRecord(output.nextAction ?? input.nextAction);
+  const type = candidate.type;
+  const label = candidate.label;
+  if (!isDashboardNextActionType(type) || typeof label !== "string" || !label.trim()) return undefined;
+  return { type, label, disabled: typeof candidate.disabled === "boolean" ? candidate.disabled : undefined };
+}
+
+function isDashboardNextActionType(value: unknown): value is DashboardSkuListItemDto["nextAction"]["type"] {
+  return value === "JOIN_ACTIVITY" || value === "REPAIR_ISSUE" || value === "VIEW_DETAIL" || value === "VIEW_BLOCKER" || value === "MANUAL_REVIEW";
 }
 
 function statusConclusion(healthStatus: DashboardSkuHealthStatus, eligibilityStatus: DashboardSkuEligibilityStatus | undefined): string {
