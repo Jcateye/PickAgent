@@ -1632,19 +1632,19 @@ export class PrismaWorkspaceSettingsRepository extends WorkspaceSettingsReposito
     const next = normalizeWorkspaceSettings({ ...current, ...input });
     await this.upsert("workspace", "freshness_thresholds", { dataFreshnessThresholdHours: next.dataFreshnessThresholdHours }, boundary.actorId);
     await this.upsert("workspace", "review_sla", next.reviewSlaHours, boundary.actorId);
-    await this.upsert("agent", "tool_policy", { allowedAgentTools: next.allowedAgentTools, deniedRuntimeTools: next.deniedRuntimeTools, policyVersion: "p0" }, boundary.actorId);
+    await this.upsert("agent", "tool_policy", { allowedAgentTools: next.allowedAgentTools, deniedRuntimeTools: next.deniedRuntimeTools, policyVersion: toolPolicyVersion }, boundary.actorId);
     return next;
   }
 
   async getToolPolicy(boundary: P0AuthContextDto): Promise<ToolPolicyDto> {
     const row = (await this.prisma.workspaceSetting.findMany({ where: { namespace: "agent", settingKey: "tool_policy" }, take: 1 }))[0];
-    const workspace = normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), ...asRecord(row?.settingJson) });
+    const workspace = migrateToolPolicyWorkspace(asRecord(row?.settingJson));
     return toToolPolicy(workspace, boundary.actorId, dateString(row?.updatedAt));
   }
 
   async updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): Promise<ToolPolicyDto> {
     const workspace = normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools });
-    await this.upsert("agent", "tool_policy", { allowedAgentTools: workspace.allowedAgentTools, deniedRuntimeTools: workspace.deniedRuntimeTools, policyVersion: "p0" }, boundary.actorId);
+    await this.upsert("agent", "tool_policy", { allowedAgentTools: workspace.allowedAgentTools, deniedRuntimeTools: workspace.deniedRuntimeTools, policyVersion: toolPolicyVersion }, boundary.actorId);
     return toToolPolicy(workspace, boundary.actorId);
   }
 
@@ -2437,7 +2437,9 @@ export class WorkspaceSettingsService {
   }
 }
 
+const toolPolicyVersion = "p1";
 const forcedDeniedRuntimeTools = ["coding", "file", "bash", "shell", "terminal", "runtime:exec", "prisma:migrate"];
+const defaultAllowedAgentTools = ["getDashboardContext", "searchSkus", "listRuleSets", "listActivities", "getSkuSummary", "parseActivityRules", "checkDataFreshness", "diagnoseSkuHealth", "simulateActivityReadiness", "explainDecisionWithEvidence", "generateReport", "generateReportPreview", "createReviewItems", "decideReviewItem", "setSkuNextAction", "listConnectors", "runConnectorSync", "setConnectorStatus", "setRuleSetStatus", "retryRun", "listReports", "exportReport", "subscribeReport"];
 
 function defaultRuleSetMetadata(): RuleSetMetadata {
   return { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedAt: new Date(0).toISOString(), updatedBy: "system" };
@@ -2500,7 +2502,7 @@ function defaultWorkspaceSettings(): WorkspaceSettingsDto {
     defaultTenantId: "dev_tenant",
     dataFreshnessThresholdHours: 24,
     reviewSlaHours: { high: 4, medium: 24, low: 72 },
-    allowedAgentTools: ["getSkuSummary", "parseActivityRules", "simulateActivityReadiness", "runSimulation", "checkDataFreshness", "diagnoseSkuHealth", "createReviewItems", "explainDecisionWithEvidence", "generateReportPreview"],
+    allowedAgentTools: defaultAllowedAgentTools,
     deniedRuntimeTools: forcedDeniedRuntimeTools,
   });
 }
@@ -2526,7 +2528,7 @@ function normalizeWorkspaceSettings(input: Partial<WorkspaceSettingsDto>): Works
 }
 
 function toToolPolicy(settings: WorkspaceSettingsDto, updatedBy: string, updatedAt = new Date().toISOString()): ToolPolicyDto {
-  return { allowedAgentTools: settings.allowedAgentTools, deniedRuntimeTools: settings.deniedRuntimeTools, policyVersion: "p0", updatedAt, updatedBy };
+  return { allowedAgentTools: settings.allowedAgentTools, deniedRuntimeTools: settings.deniedRuntimeTools, policyVersion: toolPolicyVersion, updatedAt, updatedBy };
 }
 
 function defaultSettingsUsers(): SettingsUserDto[] {
@@ -2573,11 +2575,21 @@ function settingsRowsToWorkspace(rows: Record<string, unknown>[]): Partial<Works
     if (key === "freshness_thresholds") workspace.dataFreshnessThresholdHours = Number(value.dataFreshnessThresholdHours ?? value.hours ?? workspace.dataFreshnessThresholdHours);
     if (key === "review_sla") workspace.reviewSlaHours = { ...workspace.reviewSlaHours, ...value };
     if (key === "tool_policy") {
-      workspace.allowedAgentTools = asArray(value.allowedAgentTools).map(String);
+      workspace.allowedAgentTools = migratedAllowedTools(value);
       workspace.deniedRuntimeTools = asArray(value.deniedRuntimeTools).map(String);
     }
   }
   return workspace;
+}
+
+function migrateToolPolicyWorkspace(value: Record<string, unknown>): WorkspaceSettingsDto {
+  return normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), ...value, allowedAgentTools: migratedAllowedTools(value) });
+}
+
+function migratedAllowedTools(value: Record<string, unknown>): string[] {
+  const current = asArray(value.allowedAgentTools).map(String);
+  if (value.policyVersion === toolPolicyVersion) return current;
+  return Array.from(new Set([...current, ...defaultAllowedAgentTools]));
 }
 
 function ruleSetTypeFromMetadata(value: unknown): RuleSetTypeDto {

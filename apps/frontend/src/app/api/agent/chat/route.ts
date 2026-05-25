@@ -125,8 +125,12 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
   }): Promise<AgentConversationToolExecution> => {
     const toolName = input.toolName === 'reportPreview' ? 'generateReport' : input.toolName === 'generateReportPreview' ? 'generateReport' : input.toolName
     const safeInput = scrubSensitive(input.inputJson) as Record<string, unknown>
-    if (!registeredAgentTools.has(toolName) || containsSensitive(input.inputJson)) {
-      const reason = containsSensitive(input.inputJson) ? 'sensitive_input_denied' : 'unregistered_tool_denied'
+    const policy = await finalApiRuntime.workspaceSettingsService.getToolPolicy(agentToolAuthContext())
+    const allowedTools = new Set(policy.allowedAgentTools.map(normalizePolicyToolName))
+    const deniedTools = new Set(policy.deniedRuntimeTools.map(normalizePolicyToolName))
+    const isDeniedBySettings = deniedTools.has(toolName) || (allowedTools.size > 0 && !allowedTools.has(toolName))
+    if (!registeredAgentTools.has(toolName) || containsSensitive(input.inputJson) || isDeniedBySettings) {
+      const reason = containsSensitive(input.inputJson) ? 'sensitive_input_denied' : !registeredAgentTools.has(toolName) ? 'unregistered_tool_denied' : 'tool_policy_denied'
       const toolCall = await repository.createToolCall({
         runId: input.run.id,
         externalToolCallId: input.externalToolCallId ?? null,
@@ -143,7 +147,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
         runId: input.run.id,
         eventType: 'tool.call_recorded',
         eventPhase: 'BLOCKED_BY_POLICY',
-        payloadJson: { toolCallId: toolCall.id, toolName, reason },
+        payloadJson: { toolCallId: toolCall.id, toolName, reason, policyVersion: policy.policyVersion },
       })
       return { toolCall, status: 'BLOCKED_BY_POLICY', summary: reason, data: null, evidenceRefs: [], linkedEntities: [], reviewGate: null }
     }
@@ -739,6 +743,11 @@ function containsSensitive(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsSensitive)
   if (!value || typeof value !== 'object') return false
   return Object.entries(value).some(([key, child]) => sensitiveKeyPattern.test(key) || containsSensitive(child))
+}
+
+function normalizePolicyToolName(toolName: string): string {
+  if (toolName === 'reportPreview' || toolName === 'generateReportPreview') return 'generateReport'
+  return toolName
 }
 
 function scrubSensitive(value: unknown): unknown {
