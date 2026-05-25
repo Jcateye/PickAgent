@@ -128,6 +128,7 @@ export function AgentMissionPage() {
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null)
   const [objective, setObjective] = useState(defaultObjective)
   const [loading, setLoading] = useState(true)
+  const [actionBusy, setActionBusy] = useState<'approve' | 'pause' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const runEvents = useAgentRunEvents(runId)
 
@@ -256,6 +257,47 @@ export function AgentMissionPage() {
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : 'Mission 发起失败')
       setLoading(false)
+    }
+  }
+
+  async function approvePendingGates() {
+    const pendingGates = gates.filter((gate) => gate.status === 'PENDING')
+    if (!pendingGates.length) return
+    setActionBusy('approve')
+    setError(null)
+    try {
+      await Promise.all(pendingGates.map((gate) => apiPost(`/api/agent/review-gates/${encodeURIComponent(gate.gateId)}/decision`, {
+        decision: 'APPROVE',
+        decidedBy: 'agent-mission-console',
+        decisionComment: '从 Agent Mission 控制台批准继续。',
+      })))
+      if (runId) {
+        const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+        setRunDetail(detail)
+      }
+      await loadMissionConsole()
+    } catch (approveError) {
+      setError(approveError instanceof Error ? approveError.message : 'Review Gate 批准失败')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  async function pauseCurrentRun() {
+    if (!runId) return
+    setActionBusy('pause')
+    setError(null)
+    try {
+      await apiPost(`/api/agent/runs/${encodeURIComponent(runId)}/pause`, {
+        pausedBy: 'agent-mission-console',
+      })
+      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+      setRunDetail(detail)
+      await loadMissionConsole()
+    } catch (pauseError) {
+      setError(pauseError instanceof Error ? pauseError.message : 'Run 暂停失败')
+    } finally {
+      setActionBusy(null)
     }
   }
 
@@ -429,8 +471,8 @@ export function AgentMissionPage() {
           </section>
 
           <div className={styles.monitorActions}>
-            <button className="primaryButton" type="button" disabled={!gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
-            <button className="secondaryButton" type="button" disabled={!runId}>暂停任务</button>
+            <button className="primaryButton" type="button" onClick={() => void approvePendingGates()} disabled={actionBusy === 'approve' || !gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={actionBusy === 'pause' || !runId}>暂停任务</button>
           </div>
         </aside>
       </main>
