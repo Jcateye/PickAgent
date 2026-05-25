@@ -3,6 +3,7 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
 import type { CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
+import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
@@ -111,8 +112,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -253,6 +254,34 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
     if (toolName === 'listActivities') {
       const result = await finalApiRuntime.activityService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
       return succeeded(result, [{ type: 'tool_trace', entityId: 'activities', label: '活动列表', summary: `读取 ${result.items.length} 个活动` }], `读取活动：${result.items.length} 个`, result.items[0] ? { type: 'activity', id: result.items[0].activityId } : { type: 'dashboard', id: 'activities' })
+    }
+
+    if (toolName === 'createActivity') {
+      const request = activityCreateInput(input)
+      const result = await finalApiRuntime.activityService.create(request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动创建', summary: `${result.name} / ${result.status}` }], `创建活动：${result.name}`, { type: 'activity', id: result.activityId })
+    }
+
+    if (toolName === 'updateActivity') {
+      const activityId = String(input.activityId ?? '')
+      if (!activityId) throw new Error('activityId is required')
+      const result = await finalApiRuntime.activityService.update(activityId, activityUpdateInput(input), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动更新', summary: `${result.name} / ${result.status}` }], `更新活动：${result.name}`, { type: 'activity', id: result.activityId })
+    }
+
+    if (toolName === 'getActivityExecutionPlan') {
+      const activityId = String(input.activityId ?? '')
+      if (!activityId) throw new Error('activityId is required')
+      const result = await finalApiRuntime.activityService.executionPlan(activityId, agentToolAuthContext())
+      if (!result) throw new Error(`activity not found: ${activityId}`)
+      return succeeded(result, [{ type: 'tool_trace', entityId: activityId, label: '活动执行计划', summary: `步骤 ${result.steps.length} 个，待确认 ${result.pendingConfirmations.length} 个` }], `读取活动执行计划：${result.steps.length} 个步骤`, { type: 'activity', id: activityId })
+    }
+
+    if (toolName === 'startActivityRun') {
+      const activityId = String(input.activityId ?? '')
+      if (!activityId) throw new Error('activityId is required')
+      const result = await finalApiRuntime.activityService.startRun(activityId, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.runId ?? activityId, label: '活动运行', summary: `活动运行已启动：${result.runId ?? '-'}` }], `启动活动运行：${result.runId ?? activityId}`, { type: 'workflow_run', id: result.runId ?? activityId })
     }
 
     if (toolName === 'getSkuSummary') {
@@ -516,6 +545,36 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
   }
 }
 
+function activityCreateInput(input: Record<string, unknown>): CreateActivityRequestDto {
+  const name = optionalString(input.name ?? input.activityName)
+  if (!name) throw new Error('name is required')
+  return {
+    name,
+    platform: optionalString(input.platform),
+    categoryScope: stringArray(input.categoryScope ?? input.categories),
+    productScopeText: optionalString(input.productScopeText ?? input.scope),
+    startAt: optionalString(input.startAt),
+    endAt: optionalString(input.endAt),
+  }
+}
+
+function activityUpdateInput(input: Record<string, unknown>): UpdateActivityRequestDto {
+  return {
+    name: optionalString(input.name ?? input.activityName),
+    platform: optionalString(input.platform),
+    categoryScope: stringArray(input.categoryScope ?? input.categories),
+    productScopeText: optionalString(input.productScopeText ?? input.scope),
+    status: normalizeActivityStatus(input.status),
+    startAt: nullableString(input.startAt),
+    endAt: nullableString(input.endAt),
+  }
+}
+
+function normalizeActivityStatus(value: unknown): UpdateActivityRequestDto['status'] {
+  if (value === 'DRAFT' || value === 'RUNNING' || value === 'COMPLETED' || value === 'FAILED') return value
+  return undefined
+}
+
 function toSkuCandidate(item: {
   skuProfileId: string
   displaySku: string
@@ -620,6 +679,11 @@ function optionalNumber(value: unknown): number | undefined {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function nullableString(value: unknown): string | null | undefined {
+  if (value === null) return null
+  return optionalString(value)
 }
 
 function normalizeNextAction(input: Record<string, unknown>): DashboardSkuListItemDto['nextAction'] {
