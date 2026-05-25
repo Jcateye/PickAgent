@@ -63,6 +63,27 @@ test("agent repository creates session mission run tool call review gate and con
   assert.equal(decision.event.eventType, "run.continuation_started");
 });
 
+test("agent review gate request changes maps to frontend modified status", () => {
+  const { runtime, mission, run } = seededRun();
+  const gate = runtime.agentService.createReviewGateForTest({
+    missionId: mission.id,
+    runId: run.id,
+    reasonCode: "needs_changes",
+    question: "是否需要修改 Agent 建议？",
+    evidenceRefs: [],
+  });
+
+  const decision = runtime.agentService.decideReviewGate(gate.id, {
+    decision: "REQUEST_CHANGES",
+    decidedBy: "ops@example.test",
+    decisionComment: "需要修改建议后再继续。",
+  });
+
+  assert.equal(decision.gate.status, "MODIFIED");
+  assert.equal(runtime.state.reviewGates.get(gate.id)?.status, "MODIFIED");
+  assert.ok(runtime.agentService.listEvents(run.id).some((event) => event.eventType === "review_gate.decided" && event.eventPhase === "MODIFIED"));
+});
+
 test("pi adapter only exposes three low-risk tools and executes through real business services", () => {
   const { runtime, run } = seededRun();
   assert.deepEqual([...runtime.piAdapter.availableTools], [

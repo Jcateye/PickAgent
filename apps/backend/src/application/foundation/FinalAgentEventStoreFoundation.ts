@@ -965,7 +965,7 @@ export class FinalAgentService {
     const decidedAt = nowIso();
     const updatedGate = this.repository.saveReviewGate({
       ...gate,
-      status: input.decision === "APPROVE" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "CHANGES_REQUESTED",
+      status: input.decision === "APPROVE" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "MODIFIED",
       decision: input.decision,
       decisionComment: input.decisionComment ?? null,
       decidedBy: input.decidedBy,
