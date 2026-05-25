@@ -33,7 +33,7 @@ export function ReportCenterPage() {
     const page = await fetchActivityApi<PageDto<ReportListItemDto>>('/api/reports')
     const list = page.items
     setReports(list)
-    const nextId = preferredId ?? selectedReportId ?? list[0]?.reportId ?? null
+    const nextId = preferredId ?? getInitialReportId() ?? selectedReportId ?? list[0]?.reportId ?? null
     setSelectedReportId(nextId)
     if (nextId) await loadReportDetail(nextId)
   }
@@ -464,4 +464,9 @@ function passRateText(report: ReportDetailDto): string {
 
 function signed(value: number): string {
   return value >= 0 ? `+${value}` : String(value)
+}
+
+function getInitialReportId(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('reportId')
 }
