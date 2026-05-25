@@ -126,6 +126,10 @@
   color: var(--muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 .tab.active {
@@ -192,4 +196,57 @@
   color: #9cdcfe;
   width: 100%;
   max-width: 600px;
+}
+
+.rawJson {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d4d4d4;
+}
+
+.traceGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.traceCard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 13px;
+}
+
+.traceHeader {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.traceMessage {
+  color: var(--fg);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.tracePayload {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+}
+
+.emptyState {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--muted);
+  font-size: 13px;
 }

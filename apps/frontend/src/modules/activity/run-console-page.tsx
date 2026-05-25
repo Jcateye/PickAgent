@@ -22,9 +22,18 @@ interface RunConsolePageDto {
   total: number
 }
 
+type RunConsoleTab = 'timeline' | 'raw' | 'tools'
+
+const runConsoleTabs: Array<{ value: RunConsoleTab; label: string }> = [
+  { value: 'timeline', label: 'Timeline' },
+  { value: 'raw', label: 'Raw Logs' },
+  { value: 'tools', label: 'Tool Traces' },
+]
+
 export function RunConsolePage() {
   const [runs, setRuns] = useState<RunConsoleItemDto[]>([])
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<RunConsoleTab>('timeline')
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -157,27 +166,64 @@ export function RunConsolePage() {
         {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', margin: '12px 24px 0' }}>{message}</div> : null}
 
         <div className={styles.tabsBar}>
-          <div className={`${styles.tab} ${styles.active}`}>Timeline</div>
-          <div className={styles.tab}>Raw Logs</div>
-          <div className={styles.tab}>Tool Traces</div>
+          {runConsoleTabs.map((tab) => (
+            <button className={`${styles.tab} ${activeTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setActiveTab(tab.value)}>
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className={styles.terminalContainer}>
-          <div className={styles.terminalBox}>
-            {selectedRun?.logs.map((log, index) => (
-              <div className={styles.logLine} key={`${selectedRun.runId}:${index}`}>
-                <span className={styles.logTime}>[{formatTime(log.time)}]</span>
-                <span className={`${styles.logTag} ${tagClass(log.tag, styles)}`}>[{log.tag}]</span>
-                <span className={styles.logContent}>{log.message}</span>
-              </div>
-            ))}
-            {selectedRun?.logs.some((log) => log.payload) ? (
-              <pre className={styles.jsonPayload}>{JSON.stringify(selectedRun.logs.filter((log) => log.payload).map((log) => log.payload), null, 2)}</pre>
-            ) : null}
-            {!selectedRun ? <div className={styles.logLine}><span className={styles.logContent}>No run selected.</span></div> : null}
-          </div>
+          {activeTab === 'timeline' ? <TimelinePanel selectedRun={selectedRun} /> : null}
+          {activeTab === 'raw' ? <RawLogsPanel selectedRun={selectedRun} /> : null}
+          {activeTab === 'tools' ? <ToolTracePanel selectedRun={selectedRun} /> : null}
         </div>
       </div>
+    </div>
+  )
+}
+
+function TimelinePanel({ selectedRun }: { selectedRun: RunConsoleItemDto | null }) {
+  return (
+    <div className={styles.terminalBox}>
+      {selectedRun?.logs.map((log, index) => (
+        <div className={styles.logLine} key={`${selectedRun.runId}:${index}`}>
+          <span className={styles.logTime}>[{formatTime(log.time)}]</span>
+          <span className={`${styles.logTag} ${tagClass(log.tag, styles)}`}>[{log.tag}]</span>
+          <span className={styles.logContent}>{log.message}</span>
+        </div>
+      ))}
+      {selectedRun?.logs.some((log) => log.payload) ? (
+        <pre className={styles.jsonPayload}>{JSON.stringify(selectedRun.logs.filter((log) => log.payload).map((log) => log.payload), null, 2)}</pre>
+      ) : null}
+      {!selectedRun ? <div className={styles.logLine}><span className={styles.logContent}>No run selected.</span></div> : null}
+    </div>
+  )
+}
+
+function RawLogsPanel({ selectedRun }: { selectedRun: RunConsoleItemDto | null }) {
+  return (
+    <div className={styles.terminalBox}>
+      <pre className={styles.rawJson}>{JSON.stringify(selectedRun ?? { message: 'No run selected.' }, null, 2)}</pre>
+    </div>
+  )
+}
+
+function ToolTracePanel({ selectedRun }: { selectedRun: RunConsoleItemDto | null }) {
+  const traceLogs = selectedRun?.logs.filter((log) => log.payload || ['Agent', 'Connector', 'Workflow'].includes(log.tag)) ?? []
+  return (
+    <div className={styles.traceGrid}>
+      {traceLogs.map((log, index) => (
+        <div className={styles.traceCard} key={`${selectedRun?.runId ?? 'none'}:${index}`}>
+          <div className={styles.traceHeader}>
+            <span className={`${styles.logTag} ${tagClass(log.tag, styles)}`}>{log.tag}</span>
+            <span>{formatTime(log.time)}</span>
+          </div>
+          <div className={styles.traceMessage}>{log.message}</div>
+          {log.payload ? <pre className={styles.tracePayload}>{JSON.stringify(log.payload, null, 2)}</pre> : null}
+        </div>
+      ))}
+      {traceLogs.length === 0 ? <div className={styles.emptyState}>当前运行没有工具调用或结构化 payload。</div> : null}
     </div>
   )
 }
