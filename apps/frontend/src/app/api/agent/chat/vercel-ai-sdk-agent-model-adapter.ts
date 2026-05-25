@@ -407,6 +407,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getDashboardContext', inputJson),
     }),
+    getHealthSummary: tool({
+      description: '读取真实 SKU 健康汇总。返回 total、ready、warning、blocked，用于用户单独询问总体健康、通过率、阻断量或风险概览。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getHealthSummary', inputJson),
+    }),
     listRunConsole: tool({
       description: '读取真实 Run Console 运行历史和 workflow audit，包括连接器同步、活动模拟、Agent run、报表生成/导出/订阅等。可选 pageSize/type/status。',
       inputSchema: objectSchema,

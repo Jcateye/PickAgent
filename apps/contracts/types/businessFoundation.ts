@@ -237,6 +237,7 @@ export interface ToolPolicyDto {
 
 export const defaultAgentToolNames = [
   "getDashboardContext",
+  "getHealthSummary",
   "listRunConsole",
   "exportRunLogs",
   "searchSkus",

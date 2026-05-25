@@ -291,6 +291,11 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, dashboardEvidence(result), `读取 Dashboard 上下文：${skuCandidates.total} 个 SKU 候选`, { type: 'dashboard', id: 'dashboard' })
     }
 
+    if (toolName === 'getHealthSummary') {
+      const result = await finalApiRuntime.ingestService.getHealthSummary(agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'health-summary', label: '健康汇总', summary: `总计 ${result.total} 个 SKU，通过 ${result.ready}，预警 ${result.warning}，阻断 ${result.blocked}` }], `读取健康汇总：${result.total} 个 SKU`, { type: 'dashboard', id: 'health-summary' })
+    }
+
     if (toolName === 'listRunConsole') {
       const pageSize = Math.min(numberOr(input.pageSize, 20), 50)
       const result = await buildRunConsolePage(agentToolAuthContext(), pageSize)

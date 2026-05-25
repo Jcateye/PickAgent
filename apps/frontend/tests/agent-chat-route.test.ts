@@ -76,6 +76,26 @@ test('agent chat tools write backend workflow audits with agent auth context', a
   assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
 })
 
+test('agent chat getHealthSummary tool reads real dashboard health totals', async () => {
+  const externalSkuId = `agent_health_summary_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_health_summary_store',
+      externalSkuId,
+      productName: 'Agent 健康汇总 SKU',
+      stock: 20,
+      positiveRate: 0.98,
+    }],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const summary = await executeFinalApiTool('getHealthSummary', {})
+  assert.equal(summary.status, 'SUCCEEDED')
+  assert.ok((summary.result as { total: number }).total >= 1)
+  assert.equal(summary.linkedEntity?.type, 'dashboard')
+})
+
 test('agent chat listRunConsole tool reads workflow audits from run console', async () => {
   const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
   const parse = await executeFinalApiTool('parseActivityRules', {
