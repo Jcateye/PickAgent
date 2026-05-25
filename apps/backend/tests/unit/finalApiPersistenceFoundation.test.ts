@@ -212,6 +212,30 @@ test("final activity, review and report services share persistent repositories",
   assert.ok(report.evidenceSummary.length > 0);
 });
 
+test("review decisions cannot be overwritten after the item leaves pending state", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const [review] = await runtime.reviewService.create(
+    [
+      {
+        sourceType: "agent",
+        sourceId: "agent_run_closed_review",
+        question: "是否批准 Agent 建议？",
+        recommendation: "先批准一次，后续重复决策应被拒绝。",
+        riskLevel: "L1",
+        evidence: [],
+      },
+    ],
+    tenantA,
+  );
+  assert.ok(review);
+
+  await runtime.reviewService.decide(review.reviewItemId, { decision: "APPROVE", decisionBy: "ops@example.test" }, tenantA);
+  await assert.rejects(
+    async () => runtime.reviewService.decide(review.reviewItemId, { decision: "REJECT", decisionBy: "ops@example.test" }, tenantA),
+    /Review item is not pending:/,
+  );
+});
+
 test("prisma report repository reads detail from latest version snapshot", async () => {
   const reportRow = {
     id: "report_1",
@@ -319,6 +343,39 @@ test("prisma review repository records create audit history", async () => {
   assert.equal((workflowRuns[0]?.inputJson as { actorId?: string }).actorId, tenantA.actorId);
   assert.equal(history[0]?.action, "review_create");
   assert.equal(history[0]?.actor, tenantA.actorId);
+});
+
+test("prisma review decision rejects closed item before writes", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaReviewRepository({
+    reviewItem: {
+      findUnique: async () => ({
+        id: "review_closed",
+        reviewType: "agent",
+        status: "APPROVED",
+        question: "已批准项",
+        agentRecommendation: "不应重复审批",
+        riskLevel: "L1",
+        evidenceJson: [],
+      }),
+      update: async () => {
+        writes.push("reviewItem.update");
+        return {};
+      },
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun.create");
+        return {};
+      },
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.decide(tenantA, "review_closed", { decision: "REJECT", decisionBy: "ops@example.test" }),
+    /Review item is not pending: review_closed/,
+  );
+  assert.deepEqual(writes, []);
 });
 
 test("dashboard SKU read models expose filterable list and evidence-backed detail", async () => {

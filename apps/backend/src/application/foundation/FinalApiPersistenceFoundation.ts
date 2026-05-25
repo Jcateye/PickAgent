@@ -833,6 +833,7 @@ export class ReviewRepository {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
     const current = this.store.reviews.get(reviewItemId);
     if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
+    if (current.status !== "OPEN") throw new Error(`Review item is not pending: ${reviewItemId}`);
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "CHANGES_REQUESTED" } as const;
     const updated: ReviewItemDto = { ...current, status: statusByDecision[request.decision], decision: request.decision, decisionBy: request.decisionBy, decisionComment: request.decisionComment, decidedAt: new Date().toISOString() };
     this.store.reviews.set(reviewItemId, updated);
@@ -1848,6 +1849,10 @@ export class PrismaReviewRepository extends ReviewRepository {
   }
 
   async decide(boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
+    const current = await this.prisma.reviewItem.findUnique({ where: { id: reviewItemId } });
+    if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
+    const currentStatus = toReviewItemDto(current).status;
+    if (currentStatus !== "OPEN") throw new Error(`Review item is not pending: ${reviewItemId}`);
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "MODIFIED" } as const;
     const updated = await this.prisma.reviewItem.update({
       where: { id: reviewItemId },
