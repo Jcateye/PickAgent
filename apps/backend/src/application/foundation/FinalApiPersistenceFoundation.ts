@@ -447,6 +447,18 @@ export class DashboardSkuReadModelRepository {
     const summary = this.store.projections.get(skuProfileId);
     if (!summary) throw new Error("SKU not found");
     this.store.skuNextActionOverrides.set(skuProfileId, input.nextAction);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "sku_next_action_update",
+      status: "SUCCEEDED",
+      subjectType: "sku_profile",
+      subjectId: skuProfileId,
+      input: { actorId: boundary.actorId, ...input },
+      output: { skuProfileId, nextAction: input.nextAction },
+      createdAt: new Date().toISOString(),
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return this.toRecord(summary);
   }
 
@@ -1337,7 +1349,7 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
     return row ? this.toRecordFromProjection(row) : null;
   }
 
-  async updateNextAction(_boundary: P0AuthContextDto, skuProfileId: string, input: UpdateSkuNextActionInputDto): Promise<DashboardSkuReadModelRecord> {
+  async updateNextAction(boundary: P0AuthContextDto, skuProfileId: string, input: UpdateSkuNextActionInputDto): Promise<DashboardSkuReadModelRecord> {
     const row = await this.prisma.currentSkuProjection.findUnique({
       where: { skuProfileId },
       include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
@@ -1350,7 +1362,7 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
         status: "SUCCEEDED",
         subjectType: "sku_profile",
         subjectId: skuProfileId,
-        inputJson: input,
+        inputJson: { actorId: boundary.actorId, ...input },
         outputJson: { skuProfileId, nextAction: input.nextAction },
         startedAt: new Date(),
         completedAt: new Date(),

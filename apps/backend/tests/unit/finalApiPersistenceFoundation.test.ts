@@ -380,6 +380,7 @@ test("sku next action updates return and read back the same persisted action", a
 
   const list = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10 }, boundary);
   assert.deepEqual(list.items.find((item) => item.skuProfileId === skuProfileId)?.nextAction, nextAction);
+  assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "sku_next_action_update" && audit.subjectId === skuProfileId && audit.input.actorId === boundary.actorId));
 });
 
 test("rule library service exposes detail, versions, status updates and workflow audits", async () => {
