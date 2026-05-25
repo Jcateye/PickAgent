@@ -2334,7 +2334,8 @@ export class FinalActivityService {
 
   async simulateForActivity(activityId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDetailDto> {
     const activity = await this.repository.getActivity(boundary, activityId);
-    if (!activity?.currentRuleSetId) throw new Error("Activity rule set is required before simulation");
+    if (!activity) throw new Error(`Activity not found: ${activityId}`);
+    if (!activity.currentRuleSetId) throw new Error("Activity rule set is required before simulation");
     const run = await this.simulate(activity.currentRuleSetId, request, boundary);
     await this.repository.bindSimulationRunToActivity(boundary, activityId, run.simulationRunId);
     const plan = await this.buildExecutionPlan({ ...activity, latestRunId: run.simulationRunId, status: "RUNNING" }, boundary);

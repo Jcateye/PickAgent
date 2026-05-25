@@ -14,6 +14,12 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     return ok(await finalApiRuntime.activityService.simulateForActivity(activityId, payload, boundary), boundary.requestId)
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Activity not found')) {
+      return fail('ACTIVITY.NOT_FOUND', 'activity not found', 404, { activityId }, boundary.requestId)
+    }
+    if (error instanceof Error && error.message.includes('Activity rule set is required')) {
+      return fail('ACTIVITY.CONFLICT', error.message, 409, { activityId }, boundary.requestId)
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'activity simulation failed', 400, { activityId }, boundary.requestId)
   }
 }

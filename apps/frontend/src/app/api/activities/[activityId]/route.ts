@@ -10,7 +10,7 @@ export async function GET(request: Request, context: RouteContext) {
   const boundary = p0AuthContext(request)
   const { activityId } = await context.params
   const detail = await finalApiRuntime.activityService.detail(activityId, boundary)
-  if (!detail) return fail('COMMON.VALIDATION_ERROR', 'activity not found', 404, { activityId }, boundary.requestId)
+  if (!detail) return activityNotFound(activityId, boundary.requestId)
   return ok(detail, boundary.requestId)
 }
 
@@ -22,6 +22,15 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     return ok(await finalApiRuntime.activityService.update(activityId, payload, boundary), boundary.requestId)
   } catch (error) {
+    if (isActivityNotFound(error)) return activityNotFound(activityId, boundary.requestId)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'activity update failed', 400, { activityId }, boundary.requestId)
   }
+}
+
+function isActivityNotFound(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Activity not found')
+}
+
+function activityNotFound(activityId: string, requestId?: string) {
+  return fail('ACTIVITY.NOT_FOUND', 'activity not found', 404, { activityId }, requestId)
 }
