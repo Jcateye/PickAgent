@@ -403,7 +403,7 @@ export function SkuAccessPage() {
                 <td>{renderHealthTag(item.healthStatus, styles)}</td>
                 <td>{item.eligibilityLabel === '未模拟' ? healthReason(item.healthStatus) : item.eligibilityLabel}</td>
                 <td>{item.nextAction.label}</td>
-                <td><a href={`/sku-health/${item.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看证据 ({item.evidenceCount})</a></td>
+                <td><a href={skuAccessEvidenceHref(item.skuProfileId)} onClick={(event) => event.stopPropagation()} style={{ color: 'var(--primary)' }}>查看证据 ({item.evidenceCount})</a></td>
                 <td><button type="button" className="secondaryButton" onClick={(event) => { event.stopPropagation(); void createReview(item) }} disabled={busy === item.skuProfileId} style={{ padding: '2px 8px' }}>生成</button></td>
               </tr>
             ))}
@@ -531,14 +531,14 @@ function SkuEvidencePanel({ selectedRow, selectedDetail }: { selectedRow: Dashbo
               <div style={{ display: 'flex', gap: '16px' }}>
                 <span>{item.evidenceRefs.length} 条</span>
                 <span>{checklistLabel(item.status)}</span>
-                <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看</a>
+                <a href={skuAccessEvidenceHref(selectedRow.skuProfileId)} style={{ color: 'var(--primary)' }}>查看</a>
               </div>
             </div>
           ))}
           {!selectedDetail?.readinessChecklist.length ? <div className={styles.emptyState}>当前 SKU 没有返回检查项。</div> : null}
         </div>
         <div style={{ fontSize: '13px', marginTop: '16px' }}>
-          <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看全部证据</a>
+          <a href={skuAccessEvidenceHref(selectedRow.skuProfileId)} style={{ color: 'var(--primary)' }}>查看全部证据</a>
         </div>
       </div>
     </>
@@ -673,6 +673,11 @@ function getInitialHealthStatus(): DashboardSkuListItemDto['healthStatus'] | 'AL
 function getInitialDrawerTab(): SkuDrawerTab {
   const value = getInitialSkuParam('drawerTab')
   return value === 'overview' || value === 'evidence' || value === 'raw' || value === 'history' ? value : 'overview'
+}
+
+function skuAccessEvidenceHref(skuProfileId: string): string {
+  const params = new URLSearchParams({ skuProfileId, drawerTab: 'evidence' })
+  return `/sku-access?${params.toString()}`
 }
 
 function syncSkuUrl(state: {

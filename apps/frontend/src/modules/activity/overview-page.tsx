@@ -40,8 +40,8 @@ export function OverviewPage() {
   const [runPage, setRunPage] = useState<RunConsolePageDto | null>(null)
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
-  const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
-  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>(() => getInitialOverviewStatus())
+  const [page, setPage] = useState(() => getInitialOverviewPage())
   const [message, setMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -54,6 +54,7 @@ export function OverviewPage() {
       sortOrder: 'desc',
     })
     if (statusFilter !== 'ALL') params.set('healthStatus', statusFilter)
+    syncOverviewUrl({ page, statusFilter })
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
       fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
@@ -322,7 +323,7 @@ export function OverviewPage() {
                     <td>{item.eligibilityLabel ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
                     <td>{latestRule?.name ?? '当前规则集'}</td>
                     <td>{item.nextAction.label}</td>
-                    <td><a href={`/sku-health/${item.skuProfileId}`} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                    <td><a href={skuEvidenceHref(item.skuProfileId)} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                   </tr>
                 ))}
               </tbody>
@@ -513,6 +514,40 @@ function healthStatusLabel(status: DashboardSkuListItemDto['healthStatus']): str
   if (status === 'REPAIRABLE') return '可修复'
   if (status === 'RISKY') return '待确认'
   return '不符合'
+}
+
+function getInitialOverviewParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function getInitialOverviewPage(): number {
+  const value = Number(getInitialOverviewParam('page') ?? 1)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1
+}
+
+function getInitialOverviewStatus(): DashboardSkuListItemDto['healthStatus'] | 'ALL' {
+  const value = getInitialOverviewParam('healthStatus')
+  return value === 'READY' || value === 'REPAIRABLE' || value === 'RISKY' || value === 'BLOCKED' ? value : 'ALL'
+}
+
+function syncOverviewUrl(state: { page: number; statusFilter: DashboardSkuListItemDto['healthStatus'] | 'ALL' }) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  if (state.page > 1) params.set('page', String(state.page))
+  else params.delete('page')
+  if (state.statusFilter !== 'ALL') params.set('healthStatus', state.statusFilter)
+  else params.delete('healthStatus')
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
+}
+
+function skuEvidenceHref(skuProfileId: string): string {
+  const params = new URLSearchParams({ skuProfileId, drawerTab: 'evidence' })
+  return `/sku-access?${params.toString()}`
 }
 
 function paginationWindow(currentPage: number, totalPages: number): number[] {
