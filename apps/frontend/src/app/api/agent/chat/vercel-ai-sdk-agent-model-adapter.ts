@@ -253,6 +253,8 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'explainDecisionWithEvidence',
   'generateReport',
   'createReviewItems',
+  'getReviewDetail',
+  'updateReviewItem',
   'decideReviewItem',
   'setSkuNextAction',
   'listConnectors',
@@ -352,6 +354,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       sourceId: { type: 'string' },
       sourceType: { type: 'string', enum: ['health', 'simulation', 'agent'] },
       recommendation: { type: 'string' },
+      recommendationText: { type: 'string' },
       riskLevel: { type: 'string', enum: ['L0', 'L1', 'L2'] },
       label: { type: 'string' },
       comment: { type: 'string' },
@@ -459,6 +462,16 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createReviewItems', inputJson),
+    }),
+    getReviewDetail: tool({
+      description: '读取真实 Review 详情。需要 reviewItemId，返回建议、风险、证据、相关规则和审批历史。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getReviewDetail', inputJson),
+    }),
+    updateReviewItem: tool({
+      description: '更新真实 Review 项的 question/recommendation/riskLevel。需要 reviewItemId，并至少提供 question、recommendation 或 riskLevel。适合用户要求修改 Review 建议但尚未审批时使用。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('updateReviewItem', inputJson),
     }),
     decideReviewItem: tool({
       description: '对真实 Review 项执行审批决策。需要 reviewItemId 和 decision=APPROVE/REJECT/REQUEST_CHANGES，可选 decisionComment/modifiedPayload。只能在用户明确要求批准、驳回或要求修改时使用。',

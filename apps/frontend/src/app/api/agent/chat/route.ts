@@ -112,8 +112,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -388,6 +388,21 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
     }
 
+    if (toolName === 'getReviewDetail') {
+      const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
+      if (!reviewItemId) throw new Error('reviewItemId is required')
+      const result = await finalApiRuntime.reviewService.getDetail(reviewItemId, agentToolAuthContext())
+      if (!result) throw new Error(`Review item not found: ${reviewItemId}`)
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `读取 Review：${result.reviewItemId} / ${result.status}`, { type: 'review_item', id: result.reviewItemId })
+    }
+
+    if (toolName === 'updateReviewItem') {
+      const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
+      if (!reviewItemId) throw new Error('reviewItemId is required')
+      const result = await finalApiRuntime.reviewService.update(reviewItemId, reviewPatchInput(input), agentToolAuthContext())
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `更新 Review：${result.reviewItemId}`, { type: 'review_item', id: result.reviewItemId })
+    }
+
     if (toolName === 'decideReviewItem') {
       const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
       if (!reviewItemId) throw new Error('reviewItemId is required')
@@ -568,6 +583,23 @@ function activityUpdateInput(input: Record<string, unknown>): UpdateActivityRequ
     startAt: nullableString(input.startAt),
     endAt: nullableString(input.endAt),
   }
+}
+
+function reviewPatchInput(input: Record<string, unknown>): Partial<Pick<ReviewItemDto, 'question' | 'recommendation' | 'riskLevel'>> {
+  const patch: Partial<Pick<ReviewItemDto, 'question' | 'recommendation' | 'riskLevel'>> = {}
+  const question = optionalString(input.question)
+  const recommendation = optionalString(input.recommendation ?? input.recommendationText ?? input.content)
+  const riskLevel = normalizeReviewRiskLevel(input.riskLevel)
+  if (question) patch.question = question
+  if (recommendation) patch.recommendation = recommendation
+  if (riskLevel) patch.riskLevel = riskLevel
+  if (Object.keys(patch).length === 0) throw new Error('question, recommendation, or riskLevel is required')
+  return patch
+}
+
+function normalizeReviewRiskLevel(value: unknown): ReviewItemDto['riskLevel'] | undefined {
+  if (value === 'L0' || value === 'L1' || value === 'L2') return value
+  return undefined
 }
 
 function normalizeActivityStatus(value: unknown): UpdateActivityRequestDto['status'] {

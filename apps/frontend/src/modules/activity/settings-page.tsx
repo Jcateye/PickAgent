@@ -21,6 +21,8 @@ const commonAgentTools = [
   'explainDecisionWithEvidence',
   'generateReport',
   'createReviewItems',
+  'getReviewDetail',
+  'updateReviewItem',
   'decideReviewItem',
   'generateReportPreview',
   'listConnectors',

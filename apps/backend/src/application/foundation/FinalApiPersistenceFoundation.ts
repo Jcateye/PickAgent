@@ -2439,7 +2439,7 @@ export class WorkspaceSettingsService {
 
 const toolPolicyVersion = "p1";
 const forcedDeniedRuntimeTools = ["coding", "file", "bash", "shell", "terminal", "runtime:exec", "prisma:migrate"];
-const defaultAllowedAgentTools = ["getDashboardContext", "searchSkus", "listRuleSets", "listActivities", "createActivity", "updateActivity", "getActivityExecutionPlan", "startActivityRun", "getSkuSummary", "parseActivityRules", "checkDataFreshness", "diagnoseSkuHealth", "simulateActivityReadiness", "explainDecisionWithEvidence", "generateReport", "generateReportPreview", "createReviewItems", "decideReviewItem", "setSkuNextAction", "listConnectors", "runConnectorSync", "setConnectorStatus", "setRuleSetStatus", "retryRun", "listReports", "exportReport", "subscribeReport"];
+const defaultAllowedAgentTools = ["getDashboardContext", "searchSkus", "listRuleSets", "listActivities", "createActivity", "updateActivity", "getActivityExecutionPlan", "startActivityRun", "getSkuSummary", "parseActivityRules", "checkDataFreshness", "diagnoseSkuHealth", "simulateActivityReadiness", "explainDecisionWithEvidence", "generateReport", "generateReportPreview", "createReviewItems", "getReviewDetail", "updateReviewItem", "decideReviewItem", "setSkuNextAction", "listConnectors", "runConnectorSync", "setConnectorStatus", "setRuleSetStatus", "retryRun", "listReports", "exportReport", "subscribeReport"];
 
 function defaultRuleSetMetadata(): RuleSetMetadata {
   return { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedAt: new Date(0).toISOString(), updatedBy: "system" };

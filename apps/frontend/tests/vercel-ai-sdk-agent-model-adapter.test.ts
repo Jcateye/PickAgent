@@ -177,6 +177,8 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       await input.tools?.getActivityExecutionPlan?.execute?.({ activityId: 'activity_1' })
       await input.tools?.startActivityRun?.execute?.({ activityId: 'activity_1' })
       await input.tools?.retryRun?.execute?.({ runType: 'connector_sync', sourceId: 'connector_1', runId: 'run_failed_1' })
+      await input.tools?.getReviewDetail?.execute?.({ reviewItemId: 'review_1' })
+      await input.tools?.updateReviewItem?.execute?.({ reviewItemId: 'review_1', recommendation: '补充证据后再审批', riskLevel: 'L2' })
       await input.tools?.decideReviewItem?.execute?.({ reviewItemId: 'review_1', decision: 'APPROVE', decisionComment: '同意 Agent 建议' })
       await input.tools?.generateReport?.execute?.({ type: 'HEALTH', skuProfileIds: ['sku_1'] })
       await input.tools?.listReports?.execute?.({})
@@ -214,7 +216,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'decideReviewItem', 'generateReport', 'listReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 
