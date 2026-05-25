@@ -262,6 +262,7 @@ export const defaultAgentToolNames = [
   "explainDecisionWithEvidence",
   "generateReport",
   "generateReportPreview",
+  "listReviews",
   "createReviewItems",
   "getReviewDetail",
   "updateReviewItem",

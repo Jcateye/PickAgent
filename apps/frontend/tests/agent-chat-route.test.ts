@@ -239,6 +239,33 @@ test('agent chat createReviewItems tool supports batch simulation review creatio
   assert.ok(detail?.relatedReviews.some((item) => item.entityId === reviews[0].reviewItemId))
 })
 
+test('agent chat listReviews tool reads pending review queues', async () => {
+  const created = await executeFinalApiTool('createReviewItems', {
+    items: [
+      {
+        sourceType: 'agent',
+        sourceId: `agent_review_list_${Date.now()}`,
+        question: '是否需要人工确认 Agent 列表测试项？',
+        recommendation: '进入人工 Review 队列。',
+        riskLevel: 'L2',
+        evidence: [{ type: 'tool_trace', entityId: 'agent_review_list', label: '列表测试', summary: '用于验证 listReviews 工具' }],
+      },
+    ],
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  const reviewItemId = (created.result as Array<{ reviewItemId: string }>)[0].reviewItemId
+
+  const listed = await executeFinalApiTool('listReviews', {
+    tab: 'PENDING',
+    reviewRiskLevel: 'HIGH',
+    q: '人工确认 Agent 列表测试项',
+  })
+  assert.equal(listed.status, 'SUCCEEDED')
+  const result = listed.result as { items: Array<{ reviewItemId: string; status: string; riskLevel: string }> }
+  assert.ok(result.items.some((item) => item.reviewItemId === reviewItemId && item.status === 'PENDING' && item.riskLevel === 'HIGH'))
+  assert.equal(listed.linkedEntity?.type, 'review_item')
+})
+
 test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {
   const externalSkuId = `agent_ingest_sku_${Date.now()}`
   const execution = await executeFinalApiTool('ingestSkus', {

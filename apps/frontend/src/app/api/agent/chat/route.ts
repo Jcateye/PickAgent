@@ -6,7 +6,7 @@ import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../.
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
-import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
+import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto, ReviewListQueryDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { buildRunConsoleLogExport, buildRunConsolePage } from '../../run-console/run-console-data'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
@@ -509,6 +509,23 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         simulationResultIds: stringArray(input.simulationResultIds),
       }, agentToolAuthContext())
       return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, { type: 'report', id: result.reportId })
+    }
+
+    if (toolName === 'listReviews') {
+      const query: ReviewListQueryDto = {
+        page: numberOr(input.page, 1),
+        pageSize: numberOr(input.pageSize, 20),
+        tab: optionalString(input.tab ?? input.status) as ReviewListQueryDto['tab'],
+        type: optionalString(input.reviewType ?? input.type) as ReviewListQueryDto['type'],
+        riskLevel: optionalString(input.reviewRiskLevel) as ReviewListQueryDto['riskLevel'],
+        status: optionalString(input.status),
+        assigneeRole: optionalString(input.assigneeRole),
+        dueFrom: optionalString(input.dueFrom),
+        dueTo: optionalString(input.dueTo),
+        q: optionalString(input.q ?? input.query ?? input.keyword),
+      }
+      const result = await finalApiRuntime.reviewService.list(query, agentToolAuthContext())
+      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'review', entityId: item.reviewItemId, label: item.title, summary: `${item.status} / ${item.riskLevel} / ${item.summary}` })), `读取 Review 列表：${result.total} 条`, result.items[0] ? { type: 'review_item', id: result.items[0].reviewItemId } : { type: 'dashboard', id: 'reviews' })
     }
 
     if (toolName === 'createReviewItems') {
