@@ -1307,10 +1307,10 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
         completedAt: new Date(),
       },
     });
-    return this.toRecordFromProjection(row);
+    return this.toRecordFromProjection(row, input.nextAction);
   }
 
-  private async toRecordFromProjection(row: Record<string, unknown>): Promise<DashboardSkuReadModelRecord> {
+  private async toRecordFromProjection(row: Record<string, unknown>, nextActionOverride?: DashboardSkuListItemDto["nextAction"]): Promise<DashboardSkuReadModelRecord> {
     const summary = toSkuSummaryFromProjection(row);
     const latestSnapshot = row.latestSnapshot ? toSnapshotDto(row.latestSnapshot as Record<string, unknown>) : null;
     const latestDiagnosis = row.latestDiagnosis ? toDiagnosisDto(row.latestDiagnosis as Record<string, unknown>) : null;
@@ -1333,7 +1333,7 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
       latestDiagnosis,
       latestSimulationResult: simulationRows[0] ? toSimulationResultDto(simulationRows[0]) : null,
       relatedReviews: reviewRows.map(toReviewItemDto),
-      nextActionOverride: nextActionFromWorkflowRun(nextActionRun),
+      nextActionOverride: nextActionOverride ?? nextActionFromWorkflowRun(nextActionRun),
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }

@@ -250,6 +250,29 @@ test("dashboard SKU read models expose filterable list and evidence-backed detai
   assert.ok(detail.relatedRules.length > 0);
 });
 
+test("sku next action updates return and read back the same persisted action", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture);
+  const skuProfileId = ingest.summaries[0].skuProfileId;
+  const boundary = {
+    actorId: "dev_actor",
+    tenantId: "dev_tenant",
+    sessionId: "dev_session",
+    surface: "api-test",
+    requestId: "request_dev",
+  };
+  const nextAction = { type: "MANUAL_REVIEW" as const, label: "提交人工确认" };
+
+  const updated = await runtime.skuReadinessQueryService.updateNextAction(skuProfileId, { nextAction, comment: "unit-test" }, boundary);
+  assert.equal(updated.statusSummary.nextStep, nextAction.label);
+
+  const detail = await runtime.skuReadinessQueryService.detail(skuProfileId, boundary);
+  assert.equal(detail?.statusSummary.nextStep, nextAction.label);
+
+  const list = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10 }, boundary);
+  assert.deepEqual(list.items.find((item) => item.skuProfileId === skuProfileId)?.nextAction, nextAction);
+});
+
 test("rule library service exposes detail, versions, status updates and workflow audits", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const created = await runtime.ruleSetService.create(
