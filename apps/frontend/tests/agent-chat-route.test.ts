@@ -145,6 +145,57 @@ test('agent chat settings tools read and update real workspace settings', async 
   assert.equal((updatedUser.result as { userId: string; status: string }).status, 'ACTIVE')
 })
 
+test('agent chat createReviewItems tool supports batch simulation review creation', async () => {
+  const first = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_batch_review_store',
+        externalSkuId: `agent_batch_review_1_${Date.now()}`,
+        productName: 'Agent 批量 Review SKU 1',
+        stock: 3,
+        positiveRate: 0.8,
+      },
+      {
+        platform: 'tmall',
+        storeId: 'agent_batch_review_store',
+        externalSkuId: `agent_batch_review_2_${Date.now()}`,
+        productName: 'Agent 批量 Review SKU 2',
+        stock: 4,
+        positiveRate: 0.82,
+      },
+    ],
+  })
+  assert.equal(first.status, 'SUCCEEDED')
+  const skuProfileIds = (first.result as { summaries: Array<{ skuProfileId: string }> }).summaries.map((item) => item.skuProfileId)
+
+  const created = await executeFinalApiTool('createReviewItems', {
+    items: skuProfileIds.map((skuProfileId, index) => ({
+      skuProfileId,
+      sourceType: 'simulation',
+      sourceId: `simulation_result_batch_${index}`,
+      question: `确认模拟失败 SKU ${index + 1}`,
+      recommendation: '先人工确认活动上下文再重跑模拟。',
+      riskLevel: 'L2',
+      evidence: [{ type: 'simulation', entityId: `simulation_result_batch_${index}`, label: '模拟结果', summary: '准入模拟需要人工确认' }],
+    })),
+  })
+
+  assert.equal(created.status, 'SUCCEEDED')
+  const reviews = created.result as Array<{ reviewItemId: string; sourceType: string; skuProfileId?: string; status: string }>
+  assert.equal(reviews.length, 2)
+  assert.ok(reviews.every((item) => item.status === 'OPEN' && item.sourceType === 'simulation'))
+
+  const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileIds[0], {
+    actorId: 'agent_demo',
+    tenantId: 'dev_tenant',
+    sessionId: 'agent_tool_session',
+    surface: 'agent-chat-tool',
+    requestId: 'agent_tool_request',
+  })
+  assert.ok(detail?.relatedReviews.some((item) => item.entityId === reviews[0].reviewItemId))
+})
+
 test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {
   const externalSkuId = `agent_ingest_sku_${Date.now()}`
   const execution = await executeFinalApiTool('ingestSkus', {

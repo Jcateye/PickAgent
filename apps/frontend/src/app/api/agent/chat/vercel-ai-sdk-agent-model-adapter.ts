@@ -496,7 +496,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('generateReportPreview', inputJson),
     }),
     createReviewItems: tool({
-      description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',
+      description: '创建真实人工 Review 项。支持单条 skuProfileId/sourceId，也支持 items 数组批量创建；可选 question/recommendation/riskLevel/sourceType/evidence。用于规则歧义、模拟失败项、数据冲突或人工复核。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createReviewItems', inputJson),
     }),

@@ -477,21 +477,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     }
 
     if (toolName === 'createReviewItems') {
-      const skuProfileId = String(input.skuProfileId ?? '')
-      const sourceId = String(input.sourceId ?? skuProfileId)
-      if (!sourceId) throw new Error('skuProfileId or sourceId is required')
-      const detail = skuProfileId ? await getRequiredSkuDetail(skuProfileId) : null
-      const evidence: EvidenceLinkDto[] = detail?.evidence.length ? detail.evidence : [{ type: 'tool_trace', entityId: sourceId, label: 'Agent Review', summary: String(input.question ?? 'Agent 创建人工确认项') }]
-      const item: Omit<ReviewItemDto, 'reviewItemId' | 'status'> = {
-        skuProfileId: skuProfileId || undefined,
-        sourceType: input.sourceType === 'simulation' || input.sourceType === 'health' ? input.sourceType : 'agent',
-        sourceId,
-        question: String(input.question ?? (detail ? `确认 ${detail.productName} 的下一步处理` : '确认 Agent 建议的业务动作')),
-        recommendation: optionalString(input.recommendation) ?? detail?.nextActions.join('；') ?? undefined,
-        riskLevel: input.riskLevel === 'L2' || input.riskLevel === 'L0' ? input.riskLevel : 'L1',
-        evidence,
-      }
-      const result = await finalApiRuntime.reviewService.create([item], agentToolAuthContext())
+      const items = await reviewCreateItemsInput(input)
+      const result = await finalApiRuntime.reviewService.create(items, agentToolAuthContext())
       return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
     }
 
@@ -1027,6 +1014,52 @@ function reviewPatchInput(input: Record<string, unknown>): Partial<Pick<ReviewIt
   if (riskLevel) patch.riskLevel = riskLevel
   if (Object.keys(patch).length === 0) throw new Error('question, recommendation, or riskLevel is required')
   return patch
+}
+
+async function reviewCreateItemsInput(input: Record<string, unknown>): Promise<Array<Omit<ReviewItemDto, 'reviewItemId' | 'status'>>> {
+  const rawItems = recordArray(input.items)
+  const itemInputs = rawItems.length ? rawItems : [input]
+  const items = await Promise.all(itemInputs.map((item) => reviewCreateItemInput(item)))
+  if (!items.length) throw new Error('review items are required')
+  return items
+}
+
+async function reviewCreateItemInput(input: Record<string, unknown>): Promise<Omit<ReviewItemDto, 'reviewItemId' | 'status'>> {
+  const skuProfileId = optionalString(input.skuProfileId)
+  const sourceId = optionalString(input.sourceId ?? input.simulationResultId) ?? skuProfileId
+  if (!sourceId) throw new Error('skuProfileId or sourceId is required')
+  const detail = skuProfileId ? await getRequiredSkuDetail(skuProfileId) : null
+  const evidence = reviewEvidenceInput(input.evidence, sourceId, input.question, detail)
+  return {
+    skuProfileId,
+    sourceType: input.sourceType === 'simulation' || input.sourceType === 'health' ? input.sourceType : 'agent',
+    sourceId,
+    question: String(input.question ?? (detail ? `确认 ${detail.productName} 的下一步处理` : '确认 Agent 建议的业务动作')),
+    recommendation: optionalString(input.recommendation) ?? detail?.nextActions.join('；') ?? undefined,
+    riskLevel: input.riskLevel === 'L2' || input.riskLevel === 'L0' ? input.riskLevel : 'L1',
+    evidence,
+  }
+}
+
+function reviewEvidenceInput(value: unknown, sourceId: string, question: unknown, detail: SkuDetailDto | null): EvidenceLinkDto[] {
+  const evidence = recordArray(value).flatMap((item) => {
+    const type = item.type
+    const entityId = optionalString(item.entityId ?? item.sourceId)
+    if (!entityId || !isEvidenceLinkType(type)) return []
+    return [{
+      type,
+      entityId,
+      label: optionalString(item.label) ?? 'Agent Review Evidence',
+      summary: optionalString(item.summary ?? item.evidenceText) ?? String(question ?? 'Agent 创建人工确认项'),
+    }]
+  })
+  if (evidence.length) return evidence
+  if (detail?.evidence.length) return detail.evidence
+  return [{ type: 'tool_trace', entityId: sourceId, label: 'Agent Review', summary: String(question ?? 'Agent 创建人工确认项') }]
+}
+
+function isEvidenceLinkType(value: unknown): value is EvidenceLinkDto['type'] {
+  return value === 'snapshot' || value === 'diagnosis' || value === 'rule' || value === 'simulation' || value === 'review' || value === 'report' || value === 'tool_trace'
 }
 
 function createConnectorInput(input: Record<string, unknown>): CreateConnectorDto {
