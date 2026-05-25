@@ -25,6 +25,9 @@ interface DashboardSkuPageDto {
 export function RuleExecutionPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [ruleName, setRuleName] = useState('活动规则执行路径')
+  const [platform, setPlatform] = useState('tmall')
+  const [sourceText, setSourceText] = useState(defaultRuleSourceText)
   const [ruleSet, setRuleSet] = useState<ActivityRuleSetDto | null>(null)
   const [simulationRun, setSimulationRun] = useState<ActivitySimulationRunDto | null>(null)
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
@@ -35,9 +38,9 @@ export function RuleExecutionPage() {
       const parsedRuleSet = await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
         method: 'POST',
         body: JSON.stringify({
-          name: '天猫618规则执行路径',
-          platform: 'tmall',
-          sourceText: '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。',
+          name: ruleName.trim() || '活动规则执行路径',
+          platform: platform.trim() || 'internal',
+          sourceText: sourceText.trim(),
         }),
       })
       const skuPage = await fetchActivityApi<DashboardSkuPageDto>('/api/skus?page=1&pageSize=8')
@@ -63,9 +66,9 @@ export function RuleExecutionPage() {
       const saved = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
         method: 'POST',
         body: JSON.stringify({
-          name: ruleSet?.name ?? '天猫618规则执行路径',
-          platform: ruleSet?.platform ?? 'tmall',
-          sourceText: ruleSet?.sourceText ?? '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。',
+          name: ruleSet?.name ?? (ruleName.trim() || '活动规则执行路径'),
+          platform: ruleSet?.platform ?? (platform.trim() || 'internal'),
+          sourceText: ruleSet?.sourceText ?? sourceText.trim(),
           rules: structuredRules,
           type: 'ACTIVITY_RULE',
           source: 'INTERNAL',
@@ -134,8 +137,8 @@ export function RuleExecutionPage() {
       <div className="pageHeader" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--line)' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <h1 style={{ fontSize: '24px' }}>天猫618规则执行路径</h1>
-            <span className="statusBadge statusBadge--ready" style={{ fontSize: '12px' }}>✓ 已解析</span>
+            <h1 style={{ fontSize: '24px' }}>{ruleSet?.name ?? ruleName}</h1>
+            <span className="statusBadge statusBadge--ready" style={{ fontSize: '12px' }}>{ruleSet ? '✓ 已解析' : '待运行'}</span>
           </div>
           <div style={{ display: 'flex', gap: '24px', color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>
             <span>规则版本: {ruleSet?.ruleSetId ? ruleSet.ruleSetId.slice(0, 8) : '待运行'}</span>
@@ -171,9 +174,18 @@ export function RuleExecutionPage() {
             </div>
             <div className={styles.sectionBody}>
               <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>天猫618活动报名规则（部分类）</div>
-              <p className={styles.originalRuleText}>
-                商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。
-              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '12px', marginBottom: '12px' }}>
+                <input value={ruleName} onChange={(event) => setRuleName(event.target.value)} aria-label="规则名称" style={{ height: '36px', border: '1px solid var(--line)', borderRadius: '6px', padding: '0 10px' }} />
+                <input value={platform} onChange={(event) => setPlatform(event.target.value)} aria-label="平台" style={{ height: '36px', border: '1px solid var(--line)', borderRadius: '6px', padding: '0 10px' }} />
+              </div>
+              <textarea
+                className={styles.originalRuleText}
+                value={sourceText}
+                onChange={(event) => setSourceText(event.target.value)}
+                rows={5}
+                aria-label="规则原文"
+                style={{ width: '100%', resize: 'vertical', border: '1px solid var(--line)', borderRadius: '6px', padding: '10px' }}
+              />
               <p className={styles.originalRuleMuted}>不满足或无法验证的数据项将影响报名结果。</p>
             </div>
           </div>
@@ -357,6 +369,8 @@ export function RuleExecutionPage() {
     </div>
   )
 }
+
+const defaultRuleSourceText = '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。'
 
 const defaultStructuredRules: CanonicalRuleDto[] = [
   { id: 'R618-001', type: 'threshold', field: 'sales30d', operator: 'gte', value: 100, message: '近30天销量 ≥ 100', severity: 'blocking' },
