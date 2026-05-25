@@ -253,6 +253,9 @@ export function isAgentToolDeniedBySettings(toolName: string, policy: Pick<ToolP
 }
 
 export async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {
+  if (toolName === 'generateReportPreview' || toolName === 'reportPreview') {
+    return executeFinalApiTool('generateReport', input)
+  }
   try {
     if (toolName === 'getDashboardContext') {
       const authContext = agentToolAuthContext()

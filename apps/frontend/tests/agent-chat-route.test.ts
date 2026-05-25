@@ -481,6 +481,37 @@ test('agent chat exportSkuList tool creates auditable sku csv export', async () 
   assert.equal(execution.linkedEntity?.type, 'workflow_run')
 })
 
+test('agent chat generateReportPreview tool aliases to the real report generator', async () => {
+  const externalSkuId = `agent_report_preview_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_report_preview_store',
+        externalSkuId,
+        productName: 'Agent 报告预览 SKU',
+        stock: 28,
+        positiveRate: 0.97,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+
+  const execution = await executeFinalApiTool('generateReportPreview', {
+    type: 'HEALTH',
+    skuProfileIds: [skuProfileId],
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const result = execution.result as { reportId: string; title: string }
+  assert.ok(result.reportId)
+  assert.match(result.title, /健康|活动|报告/)
+  assert.equal(execution.linkedEntity?.type, 'report')
+  const detail = await finalApiRuntime.reportService.getDetail(result.reportId)
+  assert.equal(detail?.summary.totalSku, 1)
+})
+
 test('agent chat sku query tools support page-level advanced filters', async () => {
   const externalSkuId = `agent_filter_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {
