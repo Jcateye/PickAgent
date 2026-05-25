@@ -356,6 +356,58 @@ test('agent chat exportSkuList tool creates auditable sku csv export', async () 
   assert.equal(execution.linkedEntity?.type, 'workflow_run')
 })
 
+test('agent chat sku query tools support page-level advanced filters', async () => {
+  const externalSkuId = `agent_filter_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_filter_store',
+        externalSkuId,
+        productName: 'Agent 高级筛选 SKU',
+        category: 'seasonal',
+        stock: 44,
+        positiveRate: 0.99,
+        certificateStatus: 'VALID',
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  const baseline = await executeFinalApiTool('searchSkus', { q: externalSkuId, pageSize: 1 })
+  assert.equal(baseline.status, 'SUCCEEDED')
+  const baselineItem = (baseline.result as { items: Array<{ category?: string; healthStatus: string; sourceKind?: string }> }).items[0]
+  assert.ok(baselineItem)
+
+  const search = await executeFinalApiTool('searchSkus', {
+    platforms: ['tmall'],
+    categories: [baselineItem.category ?? 'seasonal'],
+    healthStatuses: [baselineItem.healthStatus],
+    certificateStatuses: ['VALID'],
+    sourceKinds: baselineItem.sourceKind ? [baselineItem.sourceKind] : undefined,
+    minStock: 40,
+    maxStock: 50,
+    sortBy: 'updatedAt',
+    sortOrder: 'desc',
+  })
+  assert.equal(search.status, 'SUCCEEDED')
+  const searchResult = search.result as { query: { platforms?: string[]; categories?: string[]; sourceKinds?: string[] }; items: Array<{ skuProfileId: string }> }
+  assert.deepEqual(searchResult.query.platforms, ['tmall'])
+  assert.deepEqual(searchResult.query.categories, [baselineItem.category ?? 'seasonal'])
+  if (baselineItem.sourceKind) assert.deepEqual(searchResult.query.sourceKinds, [baselineItem.sourceKind])
+  assert.ok(searchResult.items.some((item) => item.skuProfileId === skuProfileId))
+
+  const exported = await executeFinalApiTool('exportSkuList', {
+    platforms: ['tmall'],
+    categories: [baselineItem.category ?? 'seasonal'],
+    sourceKinds: baselineItem.sourceKind ? [baselineItem.sourceKind] : undefined,
+    minStock: 40,
+    maxStock: 50,
+  })
+  assert.equal(exported.status, 'SUCCEEDED')
+  assert.match((exported.result as { csv: string }).csv, new RegExp(String(skuProfileId)))
+})
+
 test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)

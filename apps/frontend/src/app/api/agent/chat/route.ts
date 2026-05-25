@@ -877,12 +877,19 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
     productName: optionalString(input.productName),
     storeId: optionalString(input.storeId),
     platform: optionalString(input.platform),
+    platforms: optionalStringArray(input.platforms),
     category: optionalString(input.category),
+    categories: optionalStringArray(input.categories),
     healthStatus: optionalString(input.healthStatus) as DashboardSkuListQuery['healthStatus'],
+    healthStatuses: optionalStringArray(input.healthStatuses) as DashboardSkuListQuery['healthStatuses'],
     eligibilityStatus: optionalString(input.eligibilityStatus) as DashboardSkuListQuery['eligibilityStatus'],
+    eligibilityStatuses: optionalStringArray(input.eligibilityStatuses) as DashboardSkuListQuery['eligibilityStatuses'],
     certificateStatus: optionalString(input.certificateStatus),
+    certificateStatuses: optionalStringArray(input.certificateStatuses),
     qualityLabel: optionalString(input.qualityLabel),
+    qualityLabels: optionalStringArray(input.qualityLabels),
     sourceKind: optionalString(input.sourceKind),
+    sourceKinds: optionalStringArray(input.sourceKinds),
     minSales30d: optionalNumber(input.minSales30d),
     maxSales30d: optionalNumber(input.maxSales30d),
     minPositiveRate: optionalNumber(input.minPositiveRate),
@@ -891,6 +898,10 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
     maxStock: optionalNumber(input.maxStock),
     minQualityScore: optionalNumber(input.minQualityScore),
     maxQualityScore: optionalNumber(input.maxQualityScore),
+    collectedAtFrom: optionalString(input.collectedAtFrom),
+    collectedAtTo: optionalString(input.collectedAtTo),
+    updatedAtFrom: optionalString(input.updatedAtFrom),
+    updatedAtTo: optionalString(input.updatedAtTo),
     activityId: optionalString(input.activityId),
     sortBy: optionalString(input.sortBy) as DashboardSkuListQuery['sortBy'],
     sortOrder: optionalString(input.sortOrder) as DashboardSkuListQuery['sortOrder'],
@@ -1273,6 +1284,11 @@ function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []
+}
+
+function optionalStringArray(value: unknown): string[] | undefined {
+  const items = stringArray(value)
+  return items.length ? items : undefined
 }
 
 function numberOr(value: unknown, fallback: number): number {
