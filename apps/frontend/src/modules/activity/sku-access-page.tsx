@@ -7,6 +7,15 @@ import type { ReportPreviewDto, ReviewItemDto } from '../../../../contracts/type
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
+type SkuDrawerTab = 'overview' | 'evidence' | 'raw' | 'history'
+
+const skuDrawerTabs: Array<{ value: SkuDrawerTab; label: string }> = [
+  { value: 'overview', label: '概览' },
+  { value: 'evidence', label: '证据' },
+  { value: 'raw', label: '原始字段' },
+  { value: 'history', label: '历史' },
+]
+
 export function SkuAccessPage() {
   const [drawerOpen, setDrawerOpen] = useState(true)
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
@@ -16,6 +25,7 @@ export function SkuAccessPage() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
+  const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>('overview')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -329,81 +339,17 @@ export function SkuAccessPage() {
             </div>
           </div>
           <div className={styles.drawerTabs}>
-            <div className={`${styles.drawerTab} ${styles.active}`}>概览</div>
-            <div className={styles.drawerTab}>证据 (5)</div>
-            <div className={styles.drawerTab}>原始字段</div>
-            <div className={styles.drawerTab}>历史 (3)</div>
+            {skuDrawerTabs.map((tab) => (
+              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setDrawerTab(tab.value)}>
+                {tab.label}{tab.value === 'evidence' ? ` (${selectedRow.evidenceCount})` : ''}
+              </button>
+            ))}
           </div>
           <div className={styles.drawerContent}>
-            
-            <div className={styles.drawerPanel}>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>当前结论</span>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  {renderHealthTag(selectedRow.healthStatus, styles)}
-                  <span style={{ fontWeight: 500 }}>{selectedDetail?.statusSummary.conclusion ?? selectedRow.eligibilityLabel}</span>
-                </div>
-              </div>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>结论时间</span>
-                <span className={styles.drawerStatValue}>{new Date(selectedRow.updatedAt).toLocaleString('zh-CN')}</span>
-              </div>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>执行 Run</span>
-                <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '当前健康诊断'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                <a href="/rule-library" style={{ color: 'var(--primary)' }}>查看规则</a>
-                <a href="/run-console" style={{ color: 'var(--primary)' }}>查看 Run</a>
-              </div>
-            </div>
-
-            <div className={styles.drawerPanel}>
-              <div className={styles.drawerPanelTitle}>影响规则 <span style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: '12px', marginLeft: '8px' }}>(已通过 {selectedDetail?.evidenceOverview.dataCheckPassedCount ?? 0} / 共 {selectedDetail?.readinessChecklist.length ?? 0} 条)</span></div>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>规则集</span>
-                <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '暂无关联规则'}</span>
-              </div>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>关键规则项</span>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span>{selectedDetail?.readinessChecklist.length ?? 0} 项</span>
-                  {renderHealthTag(selectedRow.healthStatus, styles)}
-                </div>
-              </div>
-              <div className={styles.drawerStatRow}>
-                <span className={styles.drawerStatLabel}>异常规则</span>
-                <span className={styles.drawerStatValue}>{selectedDetail?.latestDiagnosis?.issues.length ?? 0} 条</span>
-              </div>
-              <div style={{ fontSize: '13px', marginTop: '8px' }}>
-                <a href="/rule-library" style={{ color: 'var(--primary)' }}>查看规则详情</a>
-              </div>
-            </div>
-
-            <div className={styles.drawerPanel}>
-              <div className={styles.drawerPanelTitle}>下一步建议</div>
-              <div style={{ color: 'var(--ready)', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>{selectedDetail?.statusSummary.nextStep ?? selectedRow.nextAction.label}</div>
-              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{selectedDetail?.latestDiagnosis?.nextActions.join('；') || selectedRow.nextAction.label}</div>
-            </div>
-
-            <div className={styles.drawerPanel}>
-              <div className={styles.drawerPanelTitle}>证据摘要 ({selectedRow.evidenceCount})</div>
-              <div className={styles.drawerEvidenceList}>
-                {(selectedDetail?.readinessChecklist ?? []).map((item) => (
-                  <div className={styles.drawerEvidenceItem} key={item.id}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> {item.label}</div>
-                    <div style={{ display: 'flex', gap: '16px' }}>
-                      <span>{item.evidenceRefs.length} 条</span>
-                      <span>{checklistLabel(item.status)}</span>
-                      <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看</a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: '13px', marginTop: '16px' }}>
-                <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看全部证据</a>
-              </div>
-            </div>
+            {drawerTab === 'overview' ? <SkuOverviewPanel selectedRow={selectedRow} selectedDetail={selectedDetail} /> : null}
+            {drawerTab === 'evidence' ? <SkuEvidencePanel selectedRow={selectedRow} selectedDetail={selectedDetail} /> : null}
+            {drawerTab === 'raw' ? <SkuRawPanel selectedDetail={selectedDetail} /> : null}
+            {drawerTab === 'history' ? <SkuHistoryPanel selectedRow={selectedRow} selectedDetail={selectedDetail} /> : null}
 
           </div>
           <div className={styles.drawerFooter}>
@@ -418,6 +364,103 @@ export function SkuAccessPage() {
 
 function pct(value: number, total: number): string {
   return total > 0 ? `${((value / total) * 100).toFixed(1)}%` : '0.0%'
+}
+
+function SkuOverviewPanel({ selectedRow, selectedDetail }: { selectedRow: DashboardSkuListItemDto; selectedDetail: DashboardSkuReadinessDetailDto | null }) {
+  return (
+    <>
+      <div className={styles.drawerPanel}>
+        <div className={styles.drawerStatRow}>
+          <span className={styles.drawerStatLabel}>当前结论</span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {renderHealthTag(selectedRow.healthStatus, styles)}
+            <span style={{ fontWeight: 500 }}>{selectedDetail?.statusSummary.conclusion ?? selectedRow.eligibilityLabel}</span>
+          </div>
+        </div>
+        <div className={styles.drawerStatRow}>
+          <span className={styles.drawerStatLabel}>结论时间</span>
+          <span className={styles.drawerStatValue}>{new Date(selectedRow.updatedAt).toLocaleString('zh-CN')}</span>
+        </div>
+        <div className={styles.drawerStatRow}>
+          <span className={styles.drawerStatLabel}>执行 Run</span>
+          <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '当前健康诊断'}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+          <a href="/rule-library" style={{ color: 'var(--primary)' }}>查看规则</a>
+          <a href="/run-console" style={{ color: 'var(--primary)' }}>查看 Run</a>
+        </div>
+      </div>
+
+      <div className={styles.drawerPanel}>
+        <div className={styles.drawerPanelTitle}>下一步建议</div>
+        <div style={{ color: 'var(--ready)', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>{selectedDetail?.statusSummary.nextStep ?? selectedRow.nextAction.label}</div>
+        <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{selectedDetail?.latestDiagnosis?.nextActions.join('；') || selectedRow.nextAction.label}</div>
+      </div>
+    </>
+  )
+}
+
+function SkuEvidencePanel({ selectedRow, selectedDetail }: { selectedRow: DashboardSkuListItemDto; selectedDetail: DashboardSkuReadinessDetailDto | null }) {
+  return (
+    <>
+      <div className={styles.drawerPanel}>
+        <div className={styles.drawerPanelTitle}>影响规则 <span style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: '12px', marginLeft: '8px' }}>(已通过 {selectedDetail?.evidenceOverview.dataCheckPassedCount ?? 0} / 共 {selectedDetail?.readinessChecklist.length ?? 0} 条)</span></div>
+        <div className={styles.drawerStatRow}>
+          <span className={styles.drawerStatLabel}>规则集</span>
+          <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '暂无关联规则'}</span>
+        </div>
+        <div className={styles.drawerStatRow}>
+          <span className={styles.drawerStatLabel}>异常规则</span>
+          <span className={styles.drawerStatValue}>{selectedDetail?.latestDiagnosis?.issues.length ?? 0} 条</span>
+        </div>
+      </div>
+
+      <div className={styles.drawerPanel}>
+        <div className={styles.drawerPanelTitle}>证据摘要 ({selectedRow.evidenceCount})</div>
+        <div className={styles.drawerEvidenceList}>
+          {(selectedDetail?.readinessChecklist ?? []).map((item) => (
+            <div className={styles.drawerEvidenceItem} key={item.id}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> {item.label}</div>
+              <div style={{ display: 'flex', gap: '16px' }}>
+                <span>{item.evidenceRefs.length} 条</span>
+                <span>{checklistLabel(item.status)}</span>
+                <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看</a>
+              </div>
+            </div>
+          ))}
+          {!selectedDetail?.readinessChecklist.length ? <div className={styles.emptyState}>当前 SKU 没有返回检查项。</div> : null}
+        </div>
+        <div style={{ fontSize: '13px', marginTop: '16px' }}>
+          <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看全部证据</a>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function SkuRawPanel({ selectedDetail }: { selectedDetail: DashboardSkuReadinessDetailDto | null }) {
+  return (
+    <div className={styles.drawerPanel}>
+      <div className={styles.drawerPanelTitle}>原始字段</div>
+      <pre className={styles.rawJson}>{JSON.stringify(selectedDetail?.latestSnapshot ?? selectedDetail?.keyMetrics ?? {}, null, 2)}</pre>
+    </div>
+  )
+}
+
+function SkuHistoryPanel({ selectedRow, selectedDetail }: { selectedRow: DashboardSkuListItemDto; selectedDetail: DashboardSkuReadinessDetailDto | null }) {
+  return (
+    <div className={styles.drawerPanel}>
+      <div className={styles.drawerPanelTitle}>历史记录</div>
+      <div className={styles.drawerEvidenceList}>
+        <div className={styles.drawerEvidenceItem}><span>最近更新</span><span>{new Date(selectedRow.updatedAt).toLocaleString('zh-CN')}</span></div>
+        {selectedDetail?.keyMetrics.collectedAt ? <div className={styles.drawerEvidenceItem}><span>最近采集</span><span>{new Date(selectedDetail.keyMetrics.collectedAt).toLocaleString('zh-CN')}</span></div> : null}
+        {selectedDetail?.latestDiagnosis ? <div className={styles.drawerEvidenceItem}><span>最近诊断</span><span>{new Date(selectedDetail.latestDiagnosis.diagnosedAt).toLocaleString('zh-CN')}</span></div> : null}
+        {selectedDetail?.relatedReviews.map((review) => (
+          <div className={styles.drawerEvidenceItem} key={review.entityId}><span>{review.label}</span><span>{review.entityId}</span></div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function shortSku(value: string): string {

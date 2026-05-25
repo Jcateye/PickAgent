@@ -243,6 +243,10 @@
   color: var(--muted);
   border-bottom: 2px solid transparent;
   cursor: pointer;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 .drawerTab.active {
@@ -309,4 +313,22 @@
 
 .drawerFooter button {
   flex: 1;
+}
+
+.rawJson {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.emptyState {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
