@@ -2718,8 +2718,10 @@ export class RuleSetService {
     });
   }
 
-  listVersions(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetVersionDto[]> {
-    return Promise.resolve(this.repository.listVersions(boundary, ruleSetId));
+  async listVersions(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetVersionDto[]> {
+    const detail = await this.repository.getDetail(boundary, ruleSetId);
+    if (!detail) throw new Error(`Rule set not found: ${ruleSetId}`);
+    return this.repository.listVersions(boundary, ruleSetId);
   }
 
   async setStatus(ruleSetId: string, status: RuleSetStatusDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
