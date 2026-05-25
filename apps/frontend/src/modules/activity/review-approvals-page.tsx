@@ -34,7 +34,7 @@ const detailTabs: Array<{ value: ReviewDetailTab; label: string }> = [
 
 export function ReviewApprovalsPage() {
   const [reviews, setReviews] = useState<ReviewListItemDto[]>([])
-  const [selectedItem, setSelectedItem] = useState<string | null>(null)
+  const [selectedItem, setSelectedItem] = useState<string | null>(() => getInitialReviewItemId())
   const [detail, setDetail] = useState<ReviewDetailDto | null>(null)
   const [activeTab, setActiveTab] = useState<ReviewTab>('PENDING')
   const [detailTab, setDetailTab] = useState<ReviewDetailTab>('recommendation')
@@ -62,7 +62,7 @@ export function ReviewApprovalsPage() {
     const nextPage = await fetchActivityApi<PageDto<ReviewListItemDto>>(`/api/reviews?${params.toString()}`)
     setReviews(nextPage.items)
     setTotal(nextPage.total)
-    setSelectedItem((current) => current && nextPage.items.some((item) => item.reviewItemId === current) ? current : nextPage.items[0]?.reviewItemId ?? null)
+    setSelectedItem((current) => current ?? nextPage.items[0]?.reviewItemId ?? null)
     setLoading(false)
   }
 
@@ -76,6 +76,7 @@ export function ReviewApprovalsPage() {
   useEffect(() => {
     if (!selectedItem) {
       setDetail(null)
+      syncReviewUrl(null)
       return
     }
     let cancelled = false
@@ -85,6 +86,7 @@ export function ReviewApprovalsPage() {
           setDetail(nextDetail)
           setDraftRecommendation(nextDetail.recommendation.content)
           setDetailTab('recommendation')
+          syncReviewUrl(nextDetail.reviewItemId)
         }
       })
       .catch(() => {
@@ -207,7 +209,7 @@ export function ReviewApprovalsPage() {
           </div>
 
           {reviews.map((item) => (
-            <button className={`${styles.tableRow} ${selectedItem === item.reviewItemId ? styles.selected : ''}`} key={item.reviewItemId} type="button" onClick={() => setSelectedItem(item.reviewItemId)}>
+            <button className={`${styles.tableRow} ${selectedItem === item.reviewItemId ? styles.selected : ''}`} key={item.reviewItemId} type="button" onClick={() => { setSelectedItem(item.reviewItemId); syncReviewUrl(item.reviewItemId) }}>
               <div><input type="radio" checked={selectedItem === item.reviewItemId} readOnly /></div>
               <div><span className={`${styles.priorityBadge} ${priorityClass(item.riskLevel)}`}>{priorityLabel(item.riskLevel)}</span></div>
               <div className={styles.rowType}>{reviewIcon(item.type)} {sourceTypeLabel(item.type)}</div>
@@ -460,4 +462,24 @@ function listItemFromDetail(detail: ReviewDetailDto): ReviewListItemDto {
 
 function isReviewDetail(item: ReviewDetailDto | ReviewListItemDto): item is ReviewDetailDto {
   return 'evidenceRefs' in item
+}
+
+function getInitialReviewItemId(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('reviewItemId')
+}
+
+function syncReviewUrl(reviewItemId: string | null) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams(window.location.search)
+  if (reviewItemId) {
+    params.set('reviewItemId', reviewItemId)
+  } else {
+    params.delete('reviewItemId')
+  }
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
