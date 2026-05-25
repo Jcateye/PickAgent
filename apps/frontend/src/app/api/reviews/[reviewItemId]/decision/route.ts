@@ -13,6 +13,8 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     return ok(await finalApiRuntime.reviewService.decide(reviewItemId, payload, authContextFromRequest(request)))
   } catch (error) {
-    return fail('REVIEW.NOT_FOUND', error instanceof Error ? error.message : 'Review item not found', 404, { reviewItemId })
+    const message = error instanceof Error ? error.message : 'Review item decision failed'
+    if (message.includes('not pending')) return fail('REVIEW.CONFLICT', message, 409, { reviewItemId })
+    return fail('REVIEW.NOT_FOUND', message, 404, { reviewItemId })
   }
 }
