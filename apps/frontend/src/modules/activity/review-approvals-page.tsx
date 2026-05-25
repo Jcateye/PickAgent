@@ -109,9 +109,10 @@ export function ReviewApprovalsPage() {
           modifiedPayload: decision === 'REQUEST_CHANGES' ? { requestedFrom: 'review-approvals' } : undefined,
         }),
       })
-      setReviews((current) => current.map((item) => (item.reviewItemId === updated.reviewItemId ? listItemFromDetail(updated) : item)))
       setDetail(updated)
       setMessage(`${updated.reviewItemId} 已${decisionStatusCopy[decision]}`)
+      setRemark('')
+      await loadReviews()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '审批提交失败')
     } finally {
@@ -217,13 +218,13 @@ export function ReviewApprovalsPage() {
               <div><span className={styles.statusBadge}>{statusLabel(item.status)}</span></div>
               <div className={styles.riskLevel}><span className={`${styles.riskDot} ${riskDotClass(item.riskLevel)}`}></span> {item.riskLevel}</div>
               <div className={styles.ownerBlock}>
-                <div className={styles.ownerAvatar}>OP</div>
+                <div className={styles.ownerAvatar}>{ownerInitials(item.assignee.name)}</div>
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500 }}>运营专员</div>
+                  <div style={{ fontSize: '12px', fontWeight: 500 }}>{item.assignee.name}</div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{item.assignee.team}</div>
                 </div>
               </div>
-              <div>{item.assignee.name}</div>
+              <div>{item.assignee.userId ?? item.assignee.team}</div>
               <div>
                 <div style={{ fontSize: '12px' }}>{item.evidenceSummary}</div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.dueAt ? new Date(item.dueAt).toLocaleString('zh-CN') : '未设置到期时间'}</div>
@@ -339,6 +340,12 @@ function reviewIcon(sourceType: ReviewWorkbenchType) {
   if (sourceType === 'CERTIFICATE') return <FileCheck size={14} color="#2563eb" />
   if (sourceType === 'AGENT_REVIEW_GATE') return <HelpCircle size={14} color="#64748b" />
   return <AlertOctagon size={14} color="#e11d48" />
+}
+
+function ownerInitials(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return 'OP'
+  return trimmed.slice(0, 2).toUpperCase()
 }
 
 function RecommendationTab({ selectedReview, draftRecommendation, setDraftRecommendation, saveRecommendation, busy }: {
