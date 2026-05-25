@@ -609,7 +609,16 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         })
         return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent 重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建 Agent 重试运行：${result.id}`, { type: 'workflow_run', id: result.id })
       }
-      throw new Error('runType must be connector_sync or agent_run')
+      if (runType === 'activity_simulation' || input.ruleSetId) {
+        const skuProfileIds = stringArray(input.skuProfileIds)
+        if (!skuProfileIds.length) throw new Error('skuProfileIds are required for activity_simulation retry')
+        const result = await finalApiRuntime.activityService.simulate(sourceId, {
+          skuProfileIds,
+          whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
+        }, agentToolAuthContext())
+        return succeeded(result, [{ type: 'simulation', entityId: result.simulationRunId, label: '活动准入模拟重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.results.length} 个` }], `创建活动准入模拟重试运行：${result.simulationRunId}`, { type: 'simulation_run', id: result.simulationRunId })
+      }
+      throw new Error('runType must be connector_sync, agent_run, or activity_simulation')
     }
 
     if (toolName === 'listAgentMissions') {

@@ -302,7 +302,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       missionId: { type: 'string' },
       gateId: { type: 'string' },
       runId: { type: 'string' },
-      runType: { type: 'string', enum: ['connector_sync', 'agent_run'] },
+      runType: { type: 'string', enum: ['connector_sync', 'agent_run', 'activity_simulation'] },
       missionType: { type: 'string' },
       autonomyLevel: { type: 'string' },
       modelProvider: { type: 'string' },
@@ -561,7 +561,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('setRuleSetStatus', inputJson),
     }),
     retryRun: tool({
-      description: '为失败运行创建真实重试运行。连接器运行需要 runType=connector_sync 和 connectorId/sourceId；Agent 运行需要 runType=agent_run 和 missionId/sourceId；可选 runId 记录 retryOf。',
+      description: '为失败运行创建真实重试运行。连接器运行需要 runType=connector_sync 和 connectorId/sourceId；Agent 运行需要 runType=agent_run 和 missionId/sourceId；活动模拟需要 runType=activity_simulation、ruleSetId/sourceId 和 skuProfileIds；可选 runId 记录 retryOf。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('retryRun', inputJson),
     }),

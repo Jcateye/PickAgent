@@ -186,7 +186,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       await input.tools?.getActivityExecutionPlan?.execute?.({ activityId: 'activity_1' })
       await input.tools?.startActivityRun?.execute?.({ activityId: 'activity_1' })
       await input.tools?.ingestSkus?.execute?.({ rows: [{ platform: 'tmall', storeId: 'store_1', externalSkuId: 'SKU-1', stock: 12 }] })
-      await input.tools?.retryRun?.execute?.({ runType: 'connector_sync', sourceId: 'connector_1', runId: 'run_failed_1' })
+      await input.tools?.retryRun?.execute?.({ runType: 'activity_simulation', sourceId: 'rule_1', runId: 'run_failed_1', skuProfileIds: ['sku_1'] })
       await input.tools?.listAgentMissions?.execute?.({ pageSize: 5 })
       await input.tools?.createAgentMission?.execute?.({ sessionKey: 'session_agent', objective: '检查活动执行' })
       await input.tools?.getAgentMission?.execute?.({ missionId: 'mission_1' })
@@ -240,6 +240,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
 
   assert.equal(result.content, '已执行系统工具')
   assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'ingestSkus', 'retryRun', 'listAgentMissions', 'createAgentMission', 'getAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.equal(executedTools.find((item) => item.toolName === 'retryRun')?.inputJson.runType, 'activity_simulation')
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 

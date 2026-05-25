@@ -127,6 +127,47 @@ test('agent chat ingestSkus tool writes SKU projections that can be read back', 
   assert.equal(detail?.latestSnapshot?.stock, 66)
 })
 
+test('agent chat retryRun tool supports activity simulation retries', async () => {
+  const skuExternalId = `agent_retry_simulation_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_retry_store',
+        externalSkuId: skuExternalId,
+        productName: 'Agent 模拟重试 SKU',
+        stock: 88,
+        positiveRate: 0.99,
+        certificateStatus: 'VALID',
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const ruleSet = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent 模拟重试规则集',
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'ENABLED',
+  })
+  assert.equal(ruleSet.status, 'SUCCEEDED')
+  const ruleSetId = (ruleSet.result as { ruleSetId: string }).ruleSetId
+
+  const retry = await executeFinalApiTool('retryRun', {
+    runType: 'activity_simulation',
+    sourceId: ruleSetId,
+    runId: 'failed_simulation_run_for_agent_test',
+    skuProfileIds: [skuProfileId],
+  })
+
+  assert.equal(retry.status, 'SUCCEEDED')
+  const result = retry.result as { simulationRunId: string; results: Array<{ skuProfileId: string }> }
+  assert.ok(result.simulationRunId)
+  assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
+})
+
 test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
