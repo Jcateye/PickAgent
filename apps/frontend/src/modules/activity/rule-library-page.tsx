@@ -13,13 +13,13 @@ type RulePanelTab = 'summary' | 'json' | 'versions'
 
 export function RuleLibraryPage() {
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null)
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(() => getInitialRuleSetId())
   const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
   const [versions, setVersions] = useState<RuleSetVersionDto[]>([])
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<'ALL' | RuleSetStatusDto>('ALL')
-  const [panelTab, setPanelTab] = useState<RulePanelTab>('json')
+  const [panelTab, setPanelTab] = useState<RulePanelTab>(() => getInitialRulePanelTab())
   const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -34,6 +34,7 @@ export function RuleLibraryPage() {
     } else {
       setSelectedRule(null)
       setVersions([])
+      syncRuleLibraryUrl(null, panelTab)
     }
   }
 
@@ -44,6 +45,7 @@ export function RuleLibraryPage() {
     ])
     setSelectedRule(detail)
     setVersions(versionList)
+    syncRuleLibraryUrl(ruleSetId, panelTab)
   }
 
   useEffect(() => {
@@ -197,7 +199,7 @@ export function RuleLibraryPage() {
 
         <div className={styles.ruleList}>
           {visibleRules.map((rule) => (
-            <button className={`${styles.ruleCard} ${rule.ruleSetId === selectedRuleId ? styles.active : ''}`} key={rule.ruleSetId} type="button" onClick={() => setSelectedRuleId(rule.ruleSetId)}>
+            <button className={`${styles.ruleCard} ${rule.ruleSetId === selectedRuleId ? styles.active : ''}`} key={rule.ruleSetId} type="button" onClick={() => { setSelectedRuleId(rule.ruleSetId); syncRuleLibraryUrl(rule.ruleSetId, panelTab) }}>
               <div className={styles.ruleTitleRow}>
                 <div className={styles.ruleTitle}>{rule.name}</div>
                 <span className={`${styles.statusBadge} ${rule.status === 'DRAFT' ? styles.statusDraft : styles.statusActive}`}>{rule.status === 'DRAFT' ? '草稿' : rule.status === 'DISABLED' ? '已禁用' : '已启用'}</span>
@@ -265,9 +267,9 @@ export function RuleLibraryPage() {
         </div>
 
         <div className={styles.panelTabs}>
-          <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('summary')}>规则概况</button>
-          <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('json')}>JSON 定义</button>
-          <button className={`${styles.panelTab} ${panelTab === 'versions' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('versions')}>版本历史 ({versions.length})</button>
+          <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('summary'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'summary') }}>规则概况</button>
+          <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('json'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'json') }}>JSON 定义</button>
+          <button className={`${styles.panelTab} ${panelTab === 'versions' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('versions'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'versions') }}>版本历史 ({versions.length})</button>
         </div>
 
         {panelTab === 'summary' ? <RuleSummaryPanel selectedRule={selectedRule} /> : null}
@@ -390,4 +392,27 @@ function RuleJsonPanel({ dslText, selectedRule }: { dslText: string; selectedRul
       </div>
     </div>
   )
+}
+
+function getInitialRuleSetId(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('ruleSetId')
+}
+
+function getInitialRulePanelTab(): RulePanelTab {
+  if (typeof window === 'undefined') return 'json'
+  const value = new URLSearchParams(window.location.search).get('panelTab')
+  return value === 'summary' || value === 'versions' ? value : 'json'
+}
+
+function syncRuleLibraryUrl(ruleSetId: string | null, panelTab: RulePanelTab) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (ruleSetId) params.set('ruleSetId', ruleSetId)
+  if (panelTab !== 'json') params.set('panelTab', panelTab)
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
