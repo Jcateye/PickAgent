@@ -2,7 +2,7 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
-import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
+import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
@@ -112,8 +112,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -429,6 +429,28 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, [{ type: 'tool_trace', entityId: 'connectors', label: '连接器列表', summary: `读取 ${result.items.length} 个连接器` }], `读取连接器：${result.items.length} 个`, result.items[0] ? { type: 'connector', id: result.items[0].connectorId } : { type: 'dashboard', id: 'connectors' })
     }
 
+    if (toolName === 'getConnectorDetail') {
+      const connectorId = String(input.connectorId ?? '')
+      if (!connectorId) throw new Error('connectorId is required')
+      const result = await finalApiRuntime.connectorService.get(connectorId, agentToolAuthContext())
+      if (!result) throw new Error(`Connector not found: ${connectorId}`)
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器详情', summary: `${result.name} / ${result.kind} / ${result.status}` }], `读取连接器详情：${result.name}`, { type: 'connector', id: connectorId })
+    }
+
+    if (toolName === 'createConnector') {
+      const request = createConnectorInput(input)
+      const result = await finalApiRuntime.connectorService.create(request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorId, label: '创建连接器', summary: `${result.name} / ${result.kind} / ${result.status}` }], `创建连接器：${result.name}`, { type: 'connector', id: result.connectorId })
+    }
+
+    if (toolName === 'updateConnector') {
+      const connectorId = String(input.connectorId ?? '')
+      if (!connectorId) throw new Error('connectorId is required')
+      const request = updateConnectorInput(input)
+      const result = await finalApiRuntime.connectorService.update(connectorId, request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '更新连接器', summary: `${result.name} / ${result.status}` }], `更新连接器：${result.name}`, { type: 'connector', id: connectorId })
+    }
+
     if (toolName === 'detectBrowserPage') {
       const request = browserPageDetectionInput(input)
       const result = finalApiRuntime.browserConnectorService.detectPage(request)
@@ -643,6 +665,32 @@ function reviewPatchInput(input: Record<string, unknown>): Partial<Pick<ReviewIt
   return patch
 }
 
+function createConnectorInput(input: Record<string, unknown>): CreateConnectorDto {
+  const name = optionalString(input.name)
+  if (!name) throw new Error('name is required')
+  return {
+    code: optionalString(input.code) ?? `agent_${Date.now().toString(36)}`,
+    name,
+    kind: optionalString(input.connectorKind ?? input.kind) ?? 'platform_api',
+    platform: optionalString(input.platform),
+    status: normalizeConnectorStatus(input.status),
+    config: isRecord(input.config) ? input.config : { createdFrom: 'agent-chat-tool' },
+  }
+}
+
+function updateConnectorInput(input: Record<string, unknown>): UpdateConnectorDto {
+  const patch: UpdateConnectorDto = {}
+  const name = optionalString(input.name)
+  const platform = nullableString(input.platform)
+  const status = normalizeConnectorStatus(input.status)
+  if (name) patch.name = name
+  if (platform !== undefined) patch.platform = platform
+  if (status) patch.status = status
+  if (isRecord(input.config)) patch.config = input.config
+  if (Object.keys(patch).length === 0) throw new Error('name, platform, status, or config is required')
+  return patch
+}
+
 function browserPageDetectionInput(input: Record<string, unknown>): BrowserPageDetectionRequestDto {
   const url = optionalString(input.url)
   if (!url) throw new Error('url is required')
@@ -672,6 +720,11 @@ function recordArray(value: unknown): Array<Record<string, unknown>> {
 
 function normalizeReviewRiskLevel(value: unknown): ReviewItemDto['riskLevel'] | undefined {
   if (value === 'L0' || value === 'L1' || value === 'L2') return value
+  return undefined
+}
+
+function normalizeConnectorStatus(value: unknown): CreateConnectorDto['status'] | undefined {
+  if (value === 'ACTIVE' || value === 'INACTIVE' || value === 'NEEDS_AUTH' || value === 'FAILED' || value === 'DISABLED') return value
   return undefined
 }
 
