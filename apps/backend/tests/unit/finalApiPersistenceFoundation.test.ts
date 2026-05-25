@@ -679,6 +679,66 @@ test("prisma rule set detail exposes original source text for edit forms", async
   assert.notEqual(detail?.sourceText, detail?.dslJson.map((rule) => rule.message).join("\n"));
 });
 
+test("parsed activity rule sets are versioned for rule library traceability", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const parsed = await runtime.activityService.parse(
+    {
+      name: "执行页解析规则",
+      platform: "tmall",
+      sourceText: "活动库存不得低于 60 件，好评率不少于 96%。",
+    },
+    tenantA,
+  );
+  const detail = await runtime.ruleSetService.get(parsed.ruleSetId, tenantA);
+  const versions = await runtime.ruleSetService.listVersions(parsed.ruleSetId, tenantA);
+
+  assert.equal(detail?.sourceText, parsed.sourceText);
+  assert.equal(detail?.version, "v1");
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0]?.sourceText, parsed.sourceText);
+});
+
+test("prisma activity rule parse creates initial rule library version", async () => {
+  const createdRuleSets: Array<Record<string, unknown>> = [];
+  const createdVersions: Array<Record<string, unknown>> = [];
+  const repository = new PrismaActivityRepository({
+    activityRuleSet: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        createdRuleSets.push(data);
+        return data;
+      },
+    },
+    ruleSetVersion: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        createdVersions.push(data);
+        return data;
+      },
+    },
+  } as never);
+  const ruleSet = {
+    ruleSetId: "rule_parse_prisma",
+    name: "Prisma 解析规则",
+    platform: "tmall",
+    sourceText: "库存不得低于 66 件，人工确认特殊资质。",
+    rules: [
+      { id: "stock_min", type: "threshold", field: "stock", operator: "gte", value: 66, message: "库存不得低于 66", severity: "blocking" },
+      { id: "manual_check", type: "manual_review", message: "人工确认特殊资质", severity: "warning" },
+    ],
+    parseStatus: "NEEDS_REVIEW" as const,
+    confidence: 0.86,
+    errors: [],
+  };
+
+  await repository.saveRuleSet(tenantA, ruleSet);
+
+  assert.equal(createdRuleSets[0]?.id, ruleSet.ruleSetId);
+  assert.equal((createdRuleSets[0]?.parseMetadataJson as { version?: string }).version, "v1");
+  assert.equal(createdVersions[0]?.ruleSetId, ruleSet.ruleSetId);
+  assert.equal(createdVersions[0]?.version, 1);
+  assert.equal(createdVersions[0]?.sourceText, ruleSet.sourceText);
+  assert.deepEqual(createdVersions[0]?.rulesJson, ruleSet.rules);
+});
+
 test("disabled rule sets cannot be used for simulations", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);

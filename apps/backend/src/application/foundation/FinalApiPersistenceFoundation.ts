@@ -556,6 +556,21 @@ export class ActivityRepository {
 
   saveRuleSet(boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): ActivityRuleSetDto | Promise<ActivityRuleSetDto> {
     this.store.ruleSets.set(ruleSet.ruleSetId, ruleSet);
+    const now = new Date().toISOString();
+    this.store.ruleSetMetadata.set(ruleSet.ruleSetId, {
+      ...this.store.ruleSetMetadata.get(ruleSet.ruleSetId),
+      type: this.store.ruleSetMetadata.get(ruleSet.ruleSetId)?.type ?? "ACTIVITY_RULE",
+      source: this.store.ruleSetMetadata.get(ruleSet.ruleSetId)?.source ?? "INTERNAL",
+      status: this.store.ruleSetMetadata.get(ruleSet.ruleSetId)?.status ?? "DRAFT",
+      version: this.store.ruleSetMetadata.get(ruleSet.ruleSetId)?.version ?? "v1",
+      updatedAt: now,
+      updatedBy: boundary.actorId,
+    });
+    if (!Array.from(this.store.ruleSetVersions.values()).some((item) => item.ruleSetId === ruleSet.ruleSetId)) {
+      const version = toRuleSetVersionRecord(ruleSet, 1, "DRAFT", now, boundary.actorId);
+      this.store.ruleSetVersions.set(version.ruleSetVersionId, version);
+      this.store.tenantByEntityId.set(version.ruleSetVersionId, boundary.tenantId);
+    }
     this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
     return ruleSet;
   }
@@ -655,7 +670,7 @@ export class RuleSetRepository {
       updatedAt: now,
       updatedBy: boundary.actorId,
     });
-    const version = this.toVersion(ruleSet, 1, this.store.ruleSetMetadata.get(ruleSet.ruleSetId)!.status, now, boundary.actorId);
+    const version = toRuleSetVersionRecord(ruleSet, 1, this.store.ruleSetMetadata.get(ruleSet.ruleSetId)!.status, now, boundary.actorId);
     this.store.ruleSetVersions.set(version.ruleSetVersionId, version);
     this.store.tenantByEntityId.set(ruleSet.ruleSetId, boundary.tenantId);
     this.store.tenantByEntityId.set(version.ruleSetVersionId, boundary.tenantId);
@@ -694,7 +709,7 @@ export class RuleSetRepository {
     const versions = Array.from(this.store.ruleSetVersions.values()).filter((item) => item.ruleSetId === ruleSetId);
     const nextVersion = versions.length + 1;
     const createdAt = new Date().toISOString();
-    const version = this.toVersion(ruleSet, nextVersion, this.metadata(ruleSetId).status, createdAt, boundary.actorId);
+    const version = toRuleSetVersionRecord(ruleSet, nextVersion, this.metadata(ruleSetId).status, createdAt, boundary.actorId);
     this.store.ruleSetVersions.set(version.ruleSetVersionId, version);
     this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), version: `v${nextVersion}`, updatedAt: createdAt, updatedBy: boundary.actorId });
     this.store.tenantByEntityId.set(version.ruleSetVersionId, boundary.tenantId);
@@ -722,22 +737,6 @@ export class RuleSetRepository {
       updatedAt: metadata.updatedAt,
       updatedBy: metadata.updatedBy,
       activeRunCount: this.relatedRuns(ruleSet.ruleSetId).length,
-    };
-  }
-
-  private toVersion(ruleSet: ActivityRuleSetDto, version: number, status: RuleSetStatusDto, createdAt: string, createdBy: string): RuleSetVersionDto {
-    const detail = assembleRuleSetDetail({ ...this.toListItem(ruleSet), version: `v${version}`, status }, ruleSet, []);
-    return {
-      ruleSetVersionId: nextId("rule_version"),
-      ruleSetId: ruleSet.ruleSetId,
-      version: `v${version}`,
-      status,
-      sourceText: ruleSet.sourceText,
-      dslJson: ruleSet.rules,
-      affectedFields: detail.affectedFields,
-      manualReviewItems: detail.manualReviewItems,
-      createdAt,
-      createdBy,
     };
   }
 
@@ -1507,7 +1506,7 @@ export class PrismaActivityRepository extends ActivityRepository {
     return toActivityDto(row);
   }
 
-  async saveRuleSet(_boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): Promise<ActivityRuleSetDto> {
+  async saveRuleSet(boundary: P0AuthContextDto, ruleSet: ActivityRuleSetDto): Promise<ActivityRuleSetDto> {
     await this.prisma.activityRuleSet.create({
       data: {
         id: ruleSet.ruleSetId,
@@ -1517,7 +1516,22 @@ export class PrismaActivityRepository extends ActivityRepository {
         rulesJson: ruleSet.rules,
         parseConfidence: ruleSet.confidence,
         parseStatus: ruleSet.parseStatus.toLowerCase(),
-        parseMetadataJson: { errors: ruleSet.errors },
+        parseMetadataJson: { errors: ruleSet.errors, type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedBy: boundary.actorId },
+        createdBy: boundary.actorId,
+      },
+    });
+    await this.prisma.ruleSetVersion.create({
+      data: {
+        id: nextUuid(),
+        ruleSetId: ruleSet.ruleSetId,
+        version: 1,
+        status: "draft",
+        sourceText: ruleSet.sourceText,
+        rulesJson: ruleSet.rules,
+        requiredFieldsJson: extractAffectedFields(ruleSet.rules),
+        confirmationsJson: extractManualReviewItems(ruleSet.rules),
+        metadataJson: { createdBy: boundary.actorId },
+        createdBy: boundary.actorId,
       },
     });
     return ruleSet;
@@ -2766,6 +2780,21 @@ function assembleRuleSetDetail(item: RuleSetListItemDto, ruleSet: ActivityRuleSe
     affectedFields: extractAffectedFields(ruleSet.rules),
     manualReviewItems: extractManualReviewItems(ruleSet.rules),
     relatedRuns,
+  };
+}
+
+function toRuleSetVersionRecord(ruleSet: ActivityRuleSetDto, version: number, status: RuleSetStatusDto, createdAt: string, createdBy: string): RuleSetVersionDto {
+  return {
+    ruleSetVersionId: nextId("rule_version"),
+    ruleSetId: ruleSet.ruleSetId,
+    version: `v${version}`,
+    status,
+    sourceText: ruleSet.sourceText,
+    dslJson: ruleSet.rules,
+    affectedFields: extractAffectedFields(ruleSet.rules),
+    manualReviewItems: extractManualReviewItems(ruleSet.rules),
+    createdAt,
+    createdBy,
   };
 }
 
