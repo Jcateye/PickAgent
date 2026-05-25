@@ -46,6 +46,8 @@
   align-items: center;
   gap: 6px;
   position: relative;
+  border: 0;
+  background: transparent;
 }
 
 .tab.active {
@@ -329,6 +331,11 @@
   margin-bottom: 24px;
 }
 
+.drawerSectionTitle {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -361,6 +368,39 @@
   color: var(--muted);
   padding-left: 20px;
   margin-bottom: 24px;
+}
+
+.detailList {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.detailCard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.detailCardTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.detailCardMeta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.emptyState {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .approvalWarning {

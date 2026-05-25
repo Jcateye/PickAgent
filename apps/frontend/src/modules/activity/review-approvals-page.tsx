@@ -8,6 +8,7 @@ import styles from './review-approvals.module.css'
 
 type ReviewDecision = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'
 type ReviewTab = 'all' | ReviewWorkbenchStatus
+type ReviewDetailTab = 'recommendation' | 'risk' | 'evidence' | 'rules' | 'history'
 
 const tabCopy: Array<{ value: ReviewTab; label: string }> = [
   { value: 'PENDING', label: '待审批建议' },
@@ -23,11 +24,20 @@ const decisionStatusCopy: Record<ReviewDecision, string> = {
   REQUEST_CHANGES: '修改后批准',
 }
 
+const detailTabs: Array<{ value: ReviewDetailTab; label: string }> = [
+  { value: 'recommendation', label: '建议' },
+  { value: 'risk', label: '风险' },
+  { value: 'evidence', label: '证据' },
+  { value: 'rules', label: '相关规则' },
+  { value: 'history', label: '审批记录' },
+]
+
 export function ReviewApprovalsPage() {
   const [reviews, setReviews] = useState<ReviewListItemDto[]>([])
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [detail, setDetail] = useState<ReviewDetailDto | null>(null)
   const [activeTab, setActiveTab] = useState<ReviewTab>('PENDING')
+  const [detailTab, setDetailTab] = useState<ReviewDetailTab>('recommendation')
   const [typeFilter, setTypeFilter] = useState<ReviewWorkbenchType | 'all'>('all')
   const [riskFilter, setRiskFilter] = useState<ReviewRiskLevel | 'all'>('all')
   const [query, setQuery] = useState('')
@@ -74,6 +84,7 @@ export function ReviewApprovalsPage() {
         if (!cancelled) {
           setDetail(nextDetail)
           setDraftRecommendation(nextDetail.recommendation.content)
+          setDetailTab('recommendation')
         }
       })
       .catch(() => {
@@ -251,34 +262,20 @@ export function ReviewApprovalsPage() {
 
           <div className={styles.drawerBody}>
             <div className={styles.drawerTabs}>
-              <div className={`${styles.tab} ${styles.active}`}>建议</div>
-              <div className={styles.tab}>风险</div>
-              <div className={styles.tab}>证据</div>
-              <div className={styles.tab}>相关规则</div>
-              <div className={styles.tab}>审批记录</div>
+              {detailTabs.map((tab) => (
+                <button className={`${styles.tab} ${detailTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setDetailTab(tab.value)}>
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
-            <div style={{ fontWeight: 600, marginBottom: '12px' }}>建议内容</div>
-            {isReviewDetail(selectedReview) ? (
-              <div>
-                <textarea className={styles.remarkInput} value={draftRecommendation} onChange={(event) => setDraftRecommendation(event.target.value)} />
-                <button className="secondaryButton" type="button" onClick={() => void saveRecommendation()} disabled={busy === 'save' || selectedReview.status !== 'PENDING'} style={{ marginBottom: '20px' }}>保存建议修改</button>
-              </div>
-            ) : <div className={styles.suggestionBox}>{selectedReview.summary}</div>}
-
-            <div className={styles.metricGrid}>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>状态</span><span className={styles.metricValue}>{statusLabel(selectedReview.status)}</span></div>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>风险等级</span><span className={styles.metricValue}>{selectedReview.riskLevel}</span></div>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>证据数</span><span className={styles.metricValue}>{isReviewDetail(selectedReview) ? selectedReview.evidenceRefs.length : 0}</span></div>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>来源</span><span className={styles.metricValue}>{selectedReview.type}</span></div>
-            </div>
-
-            <div style={{ fontWeight: 600, marginBottom: '12px' }}>理由与依据</div>
-            <ul className={styles.reasonsList}>
-              {isReviewDetail(selectedReview) ? selectedReview.evidenceRefs.map((evidence) => (
-                <li key={`${evidence.sourceType}:${evidence.sourceId}`}>{evidence.label}：{evidence.evidenceText ?? evidence.field ?? evidence.sourceId}</li>
-              )) : <li>{selectedReview.evidenceSummary}</li>}
-            </ul>
+            {detailTab === 'recommendation' ? (
+              <RecommendationTab selectedReview={selectedReview} draftRecommendation={draftRecommendation} setDraftRecommendation={setDraftRecommendation} saveRecommendation={saveRecommendation} busy={busy} />
+            ) : null}
+            {detailTab === 'risk' ? <RiskTab selectedReview={selectedReview} /> : null}
+            {detailTab === 'evidence' ? <EvidenceTab selectedReview={selectedReview} /> : null}
+            {detailTab === 'rules' ? <RulesTab selectedReview={selectedReview} /> : null}
+            {detailTab === 'history' ? <HistoryTab selectedReview={selectedReview} /> : null}
 
             <div className={styles.approvalWarning}>
               <ShieldAlert size={20} color="#d97706" style={{ flexShrink: 0 }} />
@@ -342,6 +339,101 @@ function reviewIcon(sourceType: ReviewWorkbenchType) {
   if (sourceType === 'CERTIFICATE') return <FileCheck size={14} color="#2563eb" />
   if (sourceType === 'AGENT_REVIEW_GATE') return <HelpCircle size={14} color="#64748b" />
   return <AlertOctagon size={14} color="#e11d48" />
+}
+
+function RecommendationTab({ selectedReview, draftRecommendation, setDraftRecommendation, saveRecommendation, busy }: {
+  selectedReview: ReviewDetailDto | ReviewListItemDto
+  draftRecommendation: string
+  setDraftRecommendation: (value: string) => void
+  saveRecommendation: () => Promise<void>
+  busy: string | null
+}) {
+  return (
+    <section>
+      <div className={styles.drawerSectionTitle}>建议内容</div>
+      {isReviewDetail(selectedReview) ? (
+        <div>
+          <textarea className={styles.remarkInput} value={draftRecommendation} onChange={(event) => setDraftRecommendation(event.target.value)} />
+          <button className="secondaryButton" type="button" onClick={() => void saveRecommendation()} disabled={busy === 'save' || selectedReview.status !== 'PENDING'} style={{ marginBottom: '20px' }}>保存建议修改</button>
+          <div className={styles.metricGrid}>
+            {selectedReview.recommendation.metrics?.map((metric) => (
+              <div className={styles.metricItem} key={metric.label}><span className={styles.metricLabel}>{metric.label}</span><span className={styles.metricValue}>{metric.value}</span></div>
+            ))}
+          </div>
+          {selectedReview.recommendation.expectedEffect ? <div className={styles.suggestionBox}>{selectedReview.recommendation.expectedEffect}</div> : null}
+        </div>
+      ) : <div className={styles.suggestionBox}>{selectedReview.summary}</div>}
+    </section>
+  )
+}
+
+function RiskTab({ selectedReview }: { selectedReview: ReviewDetailDto | ReviewListItemDto }) {
+  return (
+    <section>
+      <div className={styles.drawerSectionTitle}>风险摘要</div>
+      <div className={styles.metricGrid}>
+        <div className={styles.metricItem}><span className={styles.metricLabel}>状态</span><span className={styles.metricValue}>{statusLabel(selectedReview.status)}</span></div>
+        <div className={styles.metricItem}><span className={styles.metricLabel}>风险等级</span><span className={styles.metricValue}>{selectedReview.riskLevel}</span></div>
+        <div className={styles.metricItem}><span className={styles.metricLabel}>优先级</span><span className={styles.metricValue}>{selectedReview.priority}</span></div>
+        <div className={styles.metricItem}><span className={styles.metricLabel}>来源</span><span className={styles.metricValue}>{selectedReview.type}</span></div>
+      </div>
+      <div className={styles.suggestionBox}>{isReviewDetail(selectedReview) ? selectedReview.riskIfIgnored : selectedReview.summary}</div>
+    </section>
+  )
+}
+
+function EvidenceTab({ selectedReview }: { selectedReview: ReviewDetailDto | ReviewListItemDto }) {
+  const evidenceRefs = isReviewDetail(selectedReview) ? selectedReview.evidenceRefs : []
+  return (
+    <section>
+      <div className={styles.drawerSectionTitle}>证据列表</div>
+      <div className={styles.detailList}>
+        {evidenceRefs.length ? evidenceRefs.map((evidence) => (
+          <div className={styles.detailCard} key={`${evidence.sourceType}:${evidence.sourceId}:${evidence.field ?? evidence.label}`}>
+            <div className={styles.detailCardTitle}>{evidence.label}</div>
+            <div className={styles.detailCardMeta}>{evidence.entityType} / {evidence.entityId}</div>
+            <div>{evidence.evidenceText ?? evidence.field ?? evidence.sourceId}</div>
+          </div>
+        )) : <div className={styles.emptyState}>{selectedReview.evidenceSummary}</div>}
+      </div>
+    </section>
+  )
+}
+
+function RulesTab({ selectedReview }: { selectedReview: ReviewDetailDto | ReviewListItemDto }) {
+  const rules = isReviewDetail(selectedReview) ? selectedReview.relatedRules : []
+  return (
+    <section>
+      <div className={styles.drawerSectionTitle}>相关规则</div>
+      <div className={styles.detailList}>
+        {rules.length ? rules.map((rule) => (
+          <div className={styles.detailCard} key={`${rule.entityType}:${rule.entityId}`}>
+            <div className={styles.detailCardTitle}>{rule.label}</div>
+            <div className={styles.detailCardMeta}>{rule.entityType} / {rule.entityId}</div>
+            {rule.href ? <a href={rule.href} style={{ color: 'var(--primary)' }}>打开规则</a> : null}
+          </div>
+        )) : <div className={styles.emptyState}>当前 Review 未关联规则。</div>}
+      </div>
+    </section>
+  )
+}
+
+function HistoryTab({ selectedReview }: { selectedReview: ReviewDetailDto | ReviewListItemDto }) {
+  const history = isReviewDetail(selectedReview) ? selectedReview.approvalHistory : []
+  return (
+    <section>
+      <div className={styles.drawerSectionTitle}>审批记录</div>
+      <div className={styles.detailList}>
+        {history.length ? history.map((item) => (
+          <div className={styles.detailCard} key={`${item.actor}:${item.action}:${item.createdAt}`}>
+            <div className={styles.detailCardTitle}>{item.action}</div>
+            <div className={styles.detailCardMeta}>{item.actor} / {new Date(item.createdAt).toLocaleString('zh-CN')}</div>
+            {item.comment ? <div>{item.comment}</div> : null}
+          </div>
+        )) : <div className={styles.emptyState}>暂无审批记录。</div>}
+      </div>
+    </section>
+  )
 }
 
 function listItemFromDetail(detail: ReviewDetailDto): ReviewListItemDto {
