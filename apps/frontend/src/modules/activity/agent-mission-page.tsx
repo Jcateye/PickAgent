@@ -114,12 +114,13 @@ interface RunDetailResponse {
 const defaultObjective = '天猫 618 黄金周活动准入检查'
 const sessionKey = 'agent-mission-console-default'
 
-const planSteps = [
-  { title: '解析活动规则', detail: '读取规则版本、报名门槛和必填资料', status: 'completed' },
-  { title: '检查 SKU 数据新鲜度', detail: '对照最近采集快照和字段完整性', status: 'running' },
-  { title: '运行准入模拟', detail: '调用只读模拟服务生成阻断原因', status: 'pending' },
-  { title: '生成 Review Gate', detail: '把人工确认项汇总到审批工作台', status: 'pending' },
-] as const
+type PlanStepStatus = 'completed' | 'running' | 'pending'
+
+interface PlanStep {
+  title: string
+  detail: string
+  status: PlanStepStatus
+}
 
 export function AgentMissionPage() {
   const [missions, setMissions] = useState<MissionListItem[]>([])
@@ -151,6 +152,10 @@ export function AgentMissionPage() {
   const tools = runDetail?.toolCalls ?? []
   const gates = runDetail?.reviewGates ?? []
   const pendingGateCount = gates.filter((gate) => gate.status === 'PENDING').length
+  const planSteps = useMemo(() => buildPlanSteps(runDetail, runEvents.events.length), [runDetail, runEvents.events.length])
+  const completedStepCount = planSteps.filter((step) => step.status === 'completed').length
+  const missingEvidenceCount = tools.filter((tool) => tool.status === 'FAILED' || tool.status === 'BLOCKED' || tool.status === 'BLOCKED_BY_POLICY').length
+  const conflictEvidenceCount = gates.filter((gate) => gate.status === 'REJECTED' || gate.status === 'MODIFIED').length
   const agentContext = useMemo(() => ({
     route: '/agent-mission',
     pageTitle: 'Agent Mission',
@@ -405,11 +410,11 @@ export function AgentMissionPage() {
             <div className={styles.runSummary}>
               <div>
                 <span>已完成</span>
-                <strong>{planSteps.filter((step) => step.status === 'completed').length}</strong>
+                <strong>{completedStepCount}</strong>
               </div>
               <div>
                 <span>缺失证据</span>
-                <strong>14</strong>
+                <strong>{missingEvidenceCount}</strong>
               </div>
               <div>
                 <span>人工确认</span>
@@ -417,7 +422,7 @@ export function AgentMissionPage() {
               </div>
               <div>
                 <span>冲突证据</span>
-                <strong>0</strong>
+                <strong>{conflictEvidenceCount}</strong>
               </div>
             </div>
           </section>
@@ -506,6 +511,43 @@ function progressForRunStatus(status: RunStatus, eventCount: number): number {
   if (status === 'PAUSED' || status === 'WAITING_REVIEW') return 72
   if (status === 'RUNNING' || status === 'STREAMING' || status === 'CALLING_TOOL') return Math.min(82, 38 + eventCount * 12)
   return 38
+}
+
+function buildPlanSteps(runDetail: RunDetailResponse | null, eventCount: number): PlanStep[] {
+  const tools = runDetail?.toolCalls ?? []
+  const gates = runDetail?.reviewGates ?? []
+  const hasTool = (pattern: RegExp) => tools.some((tool) => pattern.test(tool.toolName))
+  const hasSucceededTool = (pattern: RegExp) => tools.some((tool) => pattern.test(tool.toolName) && tool.status === 'SUCCEEDED')
+  const runStatus = runDetail?.run.status
+  const isTerminal = runStatus === 'SUCCEEDED' || runStatus === 'DONE' || runStatus === 'FAILED' || runStatus === 'CANCELED'
+  const isRunning = Boolean(runStatus && !isTerminal)
+  return [
+    {
+      title: '建立 Mission 上下文',
+      detail: runDetail ? `Mission ${runDetail.mission.missionId} / Run ${runDetail.run.runId}` : '等待创建或加载真实 Mission',
+      status: runDetail ? 'completed' : 'running',
+    },
+    {
+      title: '读取业务上下文',
+      detail: tools.length ? `已记录 ${tools.length} 个工具调用` : `${eventCount} 个运行事件，等待工具调用`,
+      status: tools.length ? 'completed' : isRunning || eventCount > 0 ? 'running' : 'pending',
+    },
+    {
+      title: '执行 SKU / 规则 / 活动工具',
+      detail: tools.length ? tools.slice(0, 3).map((tool) => `${tool.toolName}:${tool.status}`).join('；') : '发送对话后由 Agent 调用系统工具',
+      status: hasSucceededTool(/Sku|Rule|Activity|Report|Connector|Review|Dashboard|search|list|generate|simulate|diagnose|check|create|update|start/i) ? 'completed' : tools.length ? 'running' : 'pending',
+    },
+    {
+      title: '处理 Review Gate',
+      detail: gates.length ? `${gates.length} 个 Gate，待处理 ${gates.filter((gate) => gate.status === 'PENDING').length} 个` : '暂无需要人工确认的 Gate',
+      status: gates.some((gate) => gate.status === 'PENDING') ? 'running' : gates.length ? 'completed' : hasTool(/Review|decide/i) ? 'completed' : 'pending',
+    },
+    {
+      title: '沉淀证据与结果',
+      detail: runDetail ? `消息 ${runDetail.messages.length} 条，事件 ${eventCount} 条` : '等待 Agent 输出可追溯结果',
+      status: isTerminal ? 'completed' : runDetail ? 'running' : 'pending',
+    },
+  ]
 }
 
 function statusTone(status: MissionStatus): 'neutral' | 'ready' | 'review' | 'warning' | 'blocked' {
