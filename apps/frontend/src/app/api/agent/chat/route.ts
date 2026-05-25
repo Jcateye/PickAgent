@@ -5,7 +5,7 @@ import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAg
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
-import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto } from '../../../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { buildRunConsolePage } from '../../run-console/run-console-data'
@@ -115,7 +115,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
 const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -806,6 +806,43 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, { type: 'report', id: reportId })
     }
 
+    if (toolName === 'getWorkspaceSettings') {
+      const [workspace, policy, users] = await Promise.all([
+        finalApiRuntime.workspaceSettingsService.getWorkspace(agentToolAuthContext()),
+        finalApiRuntime.workspaceSettingsService.getToolPolicy(agentToolAuthContext()),
+        finalApiRuntime.workspaceSettingsService.listUsers(agentToolAuthContext()),
+      ])
+      const result = { workspace, toolPolicy: policy, users }
+      return succeeded(result, [{ type: 'tool_trace', entityId: workspace.workspaceId, label: '工作区设置', summary: `新鲜度阈值 ${workspace.dataFreshnessThresholdHours} 小时，允许工具 ${policy.allowedAgentTools.length} 个` }], `读取工作区设置：${workspace.name}`, { type: 'dashboard', id: 'settings' })
+    }
+
+    if (toolName === 'updateWorkspaceSettings') {
+      const result = await finalApiRuntime.workspaceSettingsService.updateWorkspace(workspaceSettingsPatchInput(input), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.workspaceId, label: '工作区设置更新', summary: `数据新鲜度阈值 ${result.dataFreshnessThresholdHours} 小时` }], `更新工作区设置：${result.dataFreshnessThresholdHours} 小时`, { type: 'dashboard', id: 'settings' })
+    }
+
+    if (toolName === 'getToolPolicy') {
+      const result = await finalApiRuntime.workspaceSettingsService.getToolPolicy(agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.policyVersion, label: 'Agent 工具策略', summary: `允许 ${result.allowedAgentTools.length} 个工具，禁用 ${result.deniedRuntimeTools.length} 个 runtime 工具` }], `读取 Agent 工具策略：${result.policyVersion}`, { type: 'dashboard', id: 'tool-policy' })
+    }
+
+    if (toolName === 'updateToolPolicy') {
+      const result = await finalApiRuntime.workspaceSettingsService.updateToolPolicy(toolPolicyPatchInput(input), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.policyVersion, label: 'Agent 工具策略更新', summary: `允许 ${result.allowedAgentTools.length} 个工具，禁用 ${result.deniedRuntimeTools.length} 个 runtime 工具` }], `更新 Agent 工具策略：${result.policyVersion}`, { type: 'dashboard', id: 'tool-policy' })
+    }
+
+    if (toolName === 'listSettingsUsers') {
+      const result = await finalApiRuntime.workspaceSettingsService.listUsers(agentToolAuthContext())
+      return succeeded(result, result.map((item) => ({ type: 'tool_trace', entityId: item.userId, label: item.name, summary: `${item.teamName} / ${item.role} / ${item.status}` })), `读取审批角色：${result.length} 个`, { type: 'dashboard', id: 'settings-users' })
+    }
+
+    if (toolName === 'updateSettingsUserStatus') {
+      const userId = String(input.userId ?? '')
+      if (!userId) throw new Error('userId is required')
+      const result = await finalApiRuntime.workspaceSettingsService.updateUserStatus(userId, settingsUserStatusInput(input.status), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.userId, label: result.name, summary: `${result.teamName} / ${result.role} / ${result.status}` }], `更新审批角色：${result.name} ${result.status}`, { type: 'dashboard', id: 'settings-users' })
+    }
+
     throw new Error(`Unsupported tool: ${toolName}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : '工具执行失败'
@@ -1016,6 +1053,37 @@ function updateConnectorInput(input: Record<string, unknown>): UpdateConnectorDt
   if (isRecord(input.config)) patch.config = input.config
   if (Object.keys(patch).length === 0) throw new Error('name, platform, status, or config is required')
   return patch
+}
+
+function workspaceSettingsPatchInput(input: Record<string, unknown>): Partial<WorkspaceSettingsDto> {
+  const patch: Partial<WorkspaceSettingsDto> = {}
+  const freshness = optionalNumber(input.dataFreshnessThresholdHours ?? input.freshnessHours)
+  if (freshness !== undefined) patch.dataFreshnessThresholdHours = freshness
+  if (isRecord(input.reviewSlaHours)) {
+    const current = input.reviewSlaHours
+    patch.reviewSlaHours = {
+      high: optionalNumber(current.high) ?? 4,
+      medium: optionalNumber(current.medium) ?? 24,
+      low: optionalNumber(current.low) ?? 72,
+    }
+  }
+  if (stringArray(input.allowedAgentTools).length) patch.allowedAgentTools = stringArray(input.allowedAgentTools)
+  if (stringArray(input.deniedRuntimeTools).length) patch.deniedRuntimeTools = stringArray(input.deniedRuntimeTools)
+  if (Object.keys(patch).length === 0) throw new Error('dataFreshnessThresholdHours, reviewSlaHours, allowedAgentTools, or deniedRuntimeTools is required')
+  return patch
+}
+
+function toolPolicyPatchInput(input: Record<string, unknown>): Partial<ToolPolicyDto> {
+  const patch: Partial<ToolPolicyDto> = {}
+  if (Array.isArray(input.allowedAgentTools)) patch.allowedAgentTools = stringArray(input.allowedAgentTools)
+  if (Array.isArray(input.deniedRuntimeTools)) patch.deniedRuntimeTools = stringArray(input.deniedRuntimeTools)
+  if (Object.keys(patch).length === 0) throw new Error('allowedAgentTools or deniedRuntimeTools is required')
+  return patch
+}
+
+function settingsUserStatusInput(value: unknown): SettingsUserDto['status'] {
+  if (value === 'ACTIVE' || value === 'DISABLED') return value
+  throw new Error('status must be ACTIVE or DISABLED')
 }
 
 function browserPageDetectionInput(input: Record<string, unknown>): BrowserPageDetectionRequestDto {

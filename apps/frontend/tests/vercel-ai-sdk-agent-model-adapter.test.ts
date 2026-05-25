@@ -209,6 +209,12 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       await input.tools?.compareReports?.execute?.({ baseReportId: 'report_1', targetReportId: 'report_2' })
       await input.tools?.exportReport?.execute?.({ reportId: 'report_1', format: 'PDF' })
       await input.tools?.subscribeReport?.execute?.({ reportId: 'report_1', frequency: 'WEEKLY', recipients: ['ops@example.test'] })
+      await input.tools?.getWorkspaceSettings?.execute?.({})
+      await input.tools?.updateWorkspaceSettings?.execute?.({ dataFreshnessThresholdHours: 12 })
+      await input.tools?.getToolPolicy?.execute?.({})
+      await input.tools?.updateToolPolicy?.execute?.({ allowedAgentTools: ['getDashboardContext'] })
+      await input.tools?.listSettingsUsers?.execute?.({})
+      await input.tools?.updateSettingsUserStatus?.execute?.({ userId: 'qa_reviewer', status: 'ACTIVE' })
       await input.tools?.setSkuNextAction?.execute?.({ skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
       return {
         text: '已执行系统工具',
@@ -241,7 +247,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listRunConsole', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'ingestBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'ingestSkus', 'retryRun', 'listAgentMissions', 'createAgentMission', 'getAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listRunConsole', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'ingestBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'ingestSkus', 'retryRun', 'listAgentMissions', 'createAgentMission', 'getAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'getWorkspaceSettings', 'updateWorkspaceSettings', 'getToolPolicy', 'updateToolPolicy', 'listSettingsUsers', 'updateSettingsUserStatus', 'setSkuNextAction'])
   assert.equal(executedTools.find((item) => item.toolName === 'retryRun')?.inputJson.runType, 'activity_simulation')
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })

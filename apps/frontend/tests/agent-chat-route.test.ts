@@ -117,6 +117,34 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   assert.equal(detail?.status, 'DISABLED')
 })
 
+test('agent chat settings tools read and update real workspace settings', async () => {
+  const read = await executeFinalApiTool('getWorkspaceSettings', {})
+  assert.equal(read.status, 'SUCCEEDED')
+  const workspace = (read.result as { workspace: { dataFreshnessThresholdHours: number }; toolPolicy: { allowedAgentTools: string[] }; users: Array<{ userId: string }> }).workspace
+  assert.ok(workspace.dataFreshnessThresholdHours > 0)
+
+  const updatedWorkspace = await executeFinalApiTool('updateWorkspaceSettings', { dataFreshnessThresholdHours: 18 })
+  assert.equal(updatedWorkspace.status, 'SUCCEEDED')
+  assert.equal((updatedWorkspace.result as { dataFreshnessThresholdHours: number }).dataFreshnessThresholdHours, 18)
+
+  const policy = await executeFinalApiTool('getToolPolicy', {})
+  assert.equal(policy.status, 'SUCCEEDED')
+  const allowedAgentTools = (policy.result as { allowedAgentTools: string[] }).allowedAgentTools
+  assert.ok(allowedAgentTools.includes('getWorkspaceSettings'))
+
+  const updatedPolicy = await executeFinalApiTool('updateToolPolicy', { allowedAgentTools, deniedRuntimeTools: ['customRuntimeDeniedByAgentTest'] })
+  assert.equal(updatedPolicy.status, 'SUCCEEDED')
+  assert.ok((updatedPolicy.result as { deniedRuntimeTools: string[] }).deniedRuntimeTools.includes('customRuntimeDeniedByAgentTest'))
+
+  const users = await executeFinalApiTool('listSettingsUsers', {})
+  assert.equal(users.status, 'SUCCEEDED')
+  assert.ok((users.result as Array<{ userId: string }>).some((user) => user.userId === 'qa_reviewer'))
+
+  const updatedUser = await executeFinalApiTool('updateSettingsUserStatus', { userId: 'qa_reviewer', status: 'ACTIVE' })
+  assert.equal(updatedUser.status, 'SUCCEEDED')
+  assert.equal((updatedUser.result as { userId: string; status: string }).status, 'ACTIVE')
+})
+
 test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {
   const externalSkuId = `agent_ingest_sku_${Date.now()}`
   const execution = await executeFinalApiTool('ingestSkus', {
@@ -242,6 +270,10 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('exportReport'), 'L1')
   assert.equal(agentToolRiskLevel('subscribeReport'), 'L1')
   assert.equal(agentToolRiskLevel('answerAgentRunQuestion'), 'L1')
+  assert.equal(agentToolRiskLevel('getWorkspaceSettings'), 'L1')
+  assert.equal(agentToolRiskLevel('updateWorkspaceSettings'), 'L2')
+  assert.equal(agentToolRiskLevel('updateToolPolicy'), 'L2')
+  assert.equal(agentToolRiskLevel('updateSettingsUserStatus'), 'L2')
   assert.equal(agentToolRequiresReviewGate('generateReport'), true)
   assert.equal(agentToolRequiresReviewGate('generateReportPreview'), true)
   assert.equal(agentToolRequiresReviewGate('reportPreview'), true)
@@ -252,6 +284,10 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRequiresReviewGate('exportReport'), false)
   assert.equal(agentToolRequiresReviewGate('subscribeReport'), false)
   assert.equal(agentToolRequiresReviewGate('answerAgentRunQuestion'), false)
+  assert.equal(agentToolRequiresReviewGate('getWorkspaceSettings'), false)
+  assert.equal(agentToolRequiresReviewGate('updateWorkspaceSettings'), true)
+  assert.equal(agentToolRequiresReviewGate('updateToolPolicy'), true)
+  assert.equal(agentToolRequiresReviewGate('updateSettingsUserStatus'), true)
 })
 
 test('agent chat persistent executor opens review gate before write tools', async () => {

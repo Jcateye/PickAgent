@@ -655,6 +655,36 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('subscribeReport', inputJson),
     }),
+    getWorkspaceSettings: tool({
+      description: '读取真实系统设置：工作区阈值、Agent 工具策略、审批角色列表。用于回答设置、权限和工具可用性问题。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getWorkspaceSettings', inputJson),
+    }),
+    updateWorkspaceSettings: tool({
+      description: '更新真实工作区设置。可改 dataFreshnessThresholdHours、reviewSlaHours、allowedAgentTools、deniedRuntimeTools。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('updateWorkspaceSettings', inputJson),
+    }),
+    getToolPolicy: tool({
+      description: '读取 Agent 工具 allowlist/denylist 策略和版本。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getToolPolicy', inputJson),
+    }),
+    updateToolPolicy: tool({
+      description: '更新 Agent 工具策略。可传 allowedAgentTools 或 deniedRuntimeTools，会影响 Chat 后续可调用业务能力。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('updateToolPolicy', inputJson),
+    }),
+    listSettingsUsers: tool({
+      description: '读取审批角色和状态列表。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listSettingsUsers', inputJson),
+    }),
+    updateSettingsUserStatus: tool({
+      description: '启用或停用审批角色。需要 userId 和 status=ACTIVE/DISABLED。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('updateSettingsUserStatus', inputJson),
+    }),
   }
 }
 

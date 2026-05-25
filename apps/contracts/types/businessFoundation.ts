@@ -290,6 +290,12 @@ export const defaultAgentToolNames = [
   "compareReports",
   "exportReport",
   "subscribeReport",
+  "getWorkspaceSettings",
+  "updateWorkspaceSettings",
+  "getToolPolicy",
+  "updateToolPolicy",
+  "listSettingsUsers",
+  "updateSettingsUserStatus",
 ] as const;
 
 export type AgentToolName = (typeof defaultAgentToolNames)[number] | "runSimulation";
