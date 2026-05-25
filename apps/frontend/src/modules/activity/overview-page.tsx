@@ -2,22 +2,31 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { FileText, Database, Plug, LayoutList, CheckCircle2, ChevronRight, Download, Filter, HelpCircle, FileCheck2, ChevronDown, Lock, ShieldAlert, Check } from 'lucide-react'
-import type { SkuSummaryDto } from '../../../../contracts/types/businessFoundation'
+import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import type { ReviewListItemDto } from '../../../../contracts/types/reviewReportCenter'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './overview.module.css'
 
 export function OverviewPage() {
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
-  const [skuPage, setSkuPage] = useState<PageDto<SkuSummaryDto> | null>(null)
+  const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
   const [reviewPage, setReviewPage] = useState<PageDto<ReviewListItemDto> | null>(null)
+  const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
+  const [page, setPage] = useState(1)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: '5',
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    })
+    if (statusFilter !== 'ALL') params.set('healthStatus', statusFilter)
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
-      fetchActivityApi<PageDto<SkuSummaryDto>>('/api/skus?pageSize=5'),
+      fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
       fetchActivityApi<PageDto<ReviewListItemDto>>('/api/reviews?pageSize=20'),
     ])
       .then(([nextSummary, nextSkuPage, nextReviewPage]) => {
@@ -32,7 +41,7 @@ export function OverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [page, statusFilter])
 
   const overview = useMemo(() => {
     const total = summary?.total ?? 1258
@@ -48,7 +57,9 @@ export function OverviewPage() {
     }
   }, [reviewPage?.total, summary])
 
-  const apiRows = skuPage?.items?.length ? skuPage.items : null
+  const apiRows = skuPage?.items ?? []
+  const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
+  const visiblePages = paginationWindow(page, totalPages)
 
   return (
     <div className={styles.layout}>
@@ -234,13 +245,17 @@ export function OverviewPage() {
               <HelpCircle size={14} color="var(--muted)" style={{ cursor: 'pointer' }} />
             </div>
             <div className={styles.tableActions}>
-              <button className="secondaryButton" type="button" onClick={() => setMessage('已切换为全部状态；当前数据来自 /api/skus。')} style={{ height: '32px', fontSize: '13px' }}>
-                全部状态 <ChevronDown size={14} />
+              <select className="secondaryButton" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as DashboardSkuListItemDto['healthStatus'] | 'ALL'); setPage(1) }} style={{ height: '32px', fontSize: '13px' }}>
+                <option value="ALL">全部状态</option>
+                <option value="READY">通过</option>
+                <option value="REPAIRABLE">可修复</option>
+                <option value="RISKY">待确认</option>
+                <option value="BLOCKED">不符合</option>
+              </select>
+              <button className="secondaryButton" type="button" onClick={() => { setStatusFilter('ALL'); setPage(1) }} style={{ height: '32px', fontSize: '13px' }}>
+                <Filter size={14} /> 重置筛选
               </button>
-              <button className="secondaryButton" type="button" onClick={() => setMessage('筛选条件将作用于 /api/skus 查询；当前展示最新 5 条。')} style={{ height: '32px', fontSize: '13px' }}>
-                <Filter size={14} /> 筛选
-              </button>
-              <button className="secondaryButton" type="button" onClick={() => exportOverviewRows(apiRows ?? [])} style={{ height: '32px', fontSize: '13px' }}>
+              <button className="secondaryButton" type="button" onClick={() => exportOverviewRows(apiRows)} style={{ height: '32px', fontSize: '13px' }}>
                 <Download size={14} /> 导出
               </button>
             </div>
@@ -258,51 +273,30 @@ export function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {apiRows ? apiRows.map((item) => (
+                {apiRows.map((item) => (
                   <tr key={item.skuProfileId}>
-                    <td>{item.canonicalSkuKey}</td>
-                    <td><span className={`${styles.statusTag} ${item.healthStatus === 'READY' ? styles.success : item.healthStatus === 'WARNING' ? styles.warning : styles.danger}`}>{item.healthStatus === 'READY' ? '通过' : item.healthStatus === 'WARNING' ? '待确认' : '不符合'}</span></td>
-                    <td>{item.topIssues?.[0] ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
+                    <td>{item.displaySku}</td>
+                    <td><span className={`${styles.statusTag} ${item.healthStatus === 'READY' ? styles.success : item.healthStatus === 'REPAIRABLE' || item.healthStatus === 'RISKY' ? styles.warning : styles.danger}`}>{healthStatusLabel(item.healthStatus)}</span></td>
+                    <td>{item.eligibilityLabel ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
                     <td>天猫618大促</td>
-                    <td>{item.nextActions?.[0] ?? (item.healthStatus === 'READY' ? '可直接报名' : '人工确认')}</td>
+                    <td>{item.nextAction.label}</td>
                     <td><a href={`/sku-health/${item.skuProfileId}`} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                   </tr>
-                )) : (
-                  <>
-                    <tr>
-                      <td>G003</td>
-                      <td><span className={`${styles.statusTag} ${styles.danger}`}>不符合</span></td>
-                      <td>库存不足：活动价测算库存 &lt; 100 件 <span className={styles.ruleTag}>库存规则</span></td>
-                      <td>天猫618大促</td>
-                      <td>补货建议</td>
-                      <td><a href="/sku-access" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                    </tr>
-                    <tr>
-                      <td>G012</td>
-                      <td><span className={`${styles.statusTag} ${styles.warning}`}>待确认</span></td>
-                      <td>价格力不足：折扣力度 6.8% &lt; 规则要求 7% <span className={styles.ruleTag}>价格规则</span></td>
-                      <td>天猫618大促</td>
-                      <td>人工确认</td>
-                      <td><a href="/sku-access" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
-                    </tr>
-                  </>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
           <div className={styles.tablePagination}>
-            <span>共 {overview.total.toLocaleString()} 条</span>
+            <span>共 {(skuPage?.total ?? overview.total).toLocaleString()} 条</span>
             <div className={styles.pageControls}>
-              <button className="secondaryButton" type="button" onClick={() => setMessage('分页接入 /api/skus?page&pageSize 后启用。')} style={{ height: '28px', padding: '0 8px', fontSize: '12px' }}>20 条/页 <ChevronDown size={14} /></button>
-              <div className={styles.pageBtn}><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }}/></div>
-              <div className={`${styles.pageBtn} ${styles.active}`}>1</div>
-              <div className={styles.pageBtn}>2</div>
-              <div className={styles.pageBtn}>3</div>
-              <div className={styles.pageBtn}>4</div>
-              <div className={styles.pageBtn}>5</div>
-              <span>...</span>
-              <div className={styles.pageBtn}>63</div>
-              <div className={styles.pageBtn}><ChevronRight size={14} /></div>
+              <span style={{ fontSize: '12px' }}>{skuPage?.pageSize ?? 5} 条/页</span>
+              <button className={styles.pageBtn} type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }}/></button>
+              {visiblePages[0] > 1 ? <span>...</span> : null}
+              {visiblePages.map((pageNumber) => (
+                <button key={pageNumber} className={`${styles.pageBtn} ${pageNumber === page ? styles.active : ''}`} type="button" disabled={pageNumber === page} onClick={() => setPage(pageNumber)}>{pageNumber}</button>
+              ))}
+              {visiblePages.at(-1)! < totalPages ? <span>...</span> : null}
+              <button className={styles.pageBtn} type="button" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={14} /></button>
             </div>
           </div>
         </div>
@@ -456,11 +450,24 @@ export function OverviewPage() {
   )
 }
 
-function exportOverviewRows(rows: SkuSummaryDto[]) {
-  const header = ['skuProfileId', 'canonicalSkuKey', 'productName', 'healthStatus', 'healthScore', 'nextActions']
+function healthStatusLabel(status: DashboardSkuListItemDto['healthStatus']): string {
+  if (status === 'READY') return '通过'
+  if (status === 'REPAIRABLE') return '可修复'
+  if (status === 'RISKY') return '待确认'
+  return '不符合'
+}
+
+function paginationWindow(currentPage: number, totalPages: number): number[] {
+  const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+  const end = Math.min(totalPages, start + 4)
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+}
+
+function exportOverviewRows(rows: DashboardSkuListItemDto[]) {
+  const header = ['skuProfileId', 'displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction']
   const csv = [
     header.join(','),
-    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextActions' ? row.nextActions.join(';') : row[key as keyof SkuSummaryDto] ?? '')).join(',')),
+    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextAction' ? row.nextAction.label : row[key as keyof DashboardSkuListItemDto] ?? '')).join(',')),
   ].join('\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
