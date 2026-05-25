@@ -411,7 +411,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('createRuleSet', inputJson),
     }),
     updateRuleSet: tool({
-      description: '更新真实规则集。需要 ruleSetId，并至少提供 name、sourceText 或 platform。',
+      description: '更新真实规则集。需要 ruleSetId，并至少提供 name、sourceText、platform 或 status=DRAFT/ENABLED/DISABLED。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateRuleSet', inputJson),
     }),

@@ -845,10 +845,12 @@ function updateRuleSetInput(input: Record<string, unknown>): UpdateRuleSetInputD
   const name = optionalString(input.name)
   const sourceText = optionalString(input.sourceText)
   const platform = optionalString(input.platform)
+  const status = optionalRuleSetStatus(input.status)
   if (name) patch.name = name
   if (sourceText) patch.sourceText = sourceText
   if (platform) patch.platform = platform
-  if (Object.keys(patch).length === 0) throw new Error('name, sourceText, or platform is required')
+  if (status) patch.status = status
+  if (Object.keys(patch).length === 0) throw new Error('name, sourceText, platform, or status is required')
   return patch
 }
 
@@ -1056,6 +1058,11 @@ function normalizeNextAction(input: Record<string, unknown>): DashboardSkuListIt
 function normalizeRuleSetStatus(value: unknown): RuleSetStatusDto {
   if (value === 'DRAFT' || value === 'DISABLED') return value
   return 'ENABLED'
+}
+
+function optionalRuleSetStatus(value: unknown): RuleSetStatusDto | undefined {
+  if (value === 'DRAFT' || value === 'DISABLED' || value === 'ENABLED') return value
+  return undefined
 }
 
 function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['decision'] {

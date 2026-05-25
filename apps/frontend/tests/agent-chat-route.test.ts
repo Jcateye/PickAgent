@@ -76,6 +76,27 @@ test('agent chat tools write backend workflow audits with agent auth context', a
   assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
 })
 
+test('agent chat updateRuleSet tool persists status-only updates', async () => {
+  const created = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent Chat 状态更新规则集',
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'DRAFT',
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+
+  const ruleSetId = (created.result as { ruleSetId: string }).ruleSetId
+  const updated = await executeFinalApiTool('updateRuleSet', {
+    ruleSetId,
+    status: 'DISABLED',
+  })
+  assert.equal(updated.status, 'SUCCEEDED')
+  assert.equal((updated.result as { status: string }).status, 'DISABLED')
+
+  const detail = await finalApiRuntime.ruleSetService.get(ruleSetId)
+  assert.equal(detail?.status, 'DISABLED')
+})
+
 test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
