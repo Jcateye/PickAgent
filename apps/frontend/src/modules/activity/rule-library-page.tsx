@@ -11,20 +11,22 @@ export function RuleLibraryPage() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null)
   const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ENABLED' | 'DRAFT'>('ALL')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
-  async function loadRules(preferredId?: string | null) {
-    const page = await fetchActivityApi<PageDto<RuleSetListItemDto>>('/api/rule-sets?pageSize=20')
-    setRulePage(page)
-    const nextId = preferredId ?? selectedRuleId ?? page.items[0]?.ruleSetId ?? null
+  async function loadRules(preferredId?: string | null, nextPage = page) {
+    const loadedPage = await fetchActivityApi<PageDto<RuleSetListItemDto>>(`/api/rule-sets?page=${nextPage}&pageSize=20`)
+    setRulePage(loadedPage)
+    const nextId = preferredId ?? selectedRuleId ?? loadedPage.items[0]?.ruleSetId ?? null
     setSelectedRuleId(nextId)
     if (nextId) setSelectedRule(await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${nextId}`))
   }
 
   useEffect(() => {
-    loadRules().catch((error: unknown) => setMessage(error instanceof Error ? error.message : '规则集 API 加载失败'))
-  }, [])
+    loadRules(null, page).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '规则集 API 加载失败'))
+  }, [page])
 
   useEffect(() => {
     if (!selectedRuleId) return
@@ -35,11 +37,16 @@ export function RuleLibraryPage() {
 
   const visibleRules = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
-    return (rulePage?.items ?? []).filter((rule) => !normalizedQuery || rule.name.toLowerCase().includes(normalizedQuery) || rule.ruleSetId.toLowerCase().includes(normalizedQuery))
-  }, [query, rulePage])
+    return (rulePage?.items ?? []).filter((rule) => {
+      const matchesQuery = !normalizedQuery || rule.name.toLowerCase().includes(normalizedQuery) || rule.ruleSetId.toLowerCase().includes(normalizedQuery)
+      const matchesStatus = statusFilter === 'ALL' || rule.status === statusFilter
+      return matchesQuery && matchesStatus
+    })
+  }, [query, rulePage, statusFilter])
   const ruleCount = rulePage?.total ?? 0
   const enabledCount = rulePage?.items.filter((item) => item.status === 'ENABLED').length ?? 0
   const draftCount = rulePage?.items.filter((item) => item.status === 'DRAFT').length ?? 0
+  const totalPages = Math.max(1, Math.ceil((rulePage?.total ?? 0) / (rulePage?.pageSize ?? 20)))
   const dslText = JSON.stringify({
     rule_set: selectedRule?.ruleSetId,
     metadata: selectedRule ? { name: selectedRule.name, version: selectedRule.version, status: selectedRule.status, source: selectedRule.source } : {},
@@ -137,9 +144,9 @@ export function RuleLibraryPage() {
             <button className={styles.btnAdd} type="button" onClick={() => void createRuleSet()} disabled={!!busy}><Plus size={16} /></button>
           </div>
           <div className={styles.tabs}>
-            <div className={`${styles.tab} ${styles.active}`}>所有 ({ruleCount})</div>
-            <div className={styles.tab}>已启用 ({enabledCount})</div>
-            <div className={styles.tab}>草稿 ({draftCount})</div>
+            <button className={`${styles.tab} ${statusFilter === 'ALL' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ALL')}>所有 ({ruleCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'ENABLED' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ENABLED')}>已启用 ({enabledCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'DRAFT' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('DRAFT')}>草稿 ({draftCount})</button>
           </div>
         </div>
 
@@ -160,10 +167,10 @@ export function RuleLibraryPage() {
         </div>
 
         <div className={styles.pagination}>
-          <span>{rulePage?.page ?? 1} / {Math.max(1, Math.ceil((rulePage?.total ?? 0) / (rulePage?.pageSize ?? 20)))} 页</span>
+          <span>{rulePage?.page ?? page} / {totalPages} 页</span>
           <div className={styles.pageControls}>
-            <button className={styles.pageBtn} type="button" disabled><ChevronLeft size={14} /></button>
-            <button className={styles.pageBtn} type="button" disabled><ChevronRight size={14} /></button>
+            <button className={styles.pageBtn} type="button" disabled={page <= 1 || !!busy} onClick={() => setPage((current) => Math.max(1, current - 1))}><ChevronLeft size={14} /></button>
+            <button className={styles.pageBtn} type="button" disabled={page >= totalPages || !!busy} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}><ChevronRight size={14} /></button>
           </div>
         </div>
       </div>
