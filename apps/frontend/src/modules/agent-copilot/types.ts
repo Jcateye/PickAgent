@@ -12,10 +12,6 @@ export interface WorkbenchContext {
   visibleColumns?: string[]
 }
 
-export type AgentMissionStatus = 'DRAFT' | 'PLANNING' | 'RUNNING' | 'WAITING_FOR_DATA' | 'WAITING_FOR_REVIEW' | 'COMPLETED' | 'FAILED' | 'CANCELED'
-export type AgentRunStatus = 'IDLE' | 'QUEUED' | 'PREPARING_CONTEXT' | 'RUNNING' | 'STREAMING' | 'CALLING_TOOL' | 'PAUSED' | 'TIMEOUT' | 'FAILED' | 'DONE' | 'CANCELED' | 'WAITING_REVIEW' | 'SUCCEEDED'
-export type AgentPlanStepStatus = 'pending' | 'running' | 'completed' | 'waiting_for_review' | 'waiting_for_data'
-
 export interface AgentMessage {
   id: string
   role: 'user' | 'assistant' | 'tool' | 'system'
@@ -23,14 +19,6 @@ export interface AgentMessage {
   status: 'completed' | 'streaming'
   linkedEntityIds?: string[]
   evidenceRefIds?: string[]
-}
-
-export interface AgentPlanStep {
-  id: string
-  title: string
-  detail: string
-  status: AgentPlanStepStatus
-  toolName?: string
 }
 
 export interface AgentToolTrace {
@@ -77,30 +65,6 @@ export interface AgentReviewGate {
   decision?: 'approve' | 'reject' | 'modify'
   decisionComment?: string
   continuationRunId?: string
-}
-
-export interface AgentMissionRun {
-  mission: {
-    id: string
-    objective: string
-    status: AgentMissionStatus
-    autonomyLevel: 'L1_ASSISTED' | 'L2_REVIEW_GATED_AGENT'
-    sourceSurface: 'agent_copilot'
-  }
-  run: {
-    id: string
-    status: AgentRunStatus
-    provider: 'eventstore' | 'fake' | 'pi'
-    progressPercent: number
-  }
-  messages: AgentMessage[]
-  plan: AgentPlanStep[]
-  toolTrace: AgentToolTrace[]
-  linkedEntities: AgentLinkedEntity[]
-  evidenceRefs: AgentEvidenceRef[]
-  reviewGates: AgentReviewGate[]
-  nextActions: string[]
-  eventContractVersion: 'agent-run-events.v1'
 }
 
 export interface AgentRunEvent {
