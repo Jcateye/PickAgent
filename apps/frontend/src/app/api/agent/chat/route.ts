@@ -4,7 +4,7 @@ import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository 
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
 import type { CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
 import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
-import type { ReportExportRequestDto, ReportSubscriptionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
+import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
@@ -111,8 +111,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createReviewItems', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -353,6 +353,19 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       }
       const result = await finalApiRuntime.reviewService.create([item], agentToolAuthContext())
       return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
+    }
+
+    if (toolName === 'decideReviewItem') {
+      const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
+      if (!reviewItemId) throw new Error('reviewItemId is required')
+      const request: ReviewDecisionRequestDto = {
+        decision: normalizeReviewDecision(input.decision),
+        decisionBy: optionalString(input.decisionBy) ?? 'agent-chat-tool',
+        decisionComment: optionalString(input.decisionComment) ?? optionalString(input.comment) ?? 'Agent Copilot 执行 Review 决策',
+        modifiedPayload: isRecord(input.modifiedPayload) ? input.modifiedPayload : undefined,
+      }
+      const result = await finalApiRuntime.reviewService.decide(reviewItemId, request, agentToolAuthContext())
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `Review 决策：${result.reviewItemId} -> ${result.status}`, { type: 'review_item', id: result.reviewItemId })
     }
 
     if (toolName === 'setSkuNextAction') {
@@ -618,6 +631,20 @@ function normalizeNextAction(input: Record<string, unknown>): DashboardSkuListIt
 function normalizeRuleSetStatus(value: unknown): RuleSetStatusDto {
   if (value === 'DRAFT' || value === 'DISABLED') return value
   return 'ENABLED'
+}
+
+function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['decision'] {
+  if (value === 'REJECT' || value === 'REQUEST_CHANGES') return value
+  return 'APPROVE'
+}
+
+function reviewEvidenceToAgentEvidence(ref: { entityId: string; label: string; evidenceText?: string; field?: string; sourceId: string }): EvidenceLinkDto {
+  return {
+    type: 'review',
+    entityId: ref.entityId,
+    label: ref.label,
+    summary: ref.evidenceText ?? ref.field ?? ref.sourceId,
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
