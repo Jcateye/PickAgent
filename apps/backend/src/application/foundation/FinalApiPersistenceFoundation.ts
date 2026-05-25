@@ -161,6 +161,7 @@ export interface UpdateRuleSetInputDto {
   name?: string;
   sourceText?: string;
   platform?: string;
+  status?: RuleSetStatusDto;
   rules?: CanonicalRuleDto[];
 }
 
@@ -645,7 +646,7 @@ export class RuleSetRepository {
     };
     assertValidRuleSet(updated);
     this.store.ruleSets.set(ruleSetId, updated);
-    this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), updatedAt: new Date().toISOString(), updatedBy: boundary.actorId });
+    this.store.ruleSetMetadata.set(ruleSetId, { ...this.metadata(ruleSetId), status: input.status ?? this.metadata(ruleSetId).status, updatedAt: new Date().toISOString(), updatedBy: boundary.actorId });
     return assembleRuleSetDetail(this.toListItem(updated), updated, this.relatedRuns(ruleSetId));
   }
 
@@ -1566,7 +1567,7 @@ export class PrismaRuleSetRepository extends RuleSetRepository {
         platform: input.platform,
         sourceText: input.sourceText,
         rulesJson: rules,
-        parseMetadataJson: { ...asRecord(current.parseMetadataJson), updatedBy: boundary.actorId },
+        parseMetadataJson: { ...asRecord(current.parseMetadataJson), status: input.status ?? ruleSetStatusFromMetadata(current.parseMetadataJson), updatedBy: boundary.actorId },
       },
     });
     return assembleRuleSetDetail(await this.toListItemFromRow(row), toRuleSetDto(row), await this.prismaRelatedRuns(ruleSetId));

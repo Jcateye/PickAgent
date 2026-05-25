@@ -407,6 +407,10 @@ test("rule library service exposes detail, versions, status updates and workflow
   assert.equal(version.version, "v2");
   assert.equal((await runtime.ruleSetService.listVersions(created.ruleSetId, tenantA)).length, 2);
 
+  const updated = await runtime.ruleSetService.update(created.ruleSetId, { name: "规则库验收规则 v2", status: "ENABLED" }, tenantA);
+  assert.equal(updated.name, "规则库验收规则 v2");
+  assert.equal(updated.status, "ENABLED");
+
   const enabled = await runtime.ruleSetService.setStatus(created.ruleSetId, "ENABLED", tenantA);
   assert.equal(enabled.status, "ENABLED");
   assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "rule_set_status_update" && audit.subjectId === created.ruleSetId));
