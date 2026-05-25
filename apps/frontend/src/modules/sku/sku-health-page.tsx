@@ -11,27 +11,30 @@ import { StatusBadge } from '@/shared/ui/status-badge'
 export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string }) {
   const skuList = await getSkuList()
   const selectedSku = await getSkuDetail(skuProfileId ?? skuList.items[0]?.skuProfileId)
+  const selectedProjection = selectedSku?.projection ?? skuList.items[0]
 
   return (
     <div className="pageStack">
-      <WorkbenchContextRegistration
-        context={{
-          route: selectedSku.projection.targetHref ?? '/sku-health',
-          pageTitle: 'SKU 健康',
-          selectedEntity: {
-            entityType: 'sku',
-            entityId: selectedSku.projection.skuProfileId,
-            label: selectedSku.projection.productName,
-          },
-          visibleFilters: { platform: selectedSku.projection.platform, healthStatus: selectedSku.projection.healthStatus },
-          visibleColumns: ['sku', 'platform', 'health', 'quality', 'nextAction'],
-        }}
-      />
+      {selectedProjection ? (
+        <WorkbenchContextRegistration
+          context={{
+            route: selectedProjection.targetHref ?? '/sku-health',
+            pageTitle: 'SKU 健康',
+            selectedEntity: {
+              entityType: 'sku',
+              entityId: selectedProjection.skuProfileId,
+              label: selectedProjection.productName,
+            },
+            visibleFilters: { platform: selectedProjection.platform, healthStatus: selectedProjection.healthStatus },
+            visibleColumns: ['sku', 'platform', 'health', 'quality', 'nextAction'],
+          }}
+        />
+      ) : null}
       <PageHeader
         title="SKU 健康"
         description="SKU 列表和详情只展示 CurrentSkuProjection 与 SKU detail DTO，状态、分数、问题和下一步动作均不在前端重新计算。"
       />
-      <ApiStatePanel state={selectedSku.viewState ?? skuList.viewState} />
+      <ApiStatePanel state={selectedSku?.viewState ?? skuList.viewState} />
 
       <div className="twoColumnScaffold skuHealthLayout">
         <div className="twoColumnMain">
@@ -54,7 +57,7 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                       className="skuTableRow skuTableRow--link"
                       href={sku.targetHref}
                       key={sku.skuProfileId}
-                      aria-current={sku.skuProfileId === selectedSku.projection.skuProfileId ? 'page' : undefined}
+                      aria-current={sku.skuProfileId === selectedProjection?.skuProfileId ? 'page' : undefined}
                     >
                       <span>
                         <strong>{sku.productName}</strong>
@@ -79,6 +82,15 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
         </div>
 
         <div className="twoColumnSide">
+          {!selectedSku ? (
+            <Panel>
+              <PanelHeader title="SKU 详情" description="没有真实 SKU detail DTO 时不展示示例业务数据。" />
+              <PanelBody>
+                <div className="compactState">当前没有可展示的真实 SKU 详情。请先通过数据源同步或 SKU API 写入 projection。</div>
+              </PanelBody>
+            </Panel>
+          ) : (
+            <>
           <Panel>
             <PanelHeader
               title="SKU 详情"
@@ -118,8 +130,10 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
               </div>
             </PanelBody>
           </Panel>
+            </>
+          )}
 
-          <Panel>
+          {selectedSku ? <Panel>
             <PanelHeader title="问题与动作" description="问题严重性和 owner 均来自 SKU detail DTO。" />
             <PanelBody>
               <div className="issueList">
@@ -148,9 +162,9 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                 ))}
               </ol>
             </PanelBody>
-          </Panel>
+          </Panel> : null}
 
-          <Panel>
+          {selectedSku ? <Panel>
             <PanelHeader title="证据摘要" description="只展示 detail DTO 给出的字段来源，不在页面拼装 snapshot。" />
             <PanelBody>
               <div className="evidenceList">
@@ -163,9 +177,9 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                 ))}
               </div>
             </PanelBody>
-          </Panel>
+          </Panel> : null}
 
-          <Panel>
+          {selectedSku ? <Panel>
             <PanelHeader title="可追溯来源" description="snapshot、diagnosis、collection risk 和 evidence source 均来自 SKU detail DTO。" />
             <PanelBody>
               <div className="traceabilityList">
@@ -191,7 +205,7 @@ export async function SkuHealthPage({ skuProfileId }: { skuProfileId?: string })
                 </div>
               </div>
             </PanelBody>
-          </Panel>
+          </Panel> : null}
         </div>
       </div>
     </div>

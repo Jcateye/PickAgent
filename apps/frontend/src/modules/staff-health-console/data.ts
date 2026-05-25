@@ -1,6 +1,5 @@
 import { headers } from 'next/headers'
 
-import { mockConnectorConsole, mockDashboardSummary, mockSkuDetails } from '@/modules/staff-health-console/mock-fixtures'
 import type {
   ApiViewState,
   ConnectorConsoleDto,
@@ -98,11 +97,41 @@ const STAFF_HEALTH_ENDPOINTS = {
   skuDetail: (skuProfileId: string) => `/api/skus/${encodeURIComponent(skuProfileId)}`,
 } as const
 
+const primaryLinks = [
+  { label: '查看数据源', href: '/data-sources', description: '确认采集来源、最近运行和边界说明' },
+  { label: '查看 SKU 列表', href: '/sku-access', description: '按服务端 projection 浏览当前健康状态' },
+  { label: '查看运行日志', href: '/run-console', description: '进入运行日志视图查看长任务状态' },
+]
+
+const collectionBoundaries = [
+  {
+    id: 'no-plugin-control',
+    label: '不控制插件自动化',
+    description: '员工工作台只展示连接状态和采集摘要，不承担插件运行流程控制。',
+  },
+  {
+    id: 'no-health-recalc',
+    label: '不重算健康结论',
+    description: '页面只消费 summary、projection 和 detail DTO，不拼 snapshot 与 diagnosis。',
+  },
+  {
+    id: 'real-api-default',
+    label: '真实 API 默认路径',
+    description: 'SKU Health 默认请求 /api/health/summary、/api/skus、/api/skus/:skuProfileId。',
+  },
+]
+
 export async function getDashboardSummary(): Promise<DashboardSummaryDto> {
   const result = await fetchApi<BackendHealthSummary>(STAFF_HEALTH_ENDPOINTS.summary)
 
   if (!result.ok) {
-    return { ...mockDashboardSummary, viewState: fallbackState(result.endpoint, result.reason) }
+    return {
+      metrics: dashboardMetricsFromSummary({ total: 0, ready: 0, warning: 0, blocked: 0 }),
+      riskSummaries: [],
+      recentRuns: [],
+      primaryLinks,
+      viewState: fallbackState(result.endpoint, result.reason),
+    }
   }
 
   if (result.data.total === 0) {
@@ -110,7 +139,7 @@ export async function getDashboardSummary(): Promise<DashboardSummaryDto> {
       metrics: dashboardMetricsFromSummary(result.data),
       riskSummaries: [],
       recentRuns: [],
-      primaryLinks: mockDashboardSummary.primaryLinks,
+      primaryLinks,
       viewState: emptyState(result.endpoint, result.requestId, '真实 health summary 已返回，但当前没有 ingest 后的 SKU projection。'),
     }
   }
@@ -119,7 +148,7 @@ export async function getDashboardSummary(): Promise<DashboardSummaryDto> {
     metrics: dashboardMetricsFromSummary(result.data),
     riskSummaries: riskSummariesFromSummary(result.data),
     recentRuns: recentRunsFromSummary(result.data),
-    primaryLinks: mockDashboardSummary.primaryLinks,
+    primaryLinks,
     viewState: realState(result.endpoint, result.requestId),
   }
 }
@@ -132,51 +161,15 @@ export async function getConnectorConsole(): Promise<ConnectorConsoleDto> {
 
   if (!summaryResult.ok && !skuListResult.ok) {
     return {
-      ...mockConnectorConsole,
+      connectors: connectorApiRows(summaryResult, skuListResult),
+      collectionBoundaries,
       viewState: fallbackState(`${summaryResult.endpoint}, ${skuListResult.endpoint}`, `${summaryResult.reason}; ${skuListResult.reason}`),
     }
   }
 
-  const connectors: ConnectorDto[] = [
-    {
-      id: 'health-summary-api',
-      name: 'Health Summary API',
-      platform: 'PickAgent API',
-      status: summaryResult.ok ? 'CONNECTED' : 'DEGRADED',
-      lastIngestedAtLabel: summaryResult.ok ? `request ${summaryResult.requestId}` : '不可用',
-      lastIngestSummary: summaryResult.ok
-        ? `GET ${STAFF_HEALTH_ENDPOINTS.summary} 返回 total=${summaryResult.data.total}, ready=${summaryResult.data.ready}, warning=${summaryResult.data.warning}, blocked=${summaryResult.data.blocked}`
-        : summaryResult.reason,
-      capabilityBoundary: '只展示健康汇总 DTO，不在 Connectors 页面重算任何健康状态。',
-      targetHref: '/overview',
-    },
-    {
-      id: 'sku-list-api',
-      name: 'SKU List API',
-      platform: 'PickAgent API',
-      status: skuListResult.ok ? 'CONNECTED' : 'DEGRADED',
-      lastIngestedAtLabel: skuListResult.ok ? `request ${skuListResult.requestId}` : '不可用',
-      lastIngestSummary: skuListResult.ok ? `GET ${STAFF_HEALTH_ENDPOINTS.skuList} 返回 ${skuListResult.data.items.length}/${skuListResult.data.total} 条 SKU。` : skuListResult.reason,
-      capabilityBoundary: '只展示 CurrentSkuProjection/SkuSummary DTO，不拼 snapshot 与 diagnosis。',
-      targetHref: '/sku-health',
-    },
-  ]
-
   return {
-    connectors,
-    collectionBoundaries: [
-      ...mockConnectorConsole.collectionBoundaries.filter((boundary) => boundary.id !== 'mock-first'),
-      {
-        id: 'real-api-default',
-        label: '真实 API 默认路径',
-        description: 'Dashboard、Connectors、SKU Health 默认请求 /api/health/summary、/api/skus、/api/skus/:skuProfileId。',
-      },
-      {
-        id: 'explicit-fallback',
-        label: '显式 fallback',
-        description: '接口错误或空数据会在页面显示 API 状态，不把 mock/fallback 声明为生产闭环。',
-      },
-    ],
+    connectors: connectorApiRows(summaryResult, skuListResult),
+    collectionBoundaries,
     viewState: skuListResult.ok || summaryResult.ok ? realState('/api/health/summary + /api/skus', skuListResult.ok ? skuListResult.requestId : summaryResult.requestId) : fallbackState('/api/health/summary + /api/skus', 'health API 不可用'),
   }
 }
@@ -185,7 +178,7 @@ export async function getSkuList(): Promise<{ items: CurrentSkuProjectionDto[]; 
   const result = await fetchApi<PageDto<BackendSkuSummary>>(STAFF_HEALTH_ENDPOINTS.skuList)
 
   if (!result.ok) {
-    return { items: mockSkuDetails.map((detail) => detail.projection), viewState: fallbackState(result.endpoint, result.reason) }
+    return { items: [], viewState: fallbackState(result.endpoint, result.reason) }
   }
 
   if (result.data.items.length === 0) {
@@ -195,12 +188,9 @@ export async function getSkuList(): Promise<{ items: CurrentSkuProjectionDto[]; 
   return { items: result.data.items.map(toProjection), viewState: realState(result.endpoint, result.requestId) }
 }
 
-export async function getSkuDetail(skuProfileId?: string): Promise<SkuDetailDto> {
+export async function getSkuDetail(skuProfileId?: string): Promise<SkuDetailDto | null> {
   if (!skuProfileId) {
-    return {
-      ...mockSkuDetails[0],
-      viewState: emptyState('/api/skus/:skuProfileId', undefined, 'SKU list 为空，无法选择真实 detail；当前展示 mock fallback。'),
-    }
+    return null
   }
 
   const result = await fetchApi<BackendSkuDetail>(STAFF_HEALTH_ENDPOINTS.skuDetail(skuProfileId))
@@ -209,14 +199,14 @@ export async function getSkuDetail(skuProfileId?: string): Promise<SkuDetailDto>
     const projection = list.items.find((item) => item.skuProfileId === skuProfileId)
     return projection
       ? detailFromProjection(projection, fallbackState(result.endpoint, result.reason))
-      : { ...(mockSkuDetails.find((item) => item.projection.skuProfileId === skuProfileId) ?? mockSkuDetails[0]), viewState: fallbackState(result.endpoint, result.reason) }
+      : null
   }
 
   return { ...toSkuDetail(result.data), viewState: realState(result.endpoint, result.requestId) }
 }
 
 export const realQueryIntegrationDependency =
-  'Layer 4B 已将员工健康工作台默认数据源收口到 GET /api/health/summary、GET /api/skus、GET /api/skus/:skuProfileId；接口错误或空数据时显式 fallback，不声明为生产默认路径。'
+  'Layer 4B 已将员工健康工作台默认数据源收口到 GET /api/health/summary、GET /api/skus、GET /api/skus/:skuProfileId；接口错误或空数据时显示空态，不使用 mock 数据冒充真实闭环。'
 
 async function fetchApi<T>(path: string): Promise<ApiResult<T>> {
   const endpoint = path
@@ -269,6 +259,36 @@ function recentRunsFromSummary(summary: BackendHealthSummary): RecentWorkflowRun
       finishedAtLabel: '当前请求',
       targetHref: '/sku-access',
       summary: `当前真实 summary 覆盖 ${summary.total} 个 SKU；READY ${summary.ready}、WARNING ${summary.warning}、BLOCKED ${summary.blocked}。`,
+    },
+  ]
+}
+
+function connectorApiRows(
+  summaryResult: ApiResult<BackendHealthSummary>,
+  skuListResult: ApiResult<PageDto<BackendSkuSummary>>,
+): ConnectorDto[] {
+  return [
+    {
+      id: 'health-summary-api',
+      name: 'Health Summary API',
+      platform: 'PickAgent API',
+      status: summaryResult.ok ? 'CONNECTED' : 'DEGRADED',
+      lastIngestedAtLabel: summaryResult.ok ? `request ${summaryResult.requestId}` : '不可用',
+      lastIngestSummary: summaryResult.ok
+        ? `GET ${STAFF_HEALTH_ENDPOINTS.summary} 返回 total=${summaryResult.data.total}, ready=${summaryResult.data.ready}, warning=${summaryResult.data.warning}, blocked=${summaryResult.data.blocked}`
+        : summaryResult.reason,
+      capabilityBoundary: '只展示健康汇总 DTO，不在页面重算任何健康状态。',
+      targetHref: '/overview',
+    },
+    {
+      id: 'sku-list-api',
+      name: 'SKU List API',
+      platform: 'PickAgent API',
+      status: skuListResult.ok ? 'CONNECTED' : 'DEGRADED',
+      lastIngestedAtLabel: skuListResult.ok ? `request ${skuListResult.requestId}` : '不可用',
+      lastIngestSummary: skuListResult.ok ? `GET ${STAFF_HEALTH_ENDPOINTS.skuList} 返回 ${skuListResult.data.items.length}/${skuListResult.data.total} 条 SKU。` : skuListResult.reason,
+      capabilityBoundary: '只展示 CurrentSkuProjection/SkuSummary DTO，不拼 snapshot 与 diagnosis。',
+      targetHref: '/sku-access',
     },
   ]
 }
@@ -399,5 +419,5 @@ function emptyState(endpoint: string, requestId: string | undefined, message: st
 }
 
 function fallbackState(endpoint: string, reason: string): ApiViewState {
-  return { kind: 'fallback', endpoint, message: `真实 API 不可用，当前显式使用 mock/fallback：${reason}` }
+  return { kind: 'fallback', endpoint, message: `真实 API 不可用，当前不展示替代业务数据：${reason}` }
 }
