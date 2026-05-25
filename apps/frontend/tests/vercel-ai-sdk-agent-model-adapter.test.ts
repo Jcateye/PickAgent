@@ -161,6 +161,54 @@ test('vercel ai sdk agent model adapter exposes review item creation as an execu
   }])
 })
 
+test('vercel ai sdk agent model adapter exposes system operation tools', async () => {
+  const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
+  const adapter = new VercelAiSdkAgentModelAdapter({
+    apiKey: 'test-key',
+    modelName: 'test-model',
+    model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
+    generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
+      await input.tools?.listConnectors?.execute?.({ pageSize: 5 })
+      await input.tools?.runConnectorSync?.execute?.({ connectorId: 'connector_1', rowCount: 12, qualityScore: 98 })
+      await input.tools?.listReports?.execute?.({})
+      await input.tools?.exportReport?.execute?.({ reportId: 'report_1', format: 'PDF' })
+      await input.tools?.subscribeReport?.execute?.({ reportId: 'report_1', frequency: 'WEEKLY', recipients: ['ops@example.test'] })
+      await input.tools?.setSkuNextAction?.execute?.({ skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
+      return {
+        text: '已执行系统工具',
+        usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        totalUsage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        finishReason: 'stop',
+        response: { id: 'response_test_4' },
+        providerMetadata: {},
+      }
+    }) as never,
+  })
+
+  const result = await adapter.complete({
+    session: { id: 'session_1', sessionKey: 's', userId: null, surface: 'agent-copilot', piSessionKey: null, piSessionRef: null, title: null, status: 'ACTIVE', configJson: {}, lastActiveAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '执行系统操作', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: null, subjectId: null, constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '同步连接器并导出报告', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
+    executeTool: async (input) => {
+      executedTools.push({ toolName: input.toolName, inputJson: input.inputJson })
+      return {
+        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: input.toolName === 'listConnectors' || input.toolName === 'listReports' ? 'L1' : 'L2', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+        status: 'SUCCEEDED',
+        summary: 'ok',
+        data: {},
+        evidenceRefs: [],
+        linkedEntities: [],
+        reviewGate: null,
+      }
+    },
+  })
+
+  assert.equal(result.content, '已执行系统工具')
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'listReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
+})
+
 test('vercel ai sdk model adapter env factory fails closed without key', () => {
   assert.equal(createVercelAiSdkAgentModelAdapterFromEnv({}), undefined)
   assert.equal(createVercelAiSdkAgentModelAdapterFromEnv({ OPENAI_API_KEY: '   ' }), undefined)

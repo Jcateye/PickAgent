@@ -2,8 +2,10 @@ import { fail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
+import type { CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
 import type { EvidenceLinkDto, ReviewItemDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
-import type { DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
+import type { ReportExportRequestDto, ReportSubscriptionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
+import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
@@ -109,7 +111,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview', 'createReviewItems'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -155,7 +158,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
       externalToolCallId: input.externalToolCallId ?? null,
       toolName,
       status,
-      riskLevel: toolName === 'createReviewItems' ? 'L2' : 'L1',
+      riskLevel: writeAgentTools.has(toolName) ? 'L2' : 'L1',
       reviewPolicy: 'AUTO_ALLOW',
       inputJson: safeInput,
       outputJson: scrubSensitive({ ok: status === 'SUCCEEDED', summary, result: execution.result }) as Record<string, unknown>,
@@ -352,6 +355,59 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
     }
 
+    if (toolName === 'setSkuNextAction') {
+      const skuProfileId = String(input.skuProfileId ?? '')
+      if (!skuProfileId) throw new Error('skuProfileId is required')
+      const nextAction = normalizeNextAction(input)
+      const result = await finalApiRuntime.skuReadinessQueryService.updateNextAction(skuProfileId, { nextAction, comment: optionalString(input.comment) ?? 'agent-chat-tool' }, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: skuProfileId, label: 'SKU 下一步设置', summary: `下一步已设置为：${result.statusSummary.nextStep}` }], `设置 SKU 下一步：${result.statusSummary.nextStep}`, { type: 'sku_profile', id: skuProfileId })
+    }
+
+    if (toolName === 'listConnectors') {
+      const result = await finalApiRuntime.connectorService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'connectors', label: '连接器列表', summary: `读取 ${result.items.length} 个连接器` }], `读取连接器：${result.items.length} 个`, result.items[0] ? { type: 'connector', id: result.items[0].connectorId } : { type: 'dashboard', id: 'connectors' })
+    }
+
+    if (toolName === 'runConnectorSync') {
+      const connectorId = String(input.connectorId ?? '')
+      if (!connectorId) throw new Error('connectorId is required')
+      const runInput: CreateConnectorSyncRunDto = {
+        rowCount: optionalNumber(input.rowCount),
+        qualityScore: optionalNumber(input.qualityScore),
+        warnings: stringArray(input.warnings),
+        summary: isRecord(input.summary) ? input.summary : { source: 'agent-chat-tool' },
+      }
+      const result = await finalApiRuntime.connectorService.createSyncRun(connectorId, runInput, agentToolAuthContext())
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器采集运行', summary: `状态：${result.status}，行数：${result.rowCount}` }], `创建连接器采集运行：${result.connectorRunId}`, { type: 'connector', id: connectorId })
+    }
+
+    if (toolName === 'listReports') {
+      const result = await finalApiRuntime.reportService.list(agentToolAuthContext())
+      return succeeded(result, [{ type: 'report', entityId: 'reports', label: '报告列表', summary: `读取 ${result.items.length} 份报告` }], `读取报告：${result.items.length} 份`, result.items[0] ? { type: 'report', id: result.items[0].reportId } : { type: 'dashboard', id: 'reports' })
+    }
+
+    if (toolName === 'exportReport') {
+      const reportId = String(input.reportId ?? '')
+      if (!reportId) throw new Error('reportId is required')
+      const request: ReportExportRequestDto = {
+        format: input.format === 'EXCEL' || input.format === 'PPT' ? input.format : 'PDF',
+        idempotencyKey: optionalString(input.idempotencyKey) ?? `agent:${Date.now().toString(36)}`,
+      }
+      const result = await finalApiRuntime.reportService.export(reportId, request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，状态：${result.status}` }], `创建报告导出：${result.exportJobId}`, { type: 'report', id: reportId })
+    }
+
+    if (toolName === 'subscribeReport') {
+      const reportId = String(input.reportId ?? '')
+      if (!reportId) throw new Error('reportId is required')
+      const request: ReportSubscriptionRequestDto = {
+        frequency: input.frequency === 'DAILY' || input.frequency === 'MONTHLY' || input.frequency === 'OFF' ? input.frequency : 'WEEKLY',
+        recipients: stringArray(input.recipients).length ? stringArray(input.recipients) : ['ops@example.test'],
+      }
+      const result = await finalApiRuntime.reportService.saveSubscription(reportId, request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, { type: 'report', id: reportId })
+    }
+
     throw new Error(`Unsupported tool: ${toolName}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : '工具执行失败'
@@ -503,6 +559,16 @@ function optionalNumber(value: unknown): number | undefined {
 
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizeNextAction(input: Record<string, unknown>): DashboardSkuListItemDto['nextAction'] {
+  const nested = isRecord(input.nextAction) ? input.nextAction : input
+  const type = typeof nested.type === 'string' ? nested.type : 'VIEW_DETAIL'
+  const label = optionalString(nested.label) ?? optionalString(input.label) ?? '查看详情'
+  if (type === 'JOIN_ACTIVITY' || type === 'REPAIR_ISSUE' || type === 'VIEW_DETAIL' || type === 'VIEW_BLOCKER' || type === 'MANUAL_REVIEW') {
+    return { type, label, disabled: typeof nested.disabled === 'boolean' ? nested.disabled : undefined }
+  }
+  return { type: 'VIEW_DETAIL' as const, label, disabled: typeof nested.disabled === 'boolean' ? nested.disabled : undefined }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

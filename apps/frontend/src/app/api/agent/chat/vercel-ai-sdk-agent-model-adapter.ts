@@ -24,6 +24,7 @@ const PICKAGENT_SYSTEM_PROMPT_TEMPLATE = [
   '- Never suggest automatic price changes, campaign submission, product page edits, procurement orders, credential access, direct SQL, shell, file, or production-changing browser actions.',
   '- Treat write-side or high-impact actions as Review Gate candidates. If a needed action is outside the exposed tools, describe the safe next step instead of pretending it was done.',
   '- You may create Review items with createReviewItems when the user asks to hand off, approve later, queue human review, or resolve ambiguity. Do not use it to approve or reject business changes.',
+  '- You may use low-risk registered system tools for connector sync runs, SKU next-action notes, report exports, and report subscriptions when the user explicitly asks for those product operations.',
   '',
   'Mission planning prompt:',
   '- First identify the user objective, subject entity, constraints, missing inputs, and success criteria.',
@@ -248,6 +249,12 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'explainDecisionWithEvidence',
   'reportPreview',
   'createReviewItems',
+  'setSkuNextAction',
+  'listConnectors',
+  'runConnectorSync',
+  'listReports',
+  'exportReport',
+  'subscribeReport',
 ] as const
 
 function summarizeConversation(messages: ModelMessage[]): string {
@@ -301,6 +308,8 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       storeId: { type: 'string' },
       category: { type: 'string' },
       activityId: { type: 'string' },
+      connectorId: { type: 'string' },
+      reportId: { type: 'string' },
       healthStatus: { type: 'string', enum: ['READY', 'REPAIRABLE', 'RISKY', 'BLOCKED'] },
       eligibilityStatus: { type: 'string', enum: ['DIRECT_READY', 'REPAIRABLE_READY', 'MANUAL_REVIEW', 'BLOCKED'] },
       minSales30d: { type: 'number' },
@@ -323,7 +332,25 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       sourceType: { type: 'string', enum: ['health', 'simulation', 'agent'] },
       recommendation: { type: 'string' },
       riskLevel: { type: 'string', enum: ['L0', 'L1', 'L2'] },
+      label: { type: 'string' },
+      comment: { type: 'string' },
+      nextAction: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          type: { type: 'string', enum: ['JOIN_ACTIVITY', 'REPAIR_ISSUE', 'VIEW_DETAIL', 'VIEW_BLOCKER', 'MANUAL_REVIEW'] },
+          label: { type: 'string' },
+          disabled: { type: 'boolean' },
+        },
+      },
       type: { type: 'string', enum: ['HEALTH', 'ACTIVITY'] },
+      format: { type: 'string', enum: ['PDF', 'EXCEL', 'PPT'] },
+      frequency: { type: 'string', enum: ['DAILY', 'WEEKLY', 'MONTHLY', 'OFF'] },
+      recipients: { type: 'array', items: { type: 'string' } },
+      warnings: { type: 'array', items: { type: 'string' } },
+      rowCount: { type: 'number' },
+      qualityScore: { type: 'number' },
+      summary: { type: 'object', additionalProperties: true },
       skuProfileIds: { type: 'array', items: { type: 'string' } },
       simulationResultIds: { type: 'array', items: { type: 'string' } },
       maxAgeHours: { type: 'number' },
@@ -389,6 +416,36 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createReviewItems', inputJson),
+    }),
+    setSkuNextAction: tool({
+      description: '设置 SKU 工作台里的下一步动作。需要 skuProfileId 和 nextAction 或 type/label。适合记录“下一步查看阻塞、进入人工确认、修复问题”等操作。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('setSkuNextAction', inputJson),
+    }),
+    listConnectors: tool({
+      description: '读取数据源连接器列表，用于回答数据源、权限、最近采集状态、连接器健康情况。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listConnectors', inputJson),
+    }),
+    runConnectorSync: tool({
+      description: '为指定 connectorId 创建真实采集运行记录。用于用户明确要求立即同步、重跑采集、刷新数据源时。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('runConnectorSync', inputJson),
+    }),
+    listReports: tool({
+      description: '读取报告中心报告列表，用于查找 reportId、最新报告、导出状态和报告时间。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listReports', inputJson),
+    }),
+    exportReport: tool({
+      description: '为指定 reportId 创建真实报告导出任务。支持 format=PDF/EXCEL/PPT。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('exportReport', inputJson),
+    }),
+    subscribeReport: tool({
+      description: '更新指定 reportId 的报告订阅。支持 frequency=DAILY/WEEKLY/MONTHLY/OFF 和 recipients。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('subscribeReport', inputJson),
     }),
   }
 }
