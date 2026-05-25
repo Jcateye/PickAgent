@@ -80,6 +80,20 @@ test("agent mission status follows current run lifecycle", () => {
   assert.ok(runtime.state.missions.get(mission.id)?.canceledAt);
 });
 
+test("agent run cancel keeps terminal run state immutable", () => {
+  const { runtime, mission, run } = seededRun();
+  runtime.eventStore.markRunStatus(run.id, "SUCCEEDED", { summary: "done" });
+  const eventCountBeforeCancel = runtime.agentService.listEvents(run.id).length;
+
+  const canceled = runtime.agentService.cancelRun(run.id, "unit-test", "不应覆盖终态");
+  const events = runtime.agentService.listEvents(run.id);
+
+  assert.equal(canceled.status, "SUCCEEDED");
+  assert.equal(runtime.agentService.getMission(mission.id).status, "COMPLETED");
+  assert.equal(events.length, eventCountBeforeCancel);
+  assert.ok(!events.some((event) => event.eventType === "run.cancel_requested"));
+});
+
 test("agent review gate request changes maps to frontend modified status", () => {
   const { runtime, mission, run } = seededRun();
   const gate = runtime.agentService.createReviewGateForTest({

@@ -945,6 +945,7 @@ export class FinalAgentService {
   cancelRun(runId: string, canceledBy?: string | null, reason?: string | null): AgentRun {
     const run = this.repository.getRun(runId);
     if (!run) throw new Error(`Agent run not found: ${runId}`);
+    if (run.status === "CANCELED" || run.status === "SUCCEEDED" || run.status === "FAILED") return run;
     const updated = this.repository.saveRun({ ...run, status: "CANCELED", cancelRequested: true, errorMessage: reason ?? run.errorMessage, completedAt: nowIso() });
     this.repository.updateMissionStatus(run.missionId, "CANCELED");
     this.eventStore.append({ runId, eventType: "run.cancel_requested", eventPhase: "canceled", payloadJson: { canceledBy: canceledBy ?? null, reason: reason ?? null } });

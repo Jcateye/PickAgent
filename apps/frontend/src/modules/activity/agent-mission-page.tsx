@@ -152,6 +152,8 @@ export function AgentMissionPage() {
   const tools = runDetail?.toolCalls ?? []
   const gates = runDetail?.reviewGates ?? []
   const pendingGateCount = gates.filter((gate) => gate.status === 'PENDING').length
+  const currentRunStatus = runDetail?.run.status ?? activeMission?.currentRun?.status
+  const runIsTerminal = isTerminalRunStatus(currentRunStatus)
   const planSteps = useMemo(() => buildPlanSteps(runDetail, runEvents.events.length), [runDetail, runEvents.events.length])
   const completedStepCount = planSteps.filter((step) => step.status === 'completed').length
   const missingEvidenceCount = tools.filter((tool) => tool.status === 'FAILED' || tool.status === 'BLOCKED' || tool.status === 'BLOCKED_BY_POLICY').length
@@ -496,8 +498,8 @@ export function AgentMissionPage() {
 
           <div className={styles.monitorActions}>
             <button className="primaryButton" type="button" onClick={() => void approvePendingGates()} disabled={actionBusy === 'approve' || !gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
-            <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={actionBusy === 'pause' || !runId}>暂停任务</button>
-            <button className="secondaryButton" type="button" onClick={() => void cancelCurrentRun()} disabled={actionBusy === 'cancel' || !runId}>取消任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={actionBusy === 'pause' || !runId || runIsTerminal}>暂停任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void cancelCurrentRun()} disabled={actionBusy === 'cancel' || !runId || runIsTerminal}>取消任务</button>
           </div>
         </aside>
       </main>
@@ -533,13 +535,17 @@ function progressForRunStatus(status: RunStatus, eventCount: number): number {
   return 38
 }
 
+function isTerminalRunStatus(status?: RunStatus): boolean {
+  return status === 'SUCCEEDED' || status === 'DONE' || status === 'FAILED' || status === 'CANCELED'
+}
+
 function buildPlanSteps(runDetail: RunDetailResponse | null, eventCount: number): PlanStep[] {
   const tools = runDetail?.toolCalls ?? []
   const gates = runDetail?.reviewGates ?? []
   const hasTool = (pattern: RegExp) => tools.some((tool) => pattern.test(tool.toolName))
   const hasSucceededTool = (pattern: RegExp) => tools.some((tool) => pattern.test(tool.toolName) && tool.status === 'SUCCEEDED')
   const runStatus = runDetail?.run.status
-  const isTerminal = runStatus === 'SUCCEEDED' || runStatus === 'DONE' || runStatus === 'FAILED' || runStatus === 'CANCELED'
+  const isTerminal = isTerminalRunStatus(runStatus)
   const isRunning = Boolean(runStatus && !isTerminal)
   return [
     {
