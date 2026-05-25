@@ -274,7 +274,7 @@ export function DataSourcesPage() {
               </div>
               <div className={styles.connectorActions}>
                 <button className="secondaryButton" type="button" onClick={(event) => { event.stopPropagation(); void createRun(connector.connectorId, connector.kind === 'report_import' ? 'upload' : 'sync') }} disabled={busy === connector.connectorId}>
-                  {connector.kind === 'report_import' ? '上传文件' : '查看运行'}
+                  {connector.kind === 'report_import' ? '上传文件' : '新建运行'}
                 </button>
                 <button className="secondaryButton" type="button" onClick={(event) => { event.stopPropagation(); void toggleConnectorStatus(connector) }} disabled={busy === `status:${connector.connectorId}`} style={{ padding: '0 10px' }}>
                   {connector.status === 'DISABLED' ? '启用' : '停用'}
@@ -291,7 +291,7 @@ export function DataSourcesPage() {
               <option value="">全部数据源</option>
               {connectors.map((connector) => <option value={connector.connectorId} key={connector.connectorId}>{connector.name}</option>)}
             </select>
-            <button className="secondaryButton" type="button" onClick={() => selectedConnector ? void createRun(selectedConnector) : void loadConnectors()} style={{ width: '32px', padding: 0, display: 'flex', justifyContent: 'center' }}><RefreshCw size={14} /></button>
+            <button className="secondaryButton" type="button" onClick={() => selectedConnector ? void createRun(selectedConnector) : void loadConnectors()} title={selectedConnector ? '新建采集运行' : '刷新连接器'} style={{ width: '32px', padding: 0, display: 'flex', justifyContent: 'center' }}><RefreshCw size={14} /></button>
           </div>
         </div>
 

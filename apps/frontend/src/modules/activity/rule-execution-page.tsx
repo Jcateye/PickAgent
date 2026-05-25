@@ -130,6 +130,7 @@ export function RuleExecutionPage() {
   const structuredRules = ruleSet?.rules.length ? ruleSet.rules : defaultStructuredRules
   const checklistItems = buildChecklistItems(structuredRules, simulationRun?.results ?? [])
   const requirementSummary = summarizeRequirements(checklistItems)
+  const statusSummary = summarizeChecklistStatus(checklistItems)
   const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
 
   return (
@@ -236,7 +237,7 @@ export function RuleExecutionPage() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="secondaryButton" type="button" onClick={() => void createChecklistReviews('assign')} disabled={busy} style={{ height: '32px', fontSize: '13px' }}>批量指派</button>
                 <button className="secondaryButton" type="button" onClick={() => void createChecklistReviews('mark')} disabled={busy} style={{ height: '32px', fontSize: '13px', display: 'flex', alignItems: 'center' }}>
-                  <CheckSquare size={14} style={{ marginRight: '6px' }} /> 批量标记 ∨
+                  <CheckSquare size={14} style={{ marginRight: '6px' }} /> 批量确认 Review
                 </button>
                 <button className="iconButton" type="button" onClick={() => void runCheck()} style={{ height: '32px', width: '32px' }}><RefreshCw size={14} /></button>
               </div>
@@ -270,12 +271,12 @@ export function RuleExecutionPage() {
               </tbody>
             </table>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
-              <span>共 5 条</span>
+              <span>共 {checklistItems.length} 条</span>
               <div style={{ display: 'flex', gap: '16px' }}>
-                <span style={{ color: 'var(--ready)' }}>● 已完成 2</span>
-                <span style={{ color: 'var(--blocked)' }}>● 缺少数据 1</span>
-                <span style={{ color: '#d4a017' }}>● 待确认 2</span>
-                <span>● 阻塞 0</span>
+                <span style={{ color: 'var(--ready)' }}>● 已完成 {statusSummary.ready}</span>
+                <span style={{ color: 'var(--blocked)' }}>● 缺少数据 {statusSummary.missing}</span>
+                <span style={{ color: '#d4a017' }}>● 待确认 {statusSummary.pending}</span>
+                <span>● 阻塞 {statusSummary.blocked}</span>
               </div>
             </div>
           </div>
@@ -347,20 +348,7 @@ export function RuleExecutionPage() {
               <ChevronDown size={16} color="var(--muted)" />
             </div>
             <div className={styles.sectionBody} style={{ paddingTop: 0 }}>
-              <div className={styles.flowchartPreview}>
-                {/* Simplified flowchart visualization for prototype */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                  <div style={{ border: '1px solid var(--line)', padding: '4px 8px', borderRadius: '4px', background: 'white' }}>开始</div>
-                  <span style={{ color: 'var(--muted)' }}>→</span>
-                  <div style={{ border: '1px solid var(--line)', padding: '4px 8px', borderRadius: '4px', background: 'white' }}>检查清单</div>
-                  <span style={{ color: 'var(--muted)' }}>→</span>
-                  <div style={{ border: '1px solid var(--line)', padding: '4px 8px', borderRadius: '4px', background: 'white', transform: 'rotate(45deg)', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ transform: 'rotate(-45deg)' }}>全部通过?</span>
-                  </div>
-                  <span style={{ color: 'var(--ready)', fontWeight: 600 }}>是 →</span>
-                  <div style={{ border: '1px solid var(--line)', padding: '4px 8px', borderRadius: '4px', background: 'white' }}>生成结论</div>
-                </div>
-              </div>
+              <DecisionFlowPreview statusSummary={statusSummary} hasSimulation={Boolean(simulationRun)} />
             </div>
           </div>
 
@@ -420,6 +408,51 @@ function summarizeRequirements(items: ChecklistItem[]) {
     missing: items.filter((item) => item.status === 'missing').length,
     external: items.filter((item) => item.status === 'pending').length,
   }
+}
+
+function summarizeChecklistStatus(items: ChecklistItem[]) {
+  return {
+    ready: items.filter((item) => item.status === 'ready').length,
+    missing: items.filter((item) => item.status === 'missing').length,
+    pending: items.filter((item) => item.status === 'pending').length,
+    blocked: items.filter((item) => item.status === 'missing' && item.failedCount > 0).length,
+  }
+}
+
+function DecisionFlowPreview({ statusSummary, hasSimulation }: { statusSummary: ReturnType<typeof summarizeChecklistStatus>; hasSimulation: boolean }) {
+  const resultLabel = !hasSimulation
+    ? '等待运行检查'
+    : statusSummary.blocked > 0
+      ? `阻塞 ${statusSummary.blocked} 项`
+      : statusSummary.pending > 0
+        ? `进入 Review ${statusSummary.pending} 项`
+        : '生成通过结论'
+  const resultColor = !hasSimulation ? 'var(--muted)' : statusSummary.blocked > 0 ? 'var(--blocked)' : statusSummary.pending > 0 ? '#d4a017' : 'var(--ready)'
+
+  return (
+    <div className={styles.flowchartPreview}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', flexWrap: 'wrap' }}>
+        <FlowNode label="规则解析" tone={hasSimulation ? 'ready' : 'muted'} />
+        <FlowArrow />
+        <FlowNode label={`检查 ${statusSummary.ready + statusSummary.missing + statusSummary.pending} 项`} tone={hasSimulation ? 'ready' : 'muted'} />
+        <FlowArrow />
+        <FlowNode label={`缺数 ${statusSummary.missing}`} tone={statusSummary.missing ? 'blocked' : 'ready'} />
+        <FlowArrow />
+        <FlowNode label={`待确认 ${statusSummary.pending}`} tone={statusSummary.pending ? 'pending' : 'ready'} />
+        <FlowArrow />
+        <FlowNode label={resultLabel} color={resultColor} />
+      </div>
+    </div>
+  )
+}
+
+function FlowNode({ label, tone, color }: { label: string; tone?: 'ready' | 'pending' | 'blocked' | 'muted'; color?: string }) {
+  const borderColor = color ?? (tone === 'ready' ? 'var(--ready)' : tone === 'pending' ? '#d4a017' : tone === 'blocked' ? 'var(--blocked)' : 'var(--line)')
+  return <div style={{ border: `1px solid ${borderColor}`, color: color ?? borderColor, padding: '4px 8px', borderRadius: '4px', background: 'white', fontWeight: tone && tone !== 'muted' ? 600 : 400 }}>{label}</div>
+}
+
+function FlowArrow() {
+  return <span style={{ color: 'var(--muted)' }}>→</span>
 }
 
 function requiredDataLabel(rule: CanonicalRuleDto): string {
