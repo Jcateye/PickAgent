@@ -96,6 +96,29 @@ test('agent chat listRunConsole tool reads workflow audits from run console', as
   assert.ok(result.items.some((item) => item.runId === audit.workflowRunId && item.type === 'activity_rule_parse' && item.sourceId === audit.subjectId))
 })
 
+test('agent chat exportRunLogs tool returns backend run log content', async () => {
+  const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
+  const parse = await executeFinalApiTool('parseActivityRules', {
+    name: 'Agent Chat Run 日志导出',
+    platform: 'tmall',
+    sourceText: '库存不得低于 45 件。',
+  })
+  assert.equal(parse.status, 'SUCCEEDED')
+  const audit = Array.from(finalApiRuntime.store.workflowAudits.entries())
+    .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
+    .map(([, value]) => value)
+    .find((item) => item.workflowType === 'activity_rule_parse')
+  assert.ok(audit)
+
+  const execution = await executeFinalApiTool('exportRunLogs', { runId: audit.workflowRunId })
+  assert.equal(execution.status, 'SUCCEEDED')
+  const exported = execution.result as { runId: string; content: string; lineCount: number }
+  assert.equal(exported.runId, audit.workflowRunId)
+  assert.match(exported.content, /activity_rule_parse/)
+  assert.ok(exported.lineCount >= 5)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+})
+
 test('agent chat updateRuleSet tool persists status-only updates', async () => {
   const created = await executeFinalApiTool('createRuleSet', {
     name: 'Agent Chat 状态更新规则集',

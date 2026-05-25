@@ -8,7 +8,7 @@ import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../.
 import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
-import { buildRunConsolePage } from '../../run-console/run-console-data'
+import { buildRunConsoleLogExport, buildRunConsolePage } from '../../run-console/run-console-data'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
 
@@ -303,6 +303,14 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       })
       const filtered = { ...result, items, total: items.length, pageSize }
       return succeeded(filtered, items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.runId, label: item.type, summary: item.summary })), `读取 Run Console：${items.length} 条运行记录`, { type: 'dashboard', id: 'run-console' })
+    }
+
+    if (toolName === 'exportRunLogs') {
+      const runId = String(input.runId ?? '')
+      if (!runId) throw new Error('runId is required')
+      const result = await buildRunConsoleLogExport(agentToolAuthContext(), runId)
+      if (!result) throw new Error(`Run not found: ${runId}`)
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Run 日志导出', summary: `导出 ${result.lineCount} 行日志：${result.fileName}` }], `导出 Run 日志：${result.runId}`, { type: 'workflow_run', id: result.runId })
     }
 
     if (toolName === 'searchSkus') {

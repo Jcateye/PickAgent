@@ -21,6 +21,14 @@ export interface RunConsolePageDto {
   pageSize: number
 }
 
+export interface RunConsoleLogExportDto {
+  runId: string
+  fileName: string
+  contentType: 'text/plain'
+  content: string
+  lineCount: number
+}
+
 export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50): Promise<RunConsolePageDto> {
   const runs: RunConsoleItemDto[] = []
 
@@ -98,4 +106,30 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
 
   const sorted = runs.sort((left, right) => Date.parse(right.startedAt ?? right.completedAt ?? '') - Date.parse(left.startedAt ?? left.completedAt ?? ''))
   return { items: sorted.slice(0, limit), total: sorted.length, page: 1, pageSize: limit }
+}
+
+export async function buildRunConsoleLogExport(boundary: P0AuthContextDto, runId: string): Promise<RunConsoleLogExportDto | null> {
+  const page = await buildRunConsolePage(boundary, 100)
+  const run = page.items.find((item) => item.runId === runId)
+  if (!run) return null
+  const lines = [
+    `Run ${run.runId}`,
+    `Type: ${run.type}`,
+    `Status: ${run.status}`,
+    `Subject: ${run.subject}`,
+    '',
+    ...run.logs.map((log) => `[${formatRunLogTime(log.time)}] [${log.tag}] ${log.message}${log.payload ? ` ${JSON.stringify(log.payload)}` : ''}`),
+  ]
+  return {
+    runId: run.runId,
+    fileName: `run-${run.runId}.log`,
+    contentType: 'text/plain',
+    content: lines.join('\n'),
+    lineCount: lines.length,
+  }
+}
+
+function formatRunLogTime(value?: string): string {
+  if (!value) return '--:--:--'
+  return new Date(value).toISOString()
 }

@@ -395,6 +395,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('listRunConsole', inputJson),
     }),
+    exportRunLogs: tool({
+      description: '导出指定 runId 的真实 Run Console 日志文本。需要 runId，返回 fileName、contentType、content 和 lineCount。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('exportRunLogs', inputJson),
+    }),
     searchSkus: tool({
       description: '按自然语言或结构化条件查询 SKU 候选。支持 query/q、productName、externalSkuId、category、platform、healthStatus、eligibilityStatus、库存/销量/评分区间、排序和分页。',
       inputSchema: objectSchema,

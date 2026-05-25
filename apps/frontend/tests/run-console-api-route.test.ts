@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { GET as listRuns } from '../src/app/api/run-console/route'
+import { POST as exportRunLogs } from '../src/app/api/run-console/[runId]/export/route'
 import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
@@ -34,4 +35,16 @@ test('run console lists report generation audits as real workflow runs', async (
     && item.sourceId === report.reportId
     && item.subject === `report:${report.reportId}`
   )))
+
+  const run = envelope.data.items.find((item: { type: string; sourceId?: string }) => item.type === 'report_generate' && item.sourceId === report.reportId)
+  assert.ok(run?.runId)
+  const exportResponse = await exportRunLogs(
+    new Request(`http://localhost/api/run-console/${run.runId}/export`, { method: 'POST', headers: authHeaders }),
+    { params: Promise.resolve({ runId: run.runId }) },
+  )
+  const exportEnvelope = await exportResponse.json()
+  assert.equal(exportResponse.status, 200)
+  assert.equal(exportEnvelope.data.runId, run.runId)
+  assert.match(exportEnvelope.data.content, new RegExp(`Run ${run.runId}`))
+  assert.match(exportEnvelope.data.content, /report_generate/)
 })

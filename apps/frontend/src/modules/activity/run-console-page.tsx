@@ -22,6 +22,14 @@ interface RunConsolePageDto {
   total: number
 }
 
+interface RunConsoleLogExportDto {
+  runId: string
+  fileName: string
+  contentType: 'text/plain'
+  content: string
+  lineCount: number
+}
+
 type RunConsoleTab = 'timeline' | 'raw' | 'tools'
 
 const runConsoleTabs: Array<{ value: RunConsoleTab; label: string }> = [
@@ -57,24 +65,24 @@ export function RunConsolePage() {
 
   const selectedRun = useMemo(() => runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null, [runs, selectedRunId])
 
-  function exportLogs() {
+  async function exportLogs() {
     if (!selectedRun) return
-    const content = [
-      `Run ${selectedRun.runId}`,
-      `Type: ${selectedRun.type}`,
-      `Status: ${selectedRun.status}`,
-      `Subject: ${selectedRun.subject}`,
-      '',
-      ...selectedRun.logs.map((log) => `[${formatTime(log.time)}] [${log.tag}] ${log.message}${log.payload ? ` ${JSON.stringify(log.payload)}` : ''}`),
-    ].join('\n')
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `run-${selectedRun.runId}.log`
-    link.click()
-    URL.revokeObjectURL(url)
-    setMessage(`已导出 Run 日志：${selectedRun.runId}`)
+    setBusy('export')
+    try {
+      const exported = await fetchActivityApi<RunConsoleLogExportDto>(`/api/run-console/${encodeURIComponent(selectedRun.runId)}/export`, { method: 'POST', body: JSON.stringify({}) })
+      const blob = new Blob([exported.content], { type: `${exported.contentType};charset=utf-8` })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = exported.fileName
+      link.click()
+      URL.revokeObjectURL(url)
+      setMessage(`已导出 Run 日志：${exported.runId} / ${exported.lineCount} 行`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '导出 Run 日志失败')
+    } finally {
+      setBusy(null)
+    }
   }
 
   async function retryRun() {
@@ -167,7 +175,7 @@ export function RunConsolePage() {
           </div>
           <div className={styles.headerActions}>
             <button className="secondaryButton" type="button" onClick={() => void retryRun()} disabled={!selectedRun || busy === 'retry'} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
-            <button className="secondaryButton" type="button" onClick={exportLogs} disabled={!selectedRun} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
+            <button className="secondaryButton" type="button" onClick={() => void exportLogs()} disabled={!selectedRun || busy === 'export'} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
             <a className="iconButton" href="/agent-mission" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>
         </div>
