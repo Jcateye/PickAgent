@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, MoreVertical, Plus, RefreshCw, X } from 'lucide-react'
+import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, Plus, RefreshCw, X } from 'lucide-react'
 import type { ConnectorDetailDto, ConnectorListItemDto, ConnectorRunSummaryDto, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './data-sources.module.css'
@@ -77,6 +77,11 @@ export function DataSourcesPage() {
   }
 
   async function createRun(connectorId: string, mode: 'sync' | 'upload' = 'sync') {
+    const connector = connectors.find((item) => item.connectorId === connectorId) ?? detail
+    if (connector?.status === 'DISABLED') {
+      setMessage('连接器已停用，请先启用后再创建运行')
+      return
+    }
     setBusy(connectorId)
     try {
       const run = await fetchActivityApi<ConnectorRunSummaryDto>(`/api/connectors/${connectorId}/sync-runs`, {
@@ -94,6 +99,30 @@ export function DataSourcesPage() {
       setRuns(nextRuns.items)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建采集运行失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function toggleConnectorStatus(target: ConnectorListItemDto | ConnectorDetailDto) {
+    const nextStatus = target.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED'
+    setBusy(`status:${target.connectorId}`)
+    try {
+      const payload: UpdateConnectorDto = {
+        status: nextStatus,
+        ...(detail?.connectorId === target.connectorId
+          ? { config: { ...detail.config, statusChangedFrom: 'data-sources-page', statusChangedAt: new Date().toISOString() } }
+          : {}),
+      }
+      const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${target.connectorId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      setDetail(updated)
+      setMessage(`${updated.name} 已${updated.status === 'DISABLED' ? '停用' : '启用'}`)
+      await loadConnectors(updated.connectorId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '连接器状态更新失败')
     } finally {
       setBusy(null)
     }
@@ -160,7 +189,9 @@ export function DataSourcesPage() {
                 <button className="secondaryButton" type="button" onClick={(event) => { event.stopPropagation(); void createRun(connector.connectorId, connector.kind === 'report_import' ? 'upload' : 'sync') }} disabled={busy === connector.connectorId}>
                   {connector.kind === 'report_import' ? '上传文件' : '查看运行'}
                 </button>
-                <MoreVertical size={16} color="var(--muted)" />
+                <button className="secondaryButton" type="button" onClick={(event) => { event.stopPropagation(); void toggleConnectorStatus(connector) }} disabled={busy === `status:${connector.connectorId}`} style={{ padding: '0 10px' }}>
+                  {connector.status === 'DISABLED' ? '启用' : '停用'}
+                </button>
               </div>
             </div>
           ))}
@@ -226,7 +257,10 @@ export function DataSourcesPage() {
           <div className={styles.panelBody}>
             <div className={styles.blockTitle}>
               当前配置
-              <button className="secondaryButton" type="button" onClick={() => void editConnectorConfig()} disabled={busy === 'edit-connector'} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="secondaryButton" type="button" onClick={() => void editConnectorConfig()} disabled={busy === 'edit-connector'} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
+                <button className="secondaryButton" type="button" onClick={() => void toggleConnectorStatus(detail)} disabled={busy === `status:${detail.connectorId}`} style={{ fontSize: '12px', padding: '4px 8px' }}>{detail.status === 'DISABLED' ? '启用' : '停用'}</button>
+              </div>
             </div>
             <div className={styles.configList}>
               <div className={styles.configRow}><div className={styles.configLabel}>连接器编码</div><div className={styles.configValue}>{detail.code}</div></div>
@@ -245,7 +279,7 @@ export function DataSourcesPage() {
 
             <div className={styles.blockTitle}>
               最近运行
-              <button type="button" className="secondaryButton" onClick={() => void createRun(detail.connectorId)} style={{ fontSize: '12px', padding: '4px 8px' }}>新建运行</button>
+              <button type="button" className="secondaryButton" onClick={() => void createRun(detail.connectorId)} disabled={detail.status === 'DISABLED' || busy === detail.connectorId} style={{ fontSize: '12px', padding: '4px 8px' }}>新建运行</button>
             </div>
             <div className={styles.recentRunsSmall}>
               {runs.slice(0, 3).map((run) => (
