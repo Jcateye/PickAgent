@@ -5,6 +5,7 @@ interface RunConsoleItemDto {
   type: string
   status: string
   subject: string
+  sourceId?: string
   startedAt?: string
   completedAt?: string
   summary: string
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
       type: 'connector_sync',
       status: run.status,
       subject: connector.name,
+      sourceId: connector.connectorId,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
       summary: `采集 ${run.rowCount} 行，质量分 ${run.qualityScore ?? '-'}`,
@@ -41,6 +43,7 @@ export async function GET(request: Request) {
       type: 'agent_run',
       status: run.status,
       subject: mission.objective,
+      sourceId: mission.missionId,
       startedAt: run.startedAt ?? undefined,
       completedAt: run.completedAt ?? undefined,
       summary: `Agent Mission：${mission.objective}`,

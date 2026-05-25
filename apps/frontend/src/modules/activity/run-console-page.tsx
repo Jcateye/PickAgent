@@ -10,6 +10,7 @@ interface RunConsoleItemDto {
   type: string
   status: string
   subject: string
+  sourceId?: string
   startedAt?: string
   completedAt?: string
   summary: string
@@ -26,6 +27,7 @@ export function RunConsolePage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
 
   async function loadRuns() {
     setLoading(true)
@@ -66,13 +68,48 @@ export function RunConsolePage() {
     setMessage(`已导出 Run 日志：${selectedRun.runId}`)
   }
 
-  function retryRun() {
+  async function retryRun() {
     if (!selectedRun) return
     if (!isFailed(selectedRun.status)) {
       setMessage(`当前 Run 状态为 ${selectedRun.status}，不需要重试。`)
       return
     }
-    setMessage('失败重试会创建新的 connector sync 或 agent run；请从对应业务页面发起。')
+    if (!selectedRun.sourceId) {
+      setMessage(`当前 ${selectedRun.type} 没有关联源对象，无法自动重试。`)
+      return
+    }
+    setBusy('retry')
+    try {
+      if (selectedRun.type === 'connector_sync') {
+        const run = await fetchActivityApi<{ connectorRunId: string }>(`/api/connectors/${selectedRun.sourceId}/sync-runs`, {
+          method: 'POST',
+          body: JSON.stringify({
+            rowCount: 0,
+            qualityScore: 0,
+            warnings: ['从运行控制台重试失败运行'],
+            summary: { retryOf: selectedRun.runId, triggeredBy: 'run-console' },
+          }),
+        })
+        setMessage(`已创建连接器重试运行：${run.connectorRunId}`)
+      } else if (selectedRun.type === 'agent_run') {
+        const run = await fetchActivityApi<{ id?: string; runId?: string }>(`/api/agent/missions/${selectedRun.sourceId}/runs`, {
+          method: 'POST',
+          body: JSON.stringify({
+            modelProvider: 'pi',
+            modelName: 'sku-ready-agent',
+            inputJson: { retryOf: selectedRun.runId, triggeredBy: 'run-console' },
+          }),
+        })
+        setMessage(`已创建 Agent 重试运行：${run.runId ?? run.id ?? 'new run'}`)
+      } else {
+        setMessage(`当前 ${selectedRun.type} 运行暂不支持自动重试。`)
+      }
+      await loadRuns()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '重试运行失败')
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
@@ -112,7 +149,7 @@ export function RunConsolePage() {
             ) : null}
           </div>
           <div className={styles.headerActions}>
-            <button className="secondaryButton" type="button" onClick={retryRun} disabled={!selectedRun} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
+            <button className="secondaryButton" type="button" onClick={() => void retryRun()} disabled={!selectedRun || busy === 'retry'} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
             <button className="secondaryButton" type="button" onClick={exportLogs} disabled={!selectedRun} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
             <a className="iconButton" href="/agent-mission" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>
