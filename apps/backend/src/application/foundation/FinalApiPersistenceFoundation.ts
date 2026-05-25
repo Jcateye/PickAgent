@@ -47,6 +47,7 @@ import {
 } from "../../../../contracts/types/activityManagement";
 import type {
   ReportDetailDto,
+  ReportComparisonDto,
   ReportExportJobDto,
   ReportExportRequestDto,
   ReportListItemDto,
@@ -2253,6 +2254,38 @@ export class FinalReportService {
     return this.repository.getVersion(boundary, reportId, versionId);
   }
 
+  async compare(baseReportId: string, targetReportId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportComparisonDto> {
+    const [base, target] = await Promise.all([
+      this.repository.getById(boundary, baseReportId),
+      this.repository.getById(boundary, targetReportId),
+    ]);
+    if (!base) throw new Error(`Report not found: ${baseReportId}`);
+    if (!target) throw new Error(`Report not found: ${targetReportId}`);
+    const basePassRate = reportPassRate(base);
+    const targetPassRate = reportPassRate(target);
+    const deltaPassedSku = base.summary.passedSku - target.summary.passedSku;
+    const deltaRepairableSku = base.summary.repairableSku - target.summary.repairableSku;
+    const deltaBlockedSku = base.summary.blockedSku - target.summary.blockedSku;
+    return {
+      comparisonId: nextId("report_compare"),
+      baseReportId,
+      targetReportId,
+      baseTitle: base.title,
+      targetTitle: target.title,
+      generatedAt: new Date().toISOString(),
+      metrics: {
+        basePassRate,
+        targetPassRate,
+        deltaPassRate: basePassRate - targetPassRate,
+        deltaPassedSku,
+        deltaRepairableSku,
+        deltaBlockedSku,
+      },
+      summary: `${base.title} 对比 ${target.title}：通过率 ${formatRate(basePassRate)} vs ${formatRate(targetPassRate)}，通过 SKU ${signed(deltaPassedSku)}，可修复 SKU ${signed(deltaRepairableSku)}，阻断 SKU ${signed(deltaBlockedSku)}。`,
+      evidenceSummary: [...base.evidenceSummary.slice(0, 5), ...target.evidenceSummary.slice(0, 5)],
+    };
+  }
+
   async export(reportId: string, request: ReportExportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportExportJobDto> {
     return this.repository.createExport(boundary, reportId, request);
   }
@@ -3062,6 +3095,18 @@ function toReportDetail(report: ReportPreviewDto, details: SkuDetailDto[], simul
     },
     evidenceSummary,
   };
+}
+
+function reportPassRate(report: ReportDetailDto): number {
+  return report.summary.totalSku > 0 ? report.summary.passedSku / report.summary.totalSku : 0;
+}
+
+function formatRate(value: number): string {
+  return `${Math.round(value * 1000) / 10}%`;
+}
+
+function signed(value: number): string {
+  return value >= 0 ? `+${value}` : `${value}`;
 }
 
 function buildCategoryDistribution(details: SkuDetailDto[], simulations: SimulationResultDto[]): ReportDetailDto["summary"]["categoryDistribution"] {

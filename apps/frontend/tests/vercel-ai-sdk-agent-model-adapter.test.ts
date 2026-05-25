@@ -187,6 +187,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       await input.tools?.getReportDetail?.execute?.({ reportId: 'report_1' })
       await input.tools?.listReportVersions?.execute?.({ reportId: 'report_1' })
       await input.tools?.getReportVersion?.execute?.({ reportId: 'report_1', versionId: 'report_version_1' })
+      await input.tools?.compareReports?.execute?.({ baseReportId: 'report_1', targetReportId: 'report_2' })
       await input.tools?.exportReport?.execute?.({ reportId: 'report_1', format: 'PDF' })
       await input.tools?.subscribeReport?.execute?.({ reportId: 'report_1', frequency: 'WEEKLY', recipients: ['ops@example.test'] })
       await input.tools?.setSkuNextAction?.execute?.({ skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
@@ -221,7 +222,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 

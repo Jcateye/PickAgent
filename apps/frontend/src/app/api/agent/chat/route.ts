@@ -112,7 +112,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
 const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -525,6 +525,14 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       const result = await finalApiRuntime.reportService.getVersion(reportId, versionId, agentToolAuthContext())
       if (!result) throw new Error(`Report version not found: ${reportId}/${versionId}`)
       return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), `读取报告版本：${result.version}`, { type: 'report', id: reportId })
+    }
+
+    if (toolName === 'compareReports') {
+      const baseReportId = String(input.baseReportId ?? input.reportId ?? '')
+      const targetReportId = String(input.targetReportId ?? '')
+      if (!baseReportId || !targetReportId) throw new Error('baseReportId and targetReportId are required')
+      const result = await finalApiRuntime.reportService.compare(baseReportId, targetReportId, agentToolAuthContext())
+      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), result.summary, { type: 'report', id: result.baseReportId })
     }
 
     if (toolName === 'exportReport') {

@@ -268,6 +268,7 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'getReportDetail',
   'listReportVersions',
   'getReportVersion',
+  'compareReports',
   'exportReport',
   'subscribeReport',
 ] as const
@@ -333,6 +334,8 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       runId: { type: 'string' },
       runType: { type: 'string', enum: ['connector_sync', 'agent_run'] },
       reportId: { type: 'string' },
+      baseReportId: { type: 'string' },
+      targetReportId: { type: 'string' },
       versionId: { type: 'string' },
       reviewItemId: { type: 'string' },
       decision: { type: 'string', enum: ['APPROVE', 'REJECT', 'REQUEST_CHANGES'] },
@@ -548,6 +551,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '读取指定 reportId/versionId 的真实报告版本详情。需要 reportId 和 versionId。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getReportVersion', inputJson),
+    }),
+    compareReports: tool({
+      description: '对比两份真实报告的通过率、通过 SKU、可修复 SKU、阻断 SKU 和证据摘要。需要 baseReportId 和 targetReportId。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('compareReports', inputJson),
     }),
     exportReport: tool({
       description: '为指定 reportId 创建真实报告导出任务。支持 format=PDF/EXCEL/PPT。',

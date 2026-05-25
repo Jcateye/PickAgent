@@ -151,6 +151,25 @@ export interface ReportVersionDto extends ReportDetailDto {
   versionId: string;
 }
 
+export interface ReportComparisonDto {
+  comparisonId: string;
+  baseReportId: string;
+  targetReportId: string;
+  baseTitle: string;
+  targetTitle: string;
+  generatedAt: string;
+  metrics: {
+    basePassRate: number;
+    targetPassRate: number;
+    deltaPassRate: number;
+    deltaPassedSku: number;
+    deltaRepairableSku: number;
+    deltaBlockedSku: number;
+  };
+  summary: string;
+  evidenceSummary: EvidenceRef[];
+}
+
 export interface ReportExportRequestDto {
   format: "PDF" | "EXCEL" | "PPT";
   idempotencyKey?: string;

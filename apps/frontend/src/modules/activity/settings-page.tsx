@@ -34,6 +34,7 @@ const commonAgentTools = [
   'getReportDetail',
   'listReportVersions',
   'getReportVersion',
+  'compareReports',
   'exportReport',
   'subscribeReport',
   'setSkuNextAction',
