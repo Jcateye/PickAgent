@@ -384,6 +384,34 @@
   justify-content: center;
 }
 
+.browserScanBox {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 24px;
+}
+
+.scanMessage {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.scanPreview {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  word-break: break-word;
+}
+
 .rawJson {
   margin: 0 0 24px;
   padding: 12px;

@@ -268,6 +268,7 @@ export const defaultAgentToolNames = [
   "updateConnector",
   "detectBrowserPage",
   "previewBrowserScan",
+  "ingestBrowserScan",
   "runConnectorSync",
   "setConnectorStatus",
   "setRuleSetStatus",

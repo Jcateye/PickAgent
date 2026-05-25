@@ -114,7 +114,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
 const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -555,6 +555,28 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, [{ type: 'tool_trace', entityId: result.detected.traceRef.entityId, label: '浏览器扫描预览', summary: `行数 ${result.rowCount}，质量分 ${result.qualityScore}，ready=${result.ingestReady}` }], `扫描预览：${result.rowCount} 行，质量分 ${result.qualityScore}`, result.connectorId ? { type: 'connector', id: result.connectorId } : { type: 'connector', id: result.detected.traceRef.entityId })
     }
 
+    if (toolName === 'ingestBrowserScan') {
+      const request = browserScanPreviewInput(input)
+      const preview = finalApiRuntime.browserConnectorService.scanPreview(request)
+      if (!preview.ingestReady) throw new Error(`Browser scan is not ingest ready: ${preview.warnings.join('；') || 'unknown warning'}`)
+      const ingest = await finalApiRuntime.ingestService.ingest(browserScanIngestPayload(input, preview.detected.platform), agentToolAuthContext())
+      const run = request.connectorId
+        ? await finalApiRuntime.connectorService.createSyncRun(request.connectorId, {
+          rowCount: ingest.summaries.length,
+          qualityScore: preview.qualityScore / 100,
+          warnings: preview.warnings,
+          summary: {
+            source: 'agent_browser_scan_ingest',
+            url: request.url,
+            workflowRunId: ingest.workflowRunId,
+            skuProfileIds: ingest.summaries.map((item) => item.skuProfileId),
+          },
+        }, agentToolAuthContext())
+        : null
+      const result = { preview, ingest, run }
+      return succeeded(result, ingest.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `浏览器扫描写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `浏览器扫描写入 SKU：${ingest.summaries.length} 条`, ingest.summaries[0] ? { type: 'sku_profile', id: ingest.summaries[0].skuProfileId } : { type: 'dashboard', id: 'browser-scan-ingest' })
+    }
+
     if (toolName === 'runConnectorSync') {
       const connectorId = String(input.connectorId ?? '')
       if (!connectorId) throw new Error('connectorId is required')
@@ -849,6 +871,44 @@ function ingestRowInput(input: Record<string, unknown>, index: number): IngestRo
     joinedBrandDay: typeof input.joinedBrandDay === 'boolean' ? input.joinedBrandDay : undefined,
     certificateStatus: optionalString(input.certificateStatus),
     raw: isRecord(input.raw) ? input.raw : input,
+  }
+}
+
+function browserScanIngestPayload(input: Record<string, unknown>, detectedPlatform?: string): IngestPayloadDto {
+  const platform = optionalString(input.platform) ?? detectedPlatform
+  const storeId = optionalString(input.storeId)
+  const rows = recordArray(input.rows).map((row, index) => browserScanIngestRow(row, index, platform, storeId, optionalString(input.url)))
+  if (!rows.length) throw new Error('rows are required')
+  return {
+    connectorId: optionalString(input.connectorId),
+    collectedAt: optionalString(input.collectedAt) ?? new Date().toISOString(),
+    rows,
+  }
+}
+
+function browserScanIngestRow(input: Record<string, unknown>, index: number, defaultPlatform?: string, defaultStoreId?: string, defaultUrl?: string): IngestRowDto {
+  const platform = optionalString(input.platform) ?? defaultPlatform
+  const storeId = optionalString(input.storeId) ?? defaultStoreId
+  const externalSkuId = optionalString(input.externalSkuId ?? input.sku ?? input.skuId ?? input.itemId ?? input.productId)
+  if (!platform || !storeId || !externalSkuId) throw new Error(`rows[${index}].platform, storeId, and externalSkuId are required`)
+  return {
+    platform,
+    storeId,
+    externalSkuId,
+    productName: optionalString(input.productName ?? input.title ?? input.name),
+    category: optionalString(input.category),
+    brand: optionalString(input.brand),
+    sourceUrl: optionalString(input.sourceUrl ?? input.url) ?? defaultUrl,
+    rowIndex: typeof input.rowIndex === 'number' && Number.isInteger(input.rowIndex) ? input.rowIndex : index,
+    sales30d: optionalNumber(input.sales30d ?? input.sales),
+    positiveRate: optionalNumber(input.positiveRate ?? input.rating),
+    stock: optionalNumber(input.stock ?? input.inventory),
+    originalPrice: optionalNumber(input.originalPrice ?? input.price),
+    lowestPrice30d: optionalNumber(input.lowestPrice30d),
+    campaignPrice: optionalNumber(input.campaignPrice ?? input.promoPrice),
+    joinedBrandDay: typeof input.joinedBrandDay === 'boolean' ? input.joinedBrandDay : undefined,
+    certificateStatus: optionalString(input.certificateStatus),
+    raw: input,
   }
 }
 

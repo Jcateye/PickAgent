@@ -4,6 +4,8 @@ import test from 'node:test'
 import { POST as createConnector } from '../src/app/api/connectors/route'
 import { DELETE as disableConnector, PATCH as updateConnector } from '../src/app/api/connectors/[connectorId]/route'
 import { GET as listConnectorRuns, POST as createConnectorRun } from '../src/app/api/connectors/[connectorId]/sync-runs/route'
+import { POST as ingestBrowserScan } from '../src/app/api/connectors/browser/scan-ingest/route'
+import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
   'content-type': 'application/json',
@@ -82,4 +84,47 @@ test('connector sync route rejects disabled connector as a conflict', async () =
 
   assert.equal(response.status, 409)
   assert.equal(envelope.code, 'CONNECTOR.CONFLICT')
+})
+
+test('browser scan ingest route writes SKU data and connector run atomically', async () => {
+  const createdResponse = await createConnector(
+    new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: `browser_ingest_connector_${Date.now()}`,
+        name: 'Browser Ingest Connector',
+        kind: 'browser_extension',
+        platform: 'tmall',
+        status: 'ACTIVE',
+      }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+
+  const connectorId = createdEnvelope.data.connectorId
+  const externalSkuId = `browser_scan_sku_${Date.now()}`
+  const response = await ingestBrowserScan(
+    new Request('http://localhost/api/connectors/browser/scan-ingest', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        connectorId,
+        url: 'https://tmall.example.test/sku-list',
+        storeId: 'browser_store',
+        rows: [{ sku: externalSkuId, title: '浏览器扫描写入 SKU', stock: 42, sales: 188, positiveRate: 0.97 }],
+      }),
+    }),
+  )
+  const envelope = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(envelope.data.preview.ingestReady, true)
+  assert.equal(envelope.data.ingest.summaries[0].canonicalSkuKey, `tmall:browser_store:${externalSkuId}`)
+  assert.equal(envelope.data.run.connectorId, connectorId)
+
+  const detail = await finalApiRuntime.ingestService.getSkuDetail(envelope.data.ingest.summaries[0].skuProfileId)
+  assert.equal(detail?.productName, '浏览器扫描写入 SKU')
+  assert.equal(detail?.latestSnapshot?.stock, 42)
 })

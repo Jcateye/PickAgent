@@ -127,6 +127,42 @@ test('agent chat ingestSkus tool writes SKU projections that can be read back', 
   assert.equal(detail?.latestSnapshot?.stock, 66)
 })
 
+test('agent chat ingestBrowserScan tool writes browser scan rows to SKU projections', async () => {
+  const externalSkuId = `agent_browser_scan_${Date.now()}`
+  const execution = await executeFinalApiTool('ingestBrowserScan', {
+    url: 'https://tmall.example.test/sku-list',
+    storeId: 'agent_browser_store',
+    rows: [
+      {
+        sku: externalSkuId,
+        title: 'Agent 浏览器扫描 SKU',
+        stock: 51,
+        sales: 236,
+        positiveRate: 0.96,
+      },
+    ],
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const summary = (execution.result as { ingest: { summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> } }).ingest.summaries[0]
+  assert.equal(summary.canonicalSkuKey, `tmall:agent_browser_store:${externalSkuId}`)
+
+  const detail = await finalApiRuntime.ingestService.getSkuDetail(summary.skuProfileId)
+  assert.equal(detail?.productName, 'Agent 浏览器扫描 SKU')
+  assert.equal(detail?.latestSnapshot?.stock, 51)
+})
+
+test('agent chat ingestBrowserScan tool rejects preview rows that are not ingest ready', async () => {
+  const execution = await executeFinalApiTool('ingestBrowserScan', {
+    url: 'https://unknown.example.test/list',
+    storeId: 'agent_browser_store',
+    rows: [{ sku: `agent_browser_reject_${Date.now()}`, title: '不支持页面 SKU', stock: 1 }],
+  })
+
+  assert.equal(execution.status, 'FAILED')
+  assert.match((execution.result as { message?: string }).message ?? '', /not ingest ready/)
+})
+
 test('agent chat retryRun tool supports activity simulation retries', async () => {
   const skuExternalId = `agent_retry_simulation_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, Plus, RefreshCw, X } from 'lucide-react'
-import type { ConnectorDetailDto, ConnectorKind, ConnectorListItemDto, ConnectorRunSummaryDto, ConnectorStatus, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
+import type { SkuSummaryDto } from '../../../../contracts/types/businessFoundation'
+import type { BrowserScanPreviewDto, ConnectorDetailDto, ConnectorKind, ConnectorListItemDto, ConnectorRunDetailDto, ConnectorRunSummaryDto, ConnectorStatus, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './data-sources.module.css'
 
@@ -10,6 +11,11 @@ type ConnectorFormState =
   | { mode: 'create'; code: string; name: string; kind: ConnectorKind; platform: string; status: ConnectorStatus; configText: string }
   | { mode: 'edit'; connectorId: string; name: string; platform: string; status: ConnectorStatus; configText: string }
 type ConnectorPanelTab = 'overview' | 'config' | 'permissions'
+type BrowserScanIngestResponse = {
+  preview: BrowserScanPreviewDto
+  ingest: { summaries: SkuSummaryDto[]; workflowRunId: string }
+  run: ConnectorRunDetailDto | null
+}
 
 export function DataSourcesPage() {
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
@@ -195,6 +201,16 @@ export function DataSourcesPage() {
     })
   }
 
+  async function reloadSelectedConnector(connectorId: string) {
+    await loadConnectors(connectorId)
+    const [nextDetail, nextRuns] = await Promise.all([
+      fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${connectorId}`),
+      fetchActivityApi<PageDto<ConnectorRunSummaryDto>>(`/api/connectors/${connectorId}/sync-runs?pageSize=10`),
+    ])
+    setDetail(nextDetail)
+    setRuns(nextRuns.items)
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.mainContent}>
@@ -346,7 +362,7 @@ export function DataSourcesPage() {
           </div>
 
           <div className={styles.panelBody}>
-            {panelTab === 'overview' ? <ConnectorOverviewPanel detail={detail} runs={runs} createRun={createRun} busy={busy} /> : null}
+            {panelTab === 'overview' ? <ConnectorOverviewPanel key={detail.connectorId} detail={detail} runs={runs} createRun={createRun} onIngestComplete={reloadSelectedConnector} busy={busy} /> : null}
             {panelTab === 'config' ? <ConnectorConfigPanel detail={detail} editConnectorConfig={editConnectorConfig} toggleConnectorStatus={toggleConnectorStatus} busy={busy} /> : null}
             {panelTab === 'permissions' ? <ConnectorPermissionPanel detail={detail} /> : null}
           </div>
@@ -356,14 +372,88 @@ export function DataSourcesPage() {
   )
 }
 
-function ConnectorOverviewPanel({ detail, runs, createRun, busy }: {
+function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, busy }: {
   detail: ConnectorDetailDto
   runs: ConnectorRunSummaryDto[]
   createRun: (connectorId: string) => Promise<void>
+  onIngestComplete: (connectorId: string) => Promise<void>
   busy: string | null
 }) {
+  const [scanUrl, setScanUrl] = useState('https://tmall.example.test/sku-list')
+  const [scanStoreId, setScanStoreId] = useState(detail.config.storeId && typeof detail.config.storeId === 'string' ? detail.config.storeId : 'default_store')
+  const [scanRowsText, setScanRowsText] = useState('[\n  {\n    "sku": "SKU-001",\n    "title": "示例商品",\n    "stock": 120,\n    "sales": 320,\n    "positiveRate": 0.98\n  }\n]')
+  const [scanPreview, setScanPreview] = useState<BrowserScanPreviewDto | null>(null)
+  const [scanMessage, setScanMessage] = useState<string | null>(null)
+  const [scanBusy, setScanBusy] = useState<'preview' | 'ingest' | null>(null)
+
+  async function submitBrowserScan(mode: 'preview' | 'ingest') {
+    let rows: Array<Record<string, unknown>>
+    try {
+      const parsed = JSON.parse(scanRowsText) as unknown
+      if (!Array.isArray(parsed)) throw new Error('rows must be an array')
+      rows = parsed.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    } catch {
+      setScanMessage('扫描 rows 必须是 JSON 数组')
+      return
+    }
+    if (!scanUrl.trim() || !scanStoreId.trim()) {
+      setScanMessage('URL 和店铺 ID 不能为空')
+      return
+    }
+    setScanBusy(mode)
+    try {
+      const payload = { connectorId: detail.connectorId, url: scanUrl.trim(), storeId: scanStoreId.trim(), platform: detail.platform ?? undefined, rows }
+      if (mode === 'preview') {
+        const preview = await fetchActivityApi<BrowserScanPreviewDto>('/api/connectors/browser/scan-preview', { method: 'POST', body: JSON.stringify(payload) })
+        setScanPreview(preview)
+        setScanMessage(`预览完成：${preview.rowCount} 行，质量分 ${preview.qualityScore}`)
+        return
+      }
+      const result = await fetchActivityApi<BrowserScanIngestResponse>('/api/connectors/browser/scan-ingest', { method: 'POST', body: JSON.stringify(payload) })
+      setScanPreview(result.preview)
+      setScanMessage(`已写入 ${result.ingest.summaries.length} 个 SKU${result.run ? `，运行 ${result.run.connectorRunId}` : ''}`)
+      await onIngestComplete(detail.connectorId)
+    } catch (error) {
+      setScanMessage(error instanceof Error ? error.message : '浏览器扫描处理失败')
+    } finally {
+      setScanBusy(null)
+    }
+  }
+
   return (
     <>
+      {detail.kind === 'browser_extension' ? (
+        <>
+          <div className={styles.blockTitle}>浏览器扫描写入</div>
+          <div className={styles.browserScanBox}>
+            <label className={styles.formField}>
+              <span>页面 URL</span>
+              <input value={scanUrl} onChange={(event) => setScanUrl(event.target.value)} />
+            </label>
+            <label className={styles.formField}>
+              <span>店铺 ID</span>
+              <input value={scanStoreId} onChange={(event) => setScanStoreId(event.target.value)} />
+            </label>
+            <label className={styles.formField}>
+              <span>扫描 rows JSON</span>
+              <textarea value={scanRowsText} onChange={(event) => setScanRowsText(event.target.value)} rows={7} />
+            </label>
+            <div className={styles.formActions}>
+              <button className="secondaryButton" type="button" onClick={() => void submitBrowserScan('preview')} disabled={!!scanBusy || detail.status === 'DISABLED'}>预览字段</button>
+              <button className="primaryButton" type="button" onClick={() => void submitBrowserScan('ingest')} disabled={!!scanBusy || detail.status === 'DISABLED'}>写入 SKU</button>
+            </div>
+            {scanMessage ? <div className={styles.scanMessage}>{scanMessage}</div> : null}
+            {scanPreview ? (
+              <div className={styles.scanPreview}>
+                <div>ready: {String(scanPreview.ingestReady)}</div>
+                <div>字段: {scanPreview.fieldMappings.map((item) => `${item.sourceField}->${item.targetField}`).join('，') || '-'}</div>
+                <div>告警: {scanPreview.warnings.join('；') || '-'}</div>
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
       <div className={styles.blockTitle}>
         最近运行
         <button type="button" className="secondaryButton" onClick={() => void createRun(detail.connectorId)} disabled={detail.status === 'DISABLED' || busy === detail.connectorId} style={{ fontSize: '12px', padding: '4px 8px' }}>新建运行</button>

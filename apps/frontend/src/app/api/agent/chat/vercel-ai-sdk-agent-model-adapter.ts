@@ -545,6 +545,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('previewBrowserScan', inputJson),
     }),
+    ingestBrowserScan: tool({
+      description: '把浏览器扫描到的商品 rows 原子写入真实 SKU 档案，并在提供 connectorId 时记录采集运行。需要 url、storeId、rows；可选 platform/connectorId/collectedAt。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('ingestBrowserScan', inputJson),
+    }),
     runConnectorSync: tool({
       description: '为指定 connectorId 创建真实采集运行记录。用于用户明确要求立即同步、重跑采集、刷新数据源时。',
       inputSchema: objectSchema,
