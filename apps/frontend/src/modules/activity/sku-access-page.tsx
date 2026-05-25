@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Wrench, HelpCircle, XCircle, Search, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DashboardSkuListItemDto, DashboardSkuReadinessDetailDto } from '../../../../contracts/types/dashboardSkuReadModels'
-import type { ReportPreviewDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
+import type { EvidenceLinkDto, ReportPreviewDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
@@ -130,25 +130,30 @@ export function SkuAccessPage() {
     const busyKey = items.length === 1 ? items[0].skuProfileId : 'bulk-review'
     setBusy(busyKey)
     try {
+      const details = await Promise.all(items.map((item) => fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`)))
       const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
         method: 'POST',
         body: JSON.stringify({
-          items: items.map((item) => ({
-            skuProfileId: item.skuProfileId,
-            sourceType: 'health',
-            sourceId: item.skuProfileId,
-            question: `确认 ${item.displaySku} 的活动准入下一步`,
-            recommendation: item.nextAction.label,
-            riskLevel: item.healthStatus === 'BLOCKED' || item.healthStatus === 'RISKY' ? 'L2' : 'L1',
-            evidence: [
-              {
-                type: 'diagnosis',
-                entityId: item.skuProfileId,
-                label: item.productName,
-                summary: item.eligibilityLabel,
-              },
-            ],
-          })),
+          items: items.map((item) => {
+            const detail = details.find((candidate) => candidate.skuProfileId === item.skuProfileId)
+            const evidence = detail ? reviewEvidenceFromSkuDetail(detail) : []
+            return {
+              skuProfileId: item.skuProfileId,
+              sourceType: 'health',
+              sourceId: detail?.latestDiagnosis?.diagnosisId ?? detail?.latestSnapshot?.snapshotId ?? item.skuProfileId,
+              question: `确认 ${item.displaySku} 的活动准入下一步`,
+              recommendation: detail?.statusSummary.nextStep ?? item.nextAction.label,
+              riskLevel: item.healthStatus === 'BLOCKED' || item.healthStatus === 'RISKY' ? 'L2' : 'L1',
+              evidence: evidence.length ? evidence : [
+                {
+                  type: 'snapshot',
+                  entityId: item.skuProfileId,
+                  label: item.productName,
+                  summary: item.eligibilityLabel,
+                },
+              ],
+            }
+          }),
         }),
       })
       setMessage(`已生成 Review：${created.map((item) => item.reviewItemId).join(', ')}`)
@@ -564,6 +569,37 @@ function sourceKindLabel(value: string): string {
   if (value === 'platform_api') return '平台 API'
   if (value === 'report_import') return '报表导入'
   return value
+}
+
+function reviewEvidenceFromSkuDetail(detail: DashboardSkuReadinessDetailDto): EvidenceLinkDto[] {
+  const refs = [
+    ...(detail.latestDiagnosis?.evidenceRefs ?? []),
+    ...detail.readinessChecklist.flatMap((item) => item.evidenceRefs),
+  ]
+  const seen = new Set<string>()
+  return refs.flatMap((ref) => {
+    const entityId = ref.entityId || ref.sourceId
+    if (!entityId) return []
+    const key = `${ref.sourceType}:${entityId}:${ref.label}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [{
+      type: evidenceTypeFromSource(ref.sourceType),
+      entityId,
+      label: ref.label,
+      summary: ref.evidenceText ?? ref.field ?? ref.label,
+    }]
+  })
+}
+
+function evidenceTypeFromSource(sourceType: DashboardSkuReadinessDetailDto['readinessChecklist'][number]['evidenceRefs'][number]['sourceType']): EvidenceLinkDto['type'] {
+  if (sourceType === 'sku_snapshot') return 'snapshot'
+  if (sourceType === 'health_diagnosis') return 'diagnosis'
+  if (sourceType === 'rule_set') return 'rule'
+  if (sourceType === 'simulation_run' || sourceType === 'simulation_result') return 'simulation'
+  if (sourceType === 'review_item') return 'review'
+  if (sourceType === 'report') return 'report'
+  return 'tool_trace'
 }
 
 function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleMap: typeof styles) {
