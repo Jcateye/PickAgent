@@ -26,6 +26,8 @@ export function SkuAccessPage() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
+  const [sourceKind, setSourceKind] = useState('ALL')
+  const [category, setCategory] = useState('ALL')
   const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>('overview')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -39,6 +41,9 @@ export function SkuAccessPage() {
       sortOrder: 'desc',
     })
     if (healthStatus !== 'ALL') params.set('healthStatus', healthStatus)
+    if (sourceKind !== 'ALL') params.set('sourceKind', sourceKind)
+    if (category !== 'ALL') params.set('category', category)
+    if (query.trim()) params.set('q', query.trim())
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
       fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
@@ -59,7 +64,7 @@ export function SkuAccessPage() {
     return () => {
       cancelled = true
     }
-  }, [page, healthStatus])
+  }, [page, healthStatus, sourceKind, category, query])
 
   useEffect(() => {
     if (!selectedId) return
@@ -76,11 +81,9 @@ export function SkuAccessPage() {
     }
   }, [selectedId])
 
-  const rows = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    const sourceRows = skuPage?.items ?? []
-    return sourceRows.filter((item) => !normalizedQuery || [item.displaySku, item.productName, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery)))
-  }, [query, skuPage])
+  const rows = useMemo(() => skuPage?.items ?? [], [skuPage])
+  const sourceOptions = useMemo(() => uniqueOptions(rows.map((item) => item.sourceKind), sourceKind), [rows, sourceKind])
+  const categoryOptions = useMemo(() => uniqueOptions(rows.map((item) => item.category), category), [rows, category])
   const selectedRow = rows.find((item) => item.skuProfileId === selectedId) ?? rows[0]
   const selectedRows = rows.filter((item) => selectedIds.includes(item.skuProfileId))
   const allVisibleSelected = rows.length > 0 && rows.every((item) => selectedIds.includes(item.skuProfileId))
@@ -247,21 +250,17 @@ export function SkuAccessPage() {
 
         <div className={styles.filterBar}>
           <div className={styles.filterItem}>
-            活动
-            <select className={styles.filterSelect}>
-              <option>天猫618大促</option>
-            </select>
-          </div>
-          <div className={styles.filterItem}>
-            平台
-            <select className={styles.filterSelect}>
-              <option>全部</option>
+            数据源
+            <select className={styles.filterSelect} value={sourceKind} onChange={(event) => { setSourceKind(event.target.value); setPage(1) }}>
+              <option value="ALL">全部</option>
+              {sourceOptions.map((item) => <option value={item} key={item}>{sourceKindLabel(item)}</option>)}
             </select>
           </div>
           <div className={styles.filterItem}>
             类目
-            <select className={styles.filterSelect}>
-              <option>全部</option>
+            <select className={styles.filterSelect} value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}>
+              <option value="ALL">全部</option>
+              {categoryOptions.map((item) => <option value={item} key={item}>{item}</option>)}
             </select>
           </div>
           <div className={styles.filterItem}>
@@ -277,9 +276,9 @@ export function SkuAccessPage() {
           <div style={{ flex: 1 }}></div>
           <div className={styles.searchBox}>
             <Search size={16} color="var(--muted)" />
-            <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
           </div>
-          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setHealthStatus('ALL'); setPage(1) }} style={{ height: '32px' }}>重置</button>
+          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setHealthStatus('ALL'); setSourceKind('ALL'); setCategory('ALL'); setPage(1) }} style={{ height: '32px' }}>重置</button>
         </div>
 
         <div className={styles.summaryCards}>
@@ -538,6 +537,19 @@ function paginationWindow(currentPage: number, totalPages: number): number[] {
   const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
   const end = Math.min(totalPages, start + 4)
   return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+}
+
+function uniqueOptions(values: Array<string | undefined>, selected: string): string[] {
+  const options = Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort((left, right) => left.localeCompare(right))
+  if (selected !== 'ALL' && !options.includes(selected)) return [selected, ...options]
+  return options
+}
+
+function sourceKindLabel(value: string): string {
+  if (value === 'browser_extension') return '浏览器插件'
+  if (value === 'platform_api') return '平台 API'
+  if (value === 'report_import') return '报表导入'
+  return value
 }
 
 function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleMap: typeof styles) {
