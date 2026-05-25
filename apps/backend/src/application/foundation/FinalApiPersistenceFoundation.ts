@@ -911,6 +911,18 @@ export class ReportRepository {
     if (existing) return existing;
     const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
     this.store.reportExports.set(key || job.exportJobId, job);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "report_export",
+      status: "SUCCEEDED",
+      subjectType: "report",
+      subjectId: reportId,
+      input: { actorId: boundary.actorId, request },
+      output: { exportJobId: job.exportJobId, status: job.status, format: job.format },
+      createdAt: job.requestedAt,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return job;
   }
 
@@ -918,6 +930,18 @@ export class ReportRepository {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
     const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
     this.store.reportSubscriptions.set(reportId, subscription);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "report_subscription",
+      status: "SUCCEEDED",
+      subjectType: "report",
+      subjectId: reportId,
+      input: { actorId: boundary.actorId, request },
+      output: { reportId, frequency: subscription.frequency, recipients: subscription.recipients },
+      createdAt: subscription.updatedAt,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return subscription;
   }
 
@@ -1881,18 +1905,45 @@ export class PrismaReportRepository extends ReportRepository {
     return "NONE";
   }
 
-  async createExport(_boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
+  async createExport(boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
     }
-    return { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
+    const job = { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING" as const, format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "report_export",
+        status: "SUCCEEDED",
+        subjectType: "report",
+        subjectId: reportId,
+        inputJson: { actorId: boundary.actorId, request },
+        outputJson: { exportJobId: job.exportJobId, status: job.status, format: job.format },
+        startedAt: new Date(job.requestedAt),
+        completedAt: new Date(job.requestedAt),
+      },
+    });
+    return job;
   }
 
-  async saveSubscription(_boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): Promise<ReportSubscriptionDto> {
+  async saveSubscription(boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): Promise<ReportSubscriptionDto> {
     const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { subscriptionJson: subscription } });
     }
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "report_subscription",
+        status: "SUCCEEDED",
+        subjectType: "report",
+        subjectId: reportId,
+        inputJson: { actorId: boundary.actorId, request },
+        outputJson: { reportId, frequency: subscription.frequency, recipients: subscription.recipients },
+        startedAt: new Date(subscription.updatedAt),
+        completedAt: new Date(subscription.updatedAt),
+      },
+    });
     return subscription;
   }
 

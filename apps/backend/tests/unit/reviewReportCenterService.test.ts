@@ -70,4 +70,8 @@ test("review workbench detail, decision audit, report versions, export and subsc
 
   const subscription = await runtime.reportService.saveSubscription(preview.reportId, { frequency: "WEEKLY", recipients: ["ops@pickagent.local"] }, boundary);
   assert.equal(subscription.reportId, preview.reportId);
+
+  const audits = await runtime.workflowAuditService.list(boundary, 50);
+  assert.equal(audits.filter((audit) => audit.workflowType === "report_export" && audit.subjectId === preview.reportId).length, 1);
+  assert.ok(audits.some((audit) => audit.workflowType === "report_subscription" && audit.subjectId === preview.reportId));
 });
