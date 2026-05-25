@@ -63,6 +63,23 @@ test("agent repository creates session mission run tool call review gate and con
   assert.equal(decision.event.eventType, "run.continuation_started");
 });
 
+test("agent mission status follows current run lifecycle", () => {
+  const { runtime, mission, run } = seededRun();
+
+  assert.equal(runtime.agentService.getMission(mission.id).status, "RUNNING");
+
+  runtime.agentService.pauseRun(run.id, "unit-test");
+  assert.equal(runtime.agentService.getMission(mission.id).status, "PAUSED");
+
+  runtime.eventStore.markRunStatus(run.id, "WAITING_REVIEW");
+  assert.equal(runtime.agentService.getMission(mission.id).status, "WAITING_FOR_REVIEW");
+
+  runtime.agentService.cancelRun(run.id, "unit-test", "取消验证");
+  const canceled = runtime.agentService.getMission(mission.id);
+  assert.equal(canceled.status, "CANCELED");
+  assert.ok(runtime.state.missions.get(mission.id)?.canceledAt);
+});
+
 test("agent review gate request changes maps to frontend modified status", () => {
   const { runtime, mission, run } = seededRun();
   const gate = runtime.agentService.createReviewGateForTest({

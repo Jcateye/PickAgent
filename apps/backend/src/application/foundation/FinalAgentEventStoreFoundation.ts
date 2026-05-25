@@ -293,6 +293,23 @@ export class AgentRepository {
     return this.state.missions.get(id) ?? null;
   }
 
+  saveMission(mission: AgentMission): AgentMission {
+    const updated = { ...mission, updatedAt: nowIso() };
+    this.state.missions.set(updated.id, updated);
+    return updated;
+  }
+
+  updateMissionStatus(missionId: string, status: string): AgentMission {
+    const mission = this.getMission(missionId);
+    if (!mission) throw new Error(`Agent mission not found: ${missionId}`);
+    return this.saveMission({
+      ...mission,
+      status,
+      completedAt: status === "COMPLETED" ? nowIso() : mission.completedAt,
+      canceledAt: status === "CANCELED" ? nowIso() : mission.canceledAt,
+    });
+  }
+
   listMissions(query: AgentMissionListQuery = {}): { items: AgentMission[]; total: number; page: number; pageSize: number } {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
@@ -370,6 +387,7 @@ export class AgentRepository {
     };
     this.state.runs.set(run.id, run);
     this.state.eventsByRun.set(run.id, []);
+    this.updateMissionStatus(missionId, statusToMissionStatus(run.status));
     return run;
   }
 
@@ -573,6 +591,7 @@ export class InMemoryAgentEventStore implements AgentEventStore {
       errorMessage: errorMessage ?? run.errorMessage,
       completedAt: terminal ? nowIso() : run.completedAt,
     });
+    this.repository.updateMissionStatus(run.missionId, statusToMissionStatus(status));
     this.append({ runId, eventType: "run.status_changed", eventPhase: status, payloadJson: { status, errorMessage: updated.errorMessage } });
     return updated;
   }
@@ -927,6 +946,7 @@ export class FinalAgentService {
     const run = this.repository.getRun(runId);
     if (!run) throw new Error(`Agent run not found: ${runId}`);
     const updated = this.repository.saveRun({ ...run, status: "CANCELED", cancelRequested: true, errorMessage: reason ?? run.errorMessage, completedAt: nowIso() });
+    this.repository.updateMissionStatus(run.missionId, "CANCELED");
     this.eventStore.append({ runId, eventType: "run.cancel_requested", eventPhase: "canceled", payloadJson: { canceledBy: canceledBy ?? null, reason: reason ?? null } });
     this.eventStore.append({ runId, eventType: "run.status_changed", eventPhase: "CANCELED", payloadJson: { status: "CANCELED", cancelRequested: true } });
     return updated;
@@ -1033,6 +1053,14 @@ function canonicalizeToolName(toolName: string): string {
   const trimmed = toolName.trim();
   if (trimmed === "runSimulation") return "simulateActivityReadiness";
   return trimmed;
+}
+
+function statusToMissionStatus(status: string): string {
+  if (status === "WAITING_REVIEW") return "WAITING_FOR_REVIEW";
+  if (status === "SUCCEEDED") return "COMPLETED";
+  if (status === "CANCELED") return "CANCELED";
+  if (status === "FAILED") return "FAILED";
+  return status;
 }
 
 function toPolicyEvidenceRefs(items: Array<{ entityId: string; label: string; summary: string }>): EvidenceRef[] {

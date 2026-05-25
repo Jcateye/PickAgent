@@ -8,7 +8,7 @@ import { StatusBadge } from '@/shared/ui/status-badge'
 
 import styles from './agent-mission.module.css'
 
-type MissionStatus = 'DRAFT' | 'ACTIVE' | 'PLANNING' | 'RUNNING' | 'WAITING_FOR_DATA' | 'WAITING_FOR_REVIEW' | 'COMPLETED' | 'FAILED' | 'CANCELED'
+type MissionStatus = 'DRAFT' | 'ACTIVE' | 'PLANNING' | 'RUNNING' | 'WAITING_FOR_DATA' | 'WAITING_FOR_REVIEW' | 'PAUSED' | 'COMPLETED' | 'FAILED' | 'CANCELED'
 type RunStatus = 'IDLE' | 'QUEUED' | 'PREPARING_CONTEXT' | 'RUNNING' | 'STREAMING' | 'CALLING_TOOL' | 'PAUSED' | 'TIMEOUT' | 'FAILED' | 'DONE' | 'CANCELED' | 'WAITING_REVIEW' | 'SUCCEEDED'
 type ToolStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'BLOCKED_BY_POLICY' | 'REVIEW_REQUIRED' | 'WAITING_FOR_APPROVAL'
 type GateStatus = 'NOT_REQUIRED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | 'CANCELED'
@@ -574,6 +574,6 @@ function statusTone(status: MissionStatus): 'neutral' | 'ready' | 'review' | 'wa
   if (status === 'COMPLETED') return 'ready'
   if (status === 'FAILED' || status === 'CANCELED') return 'blocked'
   if (status === 'WAITING_FOR_REVIEW') return 'review'
-  if (status === 'ACTIVE' || status === 'WAITING_FOR_DATA' || status === 'RUNNING' || status === 'PLANNING') return 'warning'
+  if (status === 'ACTIVE' || status === 'WAITING_FOR_DATA' || status === 'RUNNING' || status === 'PLANNING' || status === 'PAUSED') return 'warning'
   return 'neutral'
 }
