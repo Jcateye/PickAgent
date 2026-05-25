@@ -32,7 +32,7 @@ export const appMenus: AppNavMenu[] = [
     ]
   },
   {
-    key: 'review-console',
+    key: 'review-approvals',
     label: 'Review工作台',
     icon: 'ShieldCheck',
     href: '/review-approvals', // Image 5

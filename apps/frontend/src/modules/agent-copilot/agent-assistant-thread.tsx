@@ -383,7 +383,7 @@ function ReviewGateCard({ gate }: { gate: AgentReviewGate }) {
         <strong>{gate.question || '人工确认门'}</strong>
       </div>
       <p>{gate.agentRecommendation || '系统已生成需要人工确认的事项。'}</p>
-      <Link href="/review-console" className="agentReviewActionButton">
+      <Link href="/review-approvals" className="agentReviewActionButton">
         进入 Review 工作台 <ChevronRight size={14} />
       </Link>
     </section>

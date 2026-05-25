@@ -3,7 +3,6 @@ export type AppPageKey =
   | 'sku-list'
   | 'activity-management'
   | 'tasks-runs'
-  | 'review-console'
   | 'report-center'
   | 'data-sources'
   | 'rule-library'
