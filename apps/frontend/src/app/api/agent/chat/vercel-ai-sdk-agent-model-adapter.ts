@@ -299,6 +299,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       activityName: { type: 'string' },
       activityId: { type: 'string' },
       connectorId: { type: 'string' },
+      connectorRunId: { type: 'string' },
       code: { type: 'string' },
       connectorKind: { type: 'string', enum: ['platform_api', 'browser_extension', 'report_import'] },
       sessionKey: { type: 'string' },
@@ -471,6 +472,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getActivityExecutionPlan', inputJson),
     }),
+    getActivitySimulationRunDetail: tool({
+      description: '读取真实活动模拟运行详情。需要 activityId 和 simulationRunId，返回模拟结果、证据、失败规则和关联执行计划。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getActivitySimulationRunDetail', inputJson),
+    }),
     startActivityRun: tool({
       description: '启动真实活动执行路径 run。需要 activityId。用于用户明确要求开始执行、启动活动流程或生成运行计划时。',
       inputSchema: objectSchema,
@@ -555,6 +561,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '读取单个连接器详情、配置摘要、权限和最近运行。需要 connectorId。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getConnectorDetail', inputJson),
+    }),
+    getConnectorRunDetail: tool({
+      description: '读取单个连接器运行详情。需要 connectorRunId 或 runId，返回采集行数、质量分、warnings、summary 和关联 connector。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('getConnectorRunDetail', inputJson),
     }),
     createConnector: tool({
       description: '创建真实数据源连接器。需要 name，可选 code、connectorKind=platform_api/browser_extension/report_import、platform、status、config。',

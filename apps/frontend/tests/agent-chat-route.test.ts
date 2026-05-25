@@ -326,6 +326,58 @@ test('agent chat retryRun tool supports activity simulation retries', async () =
   assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
 })
 
+test('agent chat reads connector run and activity simulation run details', async () => {
+  const connector = await executeFinalApiTool('createConnector', {
+    name: 'Agent 运行详情连接器',
+    code: `agent_run_detail_connector_${Date.now()}`,
+    connectorKind: 'platform_api',
+    platform: 'tmall',
+  })
+  assert.equal(connector.status, 'SUCCEEDED')
+  const connectorId = (connector.result as { connectorId: string }).connectorId
+  const connectorRun = await executeFinalApiTool('runConnectorSync', {
+    connectorId,
+    rowCount: 17,
+    qualityScore: 0.91,
+    warnings: ['agent detail test'],
+  })
+  assert.equal(connectorRun.status, 'SUCCEEDED')
+  const connectorRunId = (connectorRun.result as { connectorRunId: string }).connectorRunId
+  const connectorRunDetail = await executeFinalApiTool('getConnectorRunDetail', { connectorRunId })
+  assert.equal(connectorRunDetail.status, 'SUCCEEDED')
+  assert.equal((connectorRunDetail.result as { connectorRunId: string; rowCount: number }).connectorRunId, connectorRunId)
+  assert.equal((connectorRunDetail.result as { rowCount: number }).rowCount, 17)
+
+  const skuExternalId = `agent_sim_detail_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_sim_detail_store',
+      externalSkuId: skuExternalId,
+      productName: 'Agent 模拟详情 SKU',
+      stock: 80,
+      positiveRate: 0.99,
+      certificateStatus: 'VALID',
+    }],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0].skuProfileId
+  const activity = await finalApiRuntime.activityService.create({ name: 'Agent 模拟详情活动', platform: 'tmall' })
+  await finalApiRuntime.activityService.parseForActivity(activity.activityId, {
+    sourceText: '库存不得低于 20 件。',
+  })
+  const simulation = await finalApiRuntime.activityService.simulateForActivity(activity.activityId, { skuProfileIds: [skuProfileId] })
+
+  const simulationDetail = await executeFinalApiTool('getActivitySimulationRunDetail', {
+    activityId: activity.activityId,
+    simulationRunId: simulation.simulationRunId,
+  })
+  assert.equal(simulationDetail.status, 'SUCCEEDED')
+  const detail = simulationDetail.result as { simulationRunId: string; results: Array<{ skuProfileId: string }> }
+  assert.equal(detail.simulationRunId, simulation.simulationRunId)
+  assert.deepEqual(detail.results.map((item) => item.skuProfileId), [skuProfileId])
+})
+
 test('agent chat exportSkuList tool creates auditable sku csv export', async () => {
   const externalSkuId = `agent_export_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {

@@ -398,6 +398,16 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, [{ type: 'tool_trace', entityId: activityId, label: '活动执行计划', summary: `步骤 ${result.steps.length} 个，待确认 ${result.pendingConfirmations.length} 个` }], `读取活动执行计划：${result.steps.length} 个步骤`, { type: 'activity', id: activityId })
     }
 
+    if (toolName === 'getActivitySimulationRunDetail') {
+      const activityId = String(input.activityId ?? '')
+      const simulationRunId = String(input.simulationRunId ?? input.runId ?? '')
+      if (!activityId || !simulationRunId) throw new Error('activityId and simulationRunId are required')
+      const result = await finalApiRuntime.activityService.simulationDetail(activityId, simulationRunId, agentToolAuthContext())
+      if (!result) throw new Error(`Activity simulation run not found: ${activityId}/${simulationRunId}`)
+      const evidence = result.results.flatMap((item) => item.evidence)
+      return succeeded(result, evidence, `读取活动模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationRunId })
+    }
+
     if (toolName === 'startActivityRun') {
       const activityId = String(input.activityId ?? '')
       if (!activityId) throw new Error('activityId is required')
@@ -549,6 +559,14 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const result = await finalApiRuntime.connectorService.get(connectorId, agentToolAuthContext())
       if (!result) throw new Error(`Connector not found: ${connectorId}`)
       return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器详情', summary: `${result.name} / ${result.kind} / ${result.status}` }], `读取连接器详情：${result.name}`, { type: 'connector', id: connectorId })
+    }
+
+    if (toolName === 'getConnectorRunDetail') {
+      const connectorRunId = String(input.connectorRunId ?? input.runId ?? '')
+      if (!connectorRunId) throw new Error('connectorRunId is required')
+      const result = await finalApiRuntime.connectorService.getRun(connectorRunId, agentToolAuthContext())
+      if (!result) throw new Error(`Connector run not found: ${connectorRunId}`)
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorRunId, label: '连接器运行详情', summary: `${result.status} / ${result.rowCount} 行 / 质量 ${result.qualityScore ?? '-'}` }], `读取连接器运行：${connectorRunId}`, { type: 'workflow_run', id: result.workflowRunRef?.entityId ?? connectorRunId })
     }
 
     if (toolName === 'createConnector') {
