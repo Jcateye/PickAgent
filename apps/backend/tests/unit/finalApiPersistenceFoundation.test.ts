@@ -67,6 +67,32 @@ test("final API repositories carry tenant and session boundary and deny cross-te
   );
 });
 
+test("workflow audit query service only returns current tenant audits", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
+  await runtime.ingestService.ingest(
+    {
+      ...businessFoundationSeedFixture,
+      connectorId: "tenant_b_seed",
+      rows: businessFoundationSeedFixture.rows.map((row) => ({
+        ...row,
+        storeId: "tenant_b_store",
+        externalSkuId: `${row.externalSkuId}_tenant_b`,
+      })),
+    },
+    tenantB,
+  );
+
+  const auditsA = await runtime.workflowAuditService.list(tenantA, 20);
+  const auditsB = await runtime.workflowAuditService.list(tenantB, 20);
+
+  assert.ok(auditsA.length > 0);
+  assert.ok(auditsB.length > 0);
+  assert.ok(auditsA.every((audit) => runtime.store.tenantByEntityId.get(audit.workflowRunId) === tenantA.tenantId));
+  assert.ok(auditsB.every((audit) => runtime.store.tenantByEntityId.get(audit.workflowRunId) === tenantB.tenantId));
+  assert.deepEqual(new Set(auditsA.map((audit) => audit.workflowRunId).filter((id) => auditsB.some((audit) => audit.workflowRunId === id))).size, 0);
+});
+
 test("sku readiness query exposes browser collection key metrics", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const ingest = await runtime.ingestService.ingest({
@@ -1032,7 +1058,7 @@ test("workflow audit query service reads prisma workflow runs for run console", 
     prisma: {
       workflowRun: {
         findMany: async (args: Record<string, unknown>) => {
-          assert.deepEqual(args, { orderBy: { startedAt: "desc" }, take: 50 });
+          assert.deepEqual(args, { where: { inputJson: { path: ["tenantId"], equals: tenantA.tenantId } }, orderBy: { startedAt: "desc" }, take: 50 });
           return [
             {
               id: "workflow_prisma_1",

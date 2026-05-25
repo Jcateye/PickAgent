@@ -1302,7 +1302,7 @@ export class PrismaIngestRepository extends IngestRepository {
     );
   }
 
-  async recordWorkflowAudit(tx: TransactionContext, _boundary: P0AuthContextDto, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): Promise<WorkflowAuditRecord> {
+  async recordWorkflowAudit(tx: TransactionContext, boundary: P0AuthContextDto, record: Omit<WorkflowAuditRecord, "workflowRunId" | "createdAt" | "status">): Promise<WorkflowAuditRecord> {
     if (!tx.prisma) throw new Error("Prisma transaction context is required");
     const workflowRunId = nextUuid();
     const createdAt = new Date();
@@ -1313,7 +1313,7 @@ export class PrismaIngestRepository extends IngestRepository {
         status: "SUCCEEDED",
         subjectType: record.subjectType,
         subjectId: record.subjectId,
-        inputJson: record.input,
+        inputJson: { ...record.input, tenantId: boundary.tenantId },
         outputJson: record.output,
         startedAt: createdAt,
         completedAt: createdAt,
@@ -1408,7 +1408,7 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
         status: "SUCCEEDED",
         subjectType: "sku_profile",
         subjectId: skuProfileId,
-        inputJson: { actorId: boundary.actorId, ...input },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, ...input },
         outputJson: { skuProfileId, nextAction: input.nextAction },
         startedAt: new Date(),
         completedAt: new Date(),
@@ -1627,11 +1627,11 @@ export class PrismaActivityRepository extends ActivityRepository {
     return runs.filter((run): run is ActivitySimulationRunDto => run !== null);
   }
 
-  async recordWorkflowAudit(_boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): Promise<TraceableRef> {
+  async recordWorkflowAudit(boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): Promise<TraceableRef> {
     const workflowRunId = nextUuid();
     const now = new Date();
     await this.prisma.workflowRun.create({
-      data: { id: workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, inputJson: input, outputJson: output, startedAt: now, completedAt: now },
+      data: { id: workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, inputJson: { ...input, tenantId: boundary.tenantId }, outputJson: output, startedAt: now, completedAt: now },
     });
     return traceRef("workflow_run", workflowRunId, "Workflow audit");
   }
@@ -1847,7 +1847,7 @@ export class PrismaReviewRepository extends ReviewRepository {
           status: "SUCCEEDED",
           subjectType: "review_item",
           subjectId: id,
-          inputJson: { actorId: boundary.actorId, sourceType: item.sourceType, sourceId: item.sourceId },
+          inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, sourceType: item.sourceType, sourceId: item.sourceId },
           outputJson: { reviewItemId: id, status: "OPEN" },
           startedAt: new Date(),
           completedAt: new Date(),
@@ -1882,7 +1882,7 @@ export class PrismaReviewRepository extends ReviewRepository {
         status: "SUCCEEDED",
         subjectType: "review_item",
         subjectId: reviewItemId,
-        inputJson: { actorId: boundary.actorId, patch },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, patch },
         outputJson: { reviewItemId },
         startedAt: new Date(),
         completedAt: new Date(),
@@ -1914,7 +1914,7 @@ export class PrismaReviewRepository extends ReviewRepository {
         status: "SUCCEEDED",
         subjectType: "review_item",
         subjectId: reviewItemId,
-        inputJson: { actorId: boundary.actorId, decision: request.decision, decisionBy: request.decisionBy, modifiedPayload: request.modifiedPayload },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, decision: request.decision, decisionBy: request.decisionBy, modifiedPayload: request.modifiedPayload },
         outputJson: { reviewItemId, status: statusByDecision[request.decision] },
         startedAt: new Date(),
         completedAt: new Date(),
@@ -1939,7 +1939,7 @@ export class PrismaReportRepository extends ReportRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async save(_boundary: P0AuthContextDto, report: ReportPreviewDto): Promise<ReportPreviewDto> {
+  async save(boundary: P0AuthContextDto, report: ReportPreviewDto): Promise<ReportPreviewDto> {
     await this.prisma.workflowRun.create({
       data: {
         id: nextUuid(),
@@ -1947,7 +1947,7 @@ export class PrismaReportRepository extends ReportRepository {
         status: "SUCCEEDED",
         subjectType: report.type,
         subjectId: report.reportId,
-        inputJson: { type: report.type },
+        inputJson: { tenantId: boundary.tenantId, type: report.type },
         outputJson: report,
         startedAt: new Date(),
         completedAt: new Date(),
@@ -2032,7 +2032,7 @@ export class PrismaReportRepository extends ReportRepository {
         status: "SUCCEEDED",
         subjectType: "report",
         subjectId: reportId,
-        inputJson: { actorId: boundary.actorId, request },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, request },
         outputJson: { exportJobId: job.exportJobId, status: job.status, format: job.format },
         startedAt: new Date(job.requestedAt),
         completedAt: new Date(job.requestedAt),
@@ -2053,7 +2053,7 @@ export class PrismaReportRepository extends ReportRepository {
         status: "SUCCEEDED",
         subjectType: "report",
         subjectId: reportId,
-        inputJson: { actorId: boundary.actorId, request },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, request },
         outputJson: { reportId, frequency: subscription.frequency, recipients: subscription.recipients },
         startedAt: new Date(subscription.updatedAt),
         completedAt: new Date(subscription.updatedAt),
@@ -2070,7 +2070,7 @@ export class PrismaReportRepository extends ReportRepository {
         status: "SUCCEEDED",
         subjectType: "report",
         subjectId: comparison.baseReportId,
-        inputJson: { actorId: boundary.actorId, baseReportId: comparison.baseReportId, targetReportId: comparison.targetReportId },
+        inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, baseReportId: comparison.baseReportId, targetReportId: comparison.targetReportId },
         outputJson: {
           comparisonId: comparison.comparisonId,
           baseReportId: comparison.baseReportId,
@@ -2140,7 +2140,7 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   async create(boundary: P0AuthContextDto, input: CreateConnectorDto): Promise<ConnectorDetailDto> {
     const created = await this.prisma.connector.create({ data: { code: input.code, name: input.name, kind: input.kind, platform: input.platform, configJson: sanitizeConnectorConfig(input.config ?? {}), status: normalizeConnectorStatus(input.status).toLowerCase() } });
     const now = new Date();
-    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_create", status: "SUCCEEDED", subjectType: "connector", subjectId: String(created.id), inputJson: { actorId: boundary.actorId, code: input.code, kind: input.kind, platform: input.platform }, outputJson: { connectorId: String(created.id), status: normalizeConnectorStatus(input.status) }, startedAt: now, completedAt: now } });
+    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_create", status: "SUCCEEDED", subjectType: "connector", subjectId: String(created.id), inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, code: input.code, kind: input.kind, platform: input.platform }, outputJson: { connectorId: String(created.id), status: normalizeConnectorStatus(input.status) }, startedAt: now, completedAt: now } });
     const record = toConnectorRecord(created);
     return { ...(await this.toPrismaListItem(created)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: [] };
   }
@@ -2148,7 +2148,7 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   async update(boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): Promise<ConnectorDetailDto> {
     const updated = await this.prisma.connector.update({ where: { id: connectorId }, data: { name: input.name, platform: input.platform, configJson: input.config ? sanitizeConnectorConfig(input.config) : undefined, status: input.status ? normalizeConnectorStatus(input.status).toLowerCase() : undefined } });
     const now = new Date();
-    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_update", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { actorId: boundary.actorId, fields: Object.keys(input) }, outputJson: { connectorId, status: normalizeConnectorStatus(updated.status) }, startedAt: now, completedAt: now } });
+    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_update", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, fields: Object.keys(input) }, outputJson: { connectorId, status: normalizeConnectorStatus(updated.status) }, startedAt: now, completedAt: now } });
     const runs = await this.prisma.connectorRun.findMany({ where: { connectorId }, orderBy: { createdAt: "desc" }, take: 5 });
     const record = toConnectorRecord(updated);
     return { ...(await this.toPrismaListItem(updated)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: runs.map((item) => toConnectorRunSummary(toConnectorRunRecord(item))) };
@@ -2205,7 +2205,11 @@ export class WorkflowAuditQueryService {
 
   async list(_boundary: P0AuthContextDto, limit = 50): Promise<WorkflowAuditRecord[]> {
     if (this.source.prisma) {
-      const rows = await this.source.prisma.workflowRun.findMany({ orderBy: { startedAt: "desc" }, take: limit });
+      const rows = await this.source.prisma.workflowRun.findMany({
+        where: { inputJson: { path: ["tenantId"], equals: _boundary.tenantId } },
+        orderBy: { startedAt: "desc" },
+        take: limit,
+      });
       return rows.map((row) => ({
         workflowRunId: String(row.id),
         workflowType: String(row.workflowType),
@@ -2218,6 +2222,7 @@ export class WorkflowAuditQueryService {
       }));
     }
     return Array.from(this.source.store?.workflowAudits.values() ?? [])
+      .filter((audit) => this.source.store?.tenantByEntityId.get(audit.workflowRunId) === _boundary.tenantId)
       .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
       .slice(0, limit);
   }
