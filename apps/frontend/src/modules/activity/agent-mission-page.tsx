@@ -331,7 +331,7 @@ export function AgentMissionPage() {
             {pendingGateCount > 0 ? (
               <article className={styles.warningCard}>
                 <strong>需要确认：{pendingGateCount} 个 Review Gate 正在等待人工处理</strong>
-                <button className="secondaryButton" type="button">查看详情</button>
+                <a className="secondaryButton" href="/review-approvals">查看详情</a>
               </article>
             ) : null}
           </div>

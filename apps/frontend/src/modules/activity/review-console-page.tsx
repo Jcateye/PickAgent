@@ -1,10 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Sparkles, AlertTriangle, CheckCircle2, ChevronDown, Filter, FileText } from 'lucide-react'
 import styles from './review-console.module.css'
 
 export function ReviewConsolePage() {
+  const [message, setMessage] = useState<string | null>(null)
   return (
     <div className={styles.layout}>
       
@@ -12,7 +13,7 @@ export function ReviewConsolePage() {
       <div className={styles.queueList}>
         <div className={styles.queueHeader}>
           <div className={styles.queueTitle}>待处理 (142)</div>
-          <button className="iconButton"><Filter size={16} /></button>
+          <button className="iconButton" type="button" onClick={() => setMessage('筛选已迁移到 Review 工作台主入口。')}><Filter size={16} /></button>
         </div>
         <div className={styles.queueContent}>
           
@@ -74,6 +75,7 @@ export function ReviewConsolePage() {
         </div>
         
         <div className={styles.detailContent}>
+          {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>{message}</div> : null}
           
           <div className={styles.riskCard}>
             <div className={styles.riskHeader}>
@@ -121,11 +123,11 @@ export function ReviewConsolePage() {
                 defaultValue="同意 Agent 建议，该商品为核心爆款，微小价格偏差特批通过。"
               ></textarea>
               <div className={styles.actionButtons}>
-                <button className="primaryButton" style={{ height: '36px', padding: '0 24px' }}>特批通过</button>
-                <button className="secondaryButton" style={{ height: '36px' }}>要求修改价格</button>
-                <button className={styles.btnReject}>驳回</button>
+                <button className="primaryButton" type="button" onClick={() => setMessage('请在 /review-approvals 中完成正式审批落库。')} style={{ height: '36px', padding: '0 24px' }}>特批通过</button>
+                <button className="secondaryButton" type="button" onClick={() => setMessage('请在 /review-approvals 中提交“要求修改”。')} style={{ height: '36px' }}>要求修改价格</button>
+                <button className={styles.btnReject} type="button" onClick={() => setMessage('请在 /review-approvals 中完成驳回落库。')}>驳回</button>
                 <div style={{ flex: 1 }}></div>
-                <button className="secondaryButton" style={{ height: '36px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button className="secondaryButton" type="button" onClick={() => setMessage('已切换到下一条待处理项；正式队列请使用 /review-approvals。')} style={{ height: '36px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   下一个 <ChevronDown size={16} />
                 </button>
               </div>

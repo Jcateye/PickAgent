@@ -17,7 +17,7 @@ export const appMenus: AppNavMenu[] = [
     key: 'activity-management',
     label: '活动管理',
     icon: 'CalendarCheck',
-    href: '/rule-execution', // Prototype 2 / Image 3 (也可以加上 /activity-execution)
+    href: '/rule-execution', // Long-term activity rule execution page
   },
   {
     key: 'tasks-runs',

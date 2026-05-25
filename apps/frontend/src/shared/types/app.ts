@@ -8,7 +8,6 @@ export type AppPageKey =
   | 'data-sources'
   | 'rule-library'
   | 'settings'
-  | 'activity-execution'
   | 'rule-execution'
   | 'sku-access'
   | 'review-approvals'

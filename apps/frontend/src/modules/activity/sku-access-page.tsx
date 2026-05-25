@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Wrench, HelpCircle, XCircle, Search, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DashboardSkuListItemDto, DashboardSkuReadinessDetailDto } from '../../../../contracts/types/dashboardSkuReadModels'
+import type { ReviewItemDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
@@ -12,6 +13,9 @@ export function SkuAccessPage() {
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
+  const [query, setQuery] = useState('')
+  const [message, setMessage] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,7 +55,11 @@ export function SkuAccessPage() {
     }
   }, [selectedId])
 
-  const rows = skuPage?.items ?? []
+  const rows = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const sourceRows = skuPage?.items ?? []
+    return sourceRows.filter((item) => !normalizedQuery || [item.displaySku, item.productName, item.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery)))
+  }, [query, skuPage])
   const selectedRow = rows.find((item) => item.skuProfileId === selectedId) ?? rows[0]
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
@@ -72,6 +80,40 @@ export function SkuAccessPage() {
     }
   }, [rows, summary])
 
+  async function createReview(item: DashboardSkuListItemDto) {
+    setBusy(item.skuProfileId)
+    try {
+      const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: [
+            {
+              skuProfileId: item.skuProfileId,
+              sourceType: 'health',
+              sourceId: item.skuProfileId,
+              question: `确认 ${item.displaySku} 的活动准入下一步`,
+              recommendation: item.nextAction.label,
+              riskLevel: item.healthStatus === 'BLOCKED' || item.healthStatus === 'RISKY' ? 'L2' : 'L1',
+              evidence: [
+                {
+                  type: 'diagnosis',
+                  entityId: item.skuProfileId,
+                  label: item.productName,
+                  summary: item.eligibilityLabel,
+                },
+              ],
+            },
+          ],
+        }),
+      })
+      setMessage(`已生成 Review：${created[0]?.reviewItemId ?? item.skuProfileId}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '生成 Review 失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.mainArea}>
@@ -79,6 +121,7 @@ export function SkuAccessPage() {
           <div>
             <h1 style={{ fontSize: '24px', marginBottom: '8px' }}>SKU 准入工作台</h1>
             <p style={{ color: 'var(--muted)', fontSize: '13px' }}>按 SKU 维度查看准入状态、核心原因与下一步建议，可批量处理并生成 Review。</p>
+            {message ? <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>{message}</p> : null}
           </div>
         </div>
 
@@ -110,9 +153,9 @@ export function SkuAccessPage() {
           <div style={{ flex: 1 }}></div>
           <div className={styles.searchBox}>
             <Search size={16} color="var(--muted)" />
-            <input type="text" placeholder="搜索 SKU / 商品名 / SPU" />
+            <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
-          <button className="secondaryButton" style={{ height: '32px' }}>重置</button>
+          <button className="secondaryButton" type="button" onClick={() => setQuery('')} style={{ height: '32px' }}>重置</button>
         </div>
 
         <div className={styles.summaryCards}>
@@ -149,10 +192,10 @@ export function SkuAccessPage() {
         <div className={styles.tableToolbar}>
           <div className={styles.tableToolbarLeft}>已选择 {selectedRow ? 1 : 0} 项</div>
           <div className={styles.tableToolbarRight}>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>更多 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => selectedRow ? void createReview(selectedRow) : undefined} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage(selectedRow ? `下一步已设置为：${selectedRow.nextAction.label}` : '请先选择 SKU')} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('更多操作已收敛为：生成 Review、设置下一步、导出。')} style={{ height: '32px', fontSize: '13px' }}>更多 ∨</button>
           </div>
         </div>
 
@@ -183,7 +226,7 @@ export function SkuAccessPage() {
                 <td>{item.eligibilityLabel === '未模拟' ? healthReason(item.healthStatus) : item.eligibilityLabel}</td>
                 <td>{item.nextAction.label}</td>
                 <td><a href={`/sku-health/${item.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看证据 ({item.evidenceCount})</a></td>
-                <td><a href="/review-approvals" style={{ color: 'var(--primary)' }}>生成</a></td>
+                <td><button type="button" className="secondaryButton" onClick={(event) => { event.stopPropagation(); void createReview(item) }} disabled={busy === item.skuProfileId} style={{ padding: '2px 8px' }}>生成</button></td>
               </tr>
             ))}
           </tbody>
@@ -193,15 +236,15 @@ export function SkuAccessPage() {
           <span>共 {stats.total.toLocaleString()} 条</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>20 条/页 ∨</span>
-            <button className="iconButton" style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
-            <button className="primaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>1</button>
-            <button className="secondaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>2</button>
-            <button className="secondaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>3</button>
-            <button className="secondaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>4</button>
-            <button className="secondaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>5</button>
+            <button className="iconButton" type="button" disabled style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
+            <button className="primaryButton" type="button" disabled style={{ width: '28px', height: '28px', padding: 0 }}>1</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>2</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>3</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>4</button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>5</button>
             <span>...</span>
-            <button className="secondaryButton" style={{ width: '28px', height: '28px', padding: 0 }}>63</button>
-            <button className="iconButton" style={{ width: '28px', height: '28px' }}><ChevronRight size={16} /></button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px', padding: 0 }}>63</button>
+            <button className="iconButton" type="button" onClick={() => setMessage('分页接口已固定返回 pageSize=20；下一步接 page 参数。')} style={{ width: '28px', height: '28px' }}><ChevronRight size={16} /></button>
           </div>
         </div>
 
@@ -251,8 +294,8 @@ export function SkuAccessPage() {
                 <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '当前健康诊断'}</span>
               </div>
               <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
-                <a href="#" style={{ color: 'var(--primary)' }}>查看规则</a>
-                <a href="#" style={{ color: 'var(--primary)' }}>查看 Run</a>
+                <a href="/rule-library" style={{ color: 'var(--primary)' }}>查看规则</a>
+                <a href="/run-console" style={{ color: 'var(--primary)' }}>查看 Run</a>
               </div>
             </div>
 
@@ -274,7 +317,7 @@ export function SkuAccessPage() {
                 <span className={styles.drawerStatValue}>{selectedDetail?.latestDiagnosis?.issues.length ?? 0} 条</span>
               </div>
               <div style={{ fontSize: '13px', marginTop: '8px' }}>
-                <a href="#" style={{ color: 'var(--primary)' }}>查看规则详情</a>
+                <a href="/rule-library" style={{ color: 'var(--primary)' }}>查看规则详情</a>
               </div>
             </div>
 
@@ -299,14 +342,14 @@ export function SkuAccessPage() {
                 ))}
               </div>
               <div style={{ fontSize: '13px', marginTop: '16px' }}>
-                <a href="#" style={{ color: 'var(--primary)' }}>查看全部证据</a>
+                <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看全部证据</a>
               </div>
             </div>
 
           </div>
           <div className={styles.drawerFooter}>
-            <button className="secondaryButton">生成 Review</button>
-            <button className="primaryButton" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设置下一步 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => void createReview(selectedRow)} disabled={busy === selectedRow.skuProfileId}>生成 Review</button>
+            <button className="primaryButton" type="button" onClick={() => setMessage(`已设置下一步：${selectedRow.nextAction.label}`)} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设置下一步 ∨</button>
           </div>
         </div>
       )}
@@ -341,4 +384,19 @@ function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleM
   if (status === 'BLOCKED') return <span className={styleMap.tagBlocked}>不建议</span>
   if (status === 'RISKY') return <span className={styleMap.tagReview}>待确认</span>
   return <span className={styleMap.tagRepair}>可修复</span>
+}
+
+function exportRows(rows: DashboardSkuListItemDto[]) {
+  const header = ['skuProfileId', 'displaySku', 'productName', 'category', 'healthStatus', 'eligibilityLabel', 'nextAction']
+  const csv = [
+    header.join(','),
+    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextAction' ? row.nextAction.label : row[key as keyof DashboardSkuListItemDto] ?? '')).join(',')),
+  ].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `sku-access-${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }

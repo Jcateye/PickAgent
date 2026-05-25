@@ -11,6 +11,7 @@ export function OverviewPage() {
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
   const [skuPage, setSkuPage] = useState<PageDto<SkuSummaryDto> | null>(null)
   const [reviewPage, setReviewPage] = useState<PageDto<ReviewListItemDto> | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -69,6 +70,7 @@ export function OverviewPage() {
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
             <strong>下一步：</strong>完成准入模拟，生成 Review 清单并进入人工确认。
           </div>
+          {message ? <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>{message}</div> : null}
           
           <div className={styles.metaGrid}>
             <div className={styles.metaItem}>
@@ -79,7 +81,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>规则版本</span>
                     <span className={styles.evidenceData}>v3.2.1</span>
-                    <a href="#" className={styles.evidenceLink}>查看规则</a>
+                    <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -87,7 +89,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>数据源</span>
                     <span className={styles.evidenceData}>8/8 正常</span>
-                    <a href="#" className={styles.evidenceLink}>查看数据</a>
+                    <a href="/data-sources" className={styles.evidenceLink}>查看数据</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -95,7 +97,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>插件任务</span>
                     <span className={styles.evidenceData}>12/12 成功</span>
-                    <a href="#" className={styles.evidenceLink}>查看 Run</a>
+                    <a href="/run-console" className={styles.evidenceLink}>查看 Run</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -103,7 +105,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>诊断结果</span>
                     <span className={styles.evidenceData}>{overview.total.toLocaleString()} 个 SKU</span>
-                    <a href="#" className={styles.evidenceLink}>查看证据</a>
+                    <a href="/sku-access" className={styles.evidenceLink}>查看证据</a>
                   </div>
                 </div>
               </div>
@@ -168,7 +170,7 @@ export function OverviewPage() {
               <span>关键限制项 <span className={styles.indicatorMetaVal}>12 条</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="#" className={styles.evidenceLink}>查看规则</a>
+              <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
             </div>
           </div>
 
@@ -189,7 +191,7 @@ export function OverviewPage() {
               <span className={styles.indicatorMetaVal} style={{ color: '#ef4444' }}>1 个</span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="#" className={styles.evidenceLink}>查看数据详情</a>
+              <a href="/data-sources" className={styles.evidenceLink}>查看数据详情</a>
             </div>
           </div>
 
@@ -204,7 +206,7 @@ export function OverviewPage() {
               <span>占比 <span className={styles.indicatorMetaVal}>{overview.readyRate}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="#" className={styles.evidenceLink}>查看清单</a>
+              <a href="/sku-access" className={styles.evidenceLink}>查看清单</a>
             </div>
           </div>
 
@@ -219,7 +221,7 @@ export function OverviewPage() {
               <span>阻塞 <span className={styles.indicatorMetaVal}>{overview.blocked.toLocaleString()}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="#" className={styles.evidenceLink}>进入审核</a>
+              <a href="/review-approvals" className={styles.evidenceLink}>进入审核</a>
             </div>
           </div>
         </div>
@@ -232,13 +234,13 @@ export function OverviewPage() {
               <HelpCircle size={14} color="var(--muted)" style={{ cursor: 'pointer' }} />
             </div>
             <div className={styles.tableActions}>
-              <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>
+              <button className="secondaryButton" type="button" onClick={() => setMessage('已切换为全部状态；当前数据来自 /api/skus。')} style={{ height: '32px', fontSize: '13px' }}>
                 全部状态 <ChevronDown size={14} />
               </button>
-              <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>
+              <button className="secondaryButton" type="button" onClick={() => setMessage('筛选条件将作用于 /api/skus 查询；当前展示最新 5 条。')} style={{ height: '32px', fontSize: '13px' }}>
                 <Filter size={14} /> 筛选
               </button>
-              <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>
+              <button className="secondaryButton" type="button" onClick={() => exportOverviewRows(apiRows ?? [])} style={{ height: '32px', fontSize: '13px' }}>
                 <Download size={14} /> 导出
               </button>
             </div>
@@ -273,7 +275,7 @@ export function OverviewPage() {
                       <td>库存不足：活动价测算库存 &lt; 100 件 <span className={styles.ruleTag}>库存规则</span></td>
                       <td>天猫618大促</td>
                       <td>补货建议</td>
-                      <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                      <td><a href="/sku-access" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                     </tr>
                     <tr>
                       <td>G012</td>
@@ -281,7 +283,7 @@ export function OverviewPage() {
                       <td>价格力不足：折扣力度 6.8% &lt; 规则要求 7% <span className={styles.ruleTag}>价格规则</span></td>
                       <td>天猫618大促</td>
                       <td>人工确认</td>
-                      <td><a href="#" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
+                      <td><a href="/sku-access" className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                     </tr>
                   </>
                 )}
@@ -291,7 +293,7 @@ export function OverviewPage() {
           <div className={styles.tablePagination}>
             <span>共 {overview.total.toLocaleString()} 条</span>
             <div className={styles.pageControls}>
-              <button className="secondaryButton" style={{ height: '28px', padding: '0 8px', fontSize: '12px' }}>20 条/页 <ChevronDown size={14} /></button>
+              <button className="secondaryButton" type="button" onClick={() => setMessage('分页接入 /api/skus?page&pageSize 后启用。')} style={{ height: '28px', padding: '0 8px', fontSize: '12px' }}>20 条/页 <ChevronDown size={14} /></button>
               <div className={styles.pageBtn}><ChevronRight size={14} style={{ transform: 'rotate(180deg)' }}/></div>
               <div className={`${styles.pageBtn} ${styles.active}`}>1</div>
               <div className={styles.pageBtn}>2</div>
@@ -435,7 +437,7 @@ export function OverviewPage() {
               </div>
             </div>
             <div style={{ color: 'var(--muted)', fontSize: '13px' }}>...</div>
-            <a href="#" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看全部工具 Run</a>
+            <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看全部工具 Run</a>
           </div>
         </div>
 
@@ -446,10 +448,25 @@ export function OverviewPage() {
               <Lock size={14} color="var(--muted)" />
             </div>
             <div className={styles.lockDesc}>包含请求/响应、原始字段与日志</div>
-            <a href="#" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看 Trace</a>
+            <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看 Trace</a>
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function exportOverviewRows(rows: SkuSummaryDto[]) {
+  const header = ['skuProfileId', 'canonicalSkuKey', 'productName', 'healthStatus', 'healthScore', 'nextActions']
+  const csv = [
+    header.join(','),
+    ...rows.map((row) => header.map((key) => JSON.stringify(key === 'nextActions' ? row.nextActions.join(';') : row[key as keyof SkuSummaryDto] ?? '')).join(',')),
+  ].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `overview-skus-${Date.now()}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }

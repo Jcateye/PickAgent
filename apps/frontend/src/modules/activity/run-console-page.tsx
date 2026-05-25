@@ -1,10 +1,21 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { RotateCcw, Download, ExternalLink } from 'lucide-react'
 import styles from './run-console.module.css'
 
 export function RunConsolePage() {
+  const [message, setMessage] = useState<string | null>(null)
+  function exportLogs() {
+    const blob = new Blob(['Run #20250509-1041\nStatus: Success\nSource: Agent triggered\n'], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'run-20250509-1041.log'
+    link.click()
+    URL.revokeObjectURL(url)
+    setMessage('已导出当前 Run 日志。')
+  }
   return (
     <div className={styles.layout}>
       
@@ -72,11 +83,12 @@ export function RunConsolePage() {
             </div>
           </div>
           <div className={styles.headerActions}>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
-            <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
-            <button className="iconButton" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></button>
+            <button className="secondaryButton" type="button" onClick={() => setMessage('当前选中 Run 为成功状态，没有失败项需要重试。')} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
+            <button className="secondaryButton" type="button" onClick={exportLogs} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
+            <a className="iconButton" href="/agent-mission" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>
         </div>
+        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>{message}</div> : null}
 
         <div className={styles.tabsBar}>
           <div className={`${styles.tab} ${styles.active}`}>Timeline</div>
