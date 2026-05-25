@@ -78,6 +78,7 @@ export async function GET(request: Request) {
     type: audit.workflowType,
     status: audit.status,
     subject: `${audit.subjectType ?? 'workflow'}:${audit.subjectId ?? '-'}`,
+    sourceId: audit.subjectId,
     startedAt: audit.createdAt,
     completedAt: audit.createdAt,
     summary: `${audit.workflowType} -> ${audit.subjectType ?? 'workflow'}`,

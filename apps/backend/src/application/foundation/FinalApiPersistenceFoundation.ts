@@ -922,6 +922,32 @@ export class ReportRepository {
     return detail;
   }
 
+  recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): void | Promise<void> {
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "report_generate",
+      status: "SUCCEEDED",
+      subjectType: "report",
+      subjectId: report.reportId,
+      input: {
+        actorId: boundary.actorId,
+        tenantId: boundary.tenantId,
+        reportType: input.type,
+        skuProfileIds: input.skuProfileIds,
+        simulationResultIds: input.simulationResultIds ?? [],
+      },
+      output: {
+        reportId: report.reportId,
+        status: report.status,
+        sectionCount: report.sections.length,
+        evidenceCount: report.evidenceSummary.length,
+      },
+      createdAt: new Date().toISOString(),
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+  }
+
   list(boundary: P0AuthContextDto): ReportDetailDto[] | Promise<ReportDetailDto[]> {
     return Array.from(this.store.reportDetails.values()).filter((item) => this.store.tenantByEntityId.get(item.reportId) === boundary.tenantId);
   }
@@ -2020,6 +2046,33 @@ export class PrismaReportRepository extends ReportRepository {
     return detail;
   }
 
+  async recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): Promise<void> {
+    await this.prisma.workflowRun.create({
+      data: {
+        id: nextUuid(),
+        workflowType: "report_generate",
+        status: "SUCCEEDED",
+        subjectType: "report",
+        subjectId: report.reportId,
+        inputJson: {
+          actorId: boundary.actorId,
+          tenantId: boundary.tenantId,
+          reportType: input.type,
+          skuProfileIds: input.skuProfileIds,
+          simulationResultIds: input.simulationResultIds ?? [],
+        },
+        outputJson: {
+          reportId: report.reportId,
+          status: report.status,
+          sectionCount: report.sections.length,
+          evidenceCount: report.evidenceSummary.length,
+        },
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+  }
+
   async list(_boundary: P0AuthContextDto): Promise<ReportDetailDto[]> {
     if (!this.prisma.report) return [];
     const rows = await this.prisma.report.findMany({ orderBy: { createdAt: "desc" } });
@@ -2559,6 +2612,7 @@ export class FinalReportService {
     };
     await this.repository.save(boundary, report);
     await this.repository.saveDetail(boundary, toReportDetail(report, details, simulations, []));
+    await this.repository.recordGeneration(boundary, input, report);
     return report;
   }
 

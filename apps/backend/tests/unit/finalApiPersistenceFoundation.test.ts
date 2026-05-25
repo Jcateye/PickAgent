@@ -236,6 +236,7 @@ test("final activity, review and report services share persistent repositories",
   assert.equal(report.status, "PREVIEW");
   assert.equal(runtime.store.reports.get(report.reportId)?.reportId, report.reportId);
   assert.ok(report.evidenceSummary.length > 0);
+  assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "report_generate" && audit.subjectId === report.reportId && audit.input.actorId === "dev_actor"));
 });
 
 test("activity start run persists latest run into refreshed execution plan", async () => {

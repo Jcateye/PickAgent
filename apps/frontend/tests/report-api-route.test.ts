@@ -80,6 +80,28 @@ test('report create route rejects missing sku evidence instead of creating empty
   assert.match(envelope.message, /SKU not found for report: missing_sku_profile_for_route/)
 })
 
+test('report create route records generation audit for run console', async () => {
+  await finalReportSnapshotRequest
+  const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+
+  const response = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+
+  const newAudits = Array.from(finalApiRuntime.store.workflowAudits.entries())
+    .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
+    .map(([, audit]) => audit)
+  assert.ok(newAudits.some((audit) => audit.workflowType === 'report_generate' && audit.subjectId === envelope.data.reportId && audit.input.actorId === 'report_route_tester'))
+})
+
 test('report write routes reject invalid export and subscription values before persistence', async () => {
   await finalReportSnapshotRequest
   const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
