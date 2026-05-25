@@ -1,5 +1,5 @@
-import { ConnectorsPage } from '@/modules/connectors/connectors-page'
+import { redirect } from 'next/navigation'
 
 export default async function ConnectorsRoute() {
-  return <ConnectorsPage />
+  redirect('/data-sources')
 }

@@ -112,14 +112,14 @@ function sourceRouteLabel(sourceType: ServiceReviewItemDto['sourceType']) {
 function sourceHref(sourceType: ServiceReviewItemDto['sourceType']) {
   if (sourceType === 'health') return '/sku-health'
   if (sourceType === 'agent') return '/agent-chat'
-  return '/activities'
+  return '/rule-execution'
 }
 
 function evidenceHref(type: EvidenceLinkDto['type'], entityId: string) {
   const encodedId = encodeURIComponent(entityId)
   if (type === 'snapshot' || type === 'diagnosis') return `/sku-health?evidence=${encodedId}`
-  if (type === 'rule' || type === 'simulation') return `/activities?evidence=${encodedId}`
-  if (type === 'review') return `/reviews?evidence=${encodedId}`
+  if (type === 'rule' || type === 'simulation') return `/rule-execution?evidence=${encodedId}`
+  if (type === 'review') return `/review-approvals?evidence=${encodedId}`
   if (type === 'tool_trace') return `/agent-chat?evidence=${encodedId}`
-  return `/workflows?evidence=${encodedId}`
+  return `/run-console?evidence=${encodedId}`
 }

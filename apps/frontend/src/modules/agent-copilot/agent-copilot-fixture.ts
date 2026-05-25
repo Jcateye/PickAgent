@@ -141,7 +141,7 @@ export function createCopilotFixtureRun(context: WorkbenchContext): AgentMission
         id: 'evidence-eventstore',
         evidenceType: 'tool_result',
         label: 'EventStore replay / SSE',
-        summary: '生产路径消费 /api/agent/runs/:runId/events；无 runId 时仅显示 fixture fallback。',
+        summary: '生产路径消费 /api/agent/runs/:runId/events；无 runId 时显示当前上下文 Mission 草案。',
       },
       {
         id: 'evidence-gate',
@@ -163,7 +163,7 @@ export function createCopilotFixtureRun(context: WorkbenchContext): AgentMission
         riskIfRejected: '本次 Mission 停止推进，当前页面业务状态不变。',
         evidenceRefs: ['evidence-context', 'evidence-eventstore', 'evidence-gate'],
         reviewItemId: 'review-overlay-gate',
-        runTraceHref: '/workflows?runId=agent_run_overlay_demo',
+        runTraceHref: '/run-console?runId=agent_run_overlay_demo',
       },
     ],
     nextActions: ['批准并打开 continuation run', '查看 Review item', '查看 run trace'],

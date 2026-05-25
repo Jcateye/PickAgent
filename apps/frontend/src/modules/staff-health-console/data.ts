@@ -148,7 +148,7 @@ export async function getConnectorConsole(): Promise<ConnectorConsoleDto> {
         ? `GET ${STAFF_HEALTH_ENDPOINTS.summary} 返回 total=${summaryResult.data.total}, ready=${summaryResult.data.ready}, warning=${summaryResult.data.warning}, blocked=${summaryResult.data.blocked}`
         : summaryResult.reason,
       capabilityBoundary: '只展示健康汇总 DTO，不在 Connectors 页面重算任何健康状态。',
-      targetHref: '/dashboard',
+      targetHref: '/overview',
     },
     {
       id: 'sku-list-api',
@@ -254,8 +254,8 @@ function dashboardMetricsFromSummary(summary: BackendHealthSummary): DashboardMe
 
 function riskSummariesFromSummary(summary: BackendHealthSummary) {
   return [
-    { id: 'warning', label: 'WARNING SKU', count: summary.warning, description: '服务端已判定需要修复或复核的 SKU。', targetHref: '/sku-health', tone: 'warning' as const },
-    { id: 'blocked', label: 'BLOCKED SKU', count: summary.blocked, description: '服务端已判定阻断的 SKU，需先补齐证据或库存。', targetHref: '/sku-health', tone: 'blocked' as const },
+    { id: 'warning', label: 'WARNING SKU', count: summary.warning, description: '服务端已判定需要修复或复核的 SKU。', targetHref: '/sku-access', tone: 'warning' as const },
+    { id: 'blocked', label: 'BLOCKED SKU', count: summary.blocked, description: '服务端已判定阻断的 SKU，需先补齐证据或库存。', targetHref: '/sku-access', tone: 'blocked' as const },
   ]
 }
 
@@ -267,7 +267,7 @@ function recentRunsFromSummary(summary: BackendHealthSummary): RecentWorkflowRun
       source: 'GET /api/health/summary',
       status: 'SUCCEEDED',
       finishedAtLabel: '当前请求',
-      targetHref: '/sku-health',
+      targetHref: '/sku-access',
       summary: `当前真实 summary 覆盖 ${summary.total} 个 SKU；READY ${summary.ready}、WARNING ${summary.warning}、BLOCKED ${summary.blocked}。`,
     },
   ]

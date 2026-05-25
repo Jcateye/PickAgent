@@ -1,5 +1,5 @@
-import { WorkflowsPage } from '@/modules/workflow/workflows-page'
+import { redirect } from 'next/navigation'
 
 export default function WorkflowsRoute() {
-  return <WorkflowsPage />
+  redirect('/run-console')
 }

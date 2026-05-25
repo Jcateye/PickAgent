@@ -109,7 +109,7 @@ export function AgentCopilotWorkbench({ context, compact = false }: { context: W
           </Panel>
 
           <Panel>
-            <PanelHeader title="Plan" description="Plan 状态由 fixture fallback 与 EventStore events 共同驱动展示。" />
+            <PanelHeader title="Plan" description="Plan 状态由 Mission 运行与 EventStore events 共同驱动展示。" />
             <PanelBody>
               <ol className="missionPlanList">
                 {run.plan.map((step, index) => (
@@ -159,9 +159,9 @@ export function AgentCopilotWorkbench({ context, compact = false }: { context: W
                 </div>
                 <div className="agentGateLinks">
                   <a href={`#agent-gate-${activeGate.id}`}>Gate {activeGate.id}</a>
-                  <a href={`/reviews?reviewItemId=${activeGate.reviewItemId ?? activeGate.id}`}>Review item</a>
-                  <a href={activeGate.runTraceHref ?? `/workflows?runId=${run.run.id}`}>Run trace</a>
-                  {activeGate.continuationRunId ? <a href={`/workflows?runId=${activeGate.continuationRunId}`}>Continuation run</a> : null}
+                  <a href={`/review-approvals?reviewItemId=${activeGate.reviewItemId ?? activeGate.id}`}>Review item</a>
+                  <a href={activeGate.runTraceHref ?? `/run-console?runId=${run.run.id}`}>Run trace</a>
+                  {activeGate.continuationRunId ? <a href={`/run-console?runId=${activeGate.continuationRunId}`}>Continuation run</a> : null}
                 </div>
                 <div className="panelActions">
                   <button className="primaryButton" type="button" disabled={!pendingGate} onClick={() => continueGate('approve')}>
@@ -184,7 +184,7 @@ export function AgentCopilotWorkbench({ context, compact = false }: { context: W
               <div className="eventReplayBox">
                 <span>lastSequence</span>
                 <strong>{runEvents.lastSequence}</strong>
-                {runEvents.error ? <p>{runEvents.error}</p> : <p>Replay/SSE hook ready. 无 runId 或无事件时显示 fixture fallback。</p>}
+                {runEvents.error ? <p>{runEvents.error}</p> : <p>Replay/SSE hook ready. 当前 Mission 事件会按 lastSequence 追加。</p>}
               </div>
             </PanelBody>
           </Panel>

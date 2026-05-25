@@ -358,7 +358,7 @@ export function AgentMissionPage() {
           <section className={styles.monitorSection}>
             <div className={styles.sectionTitle}>
               <strong>任务进度</strong>
-              <span>{runId ? `Run ${runId}` : 'fixture fallback'}</span>
+              <span>{runId ? `Run ${runId}` : '新 Mission 草案'}</span>
             </div>
             <div className={styles.runSummary}>
               <div>

@@ -11,9 +11,9 @@ interface WorkbenchContextRegistryValue {
 }
 
 const defaultContext: WorkbenchContext = {
-  route: '/dashboard',
-  pageTitle: 'Dashboard 总览',
-  selectedEntity: { entityType: 'dashboard', entityId: 'dashboard', label: 'Dashboard 总览' },
+  route: '/overview',
+  pageTitle: '业务概览',
+  selectedEntity: { entityType: 'dashboard', entityId: 'overview', label: '业务概览' },
   visibleFilters: {},
   visibleColumns: ['status', 'risk', 'nextAction'],
 }

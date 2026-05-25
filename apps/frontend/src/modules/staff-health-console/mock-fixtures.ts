@@ -46,7 +46,7 @@ export const mockDashboardSummary: DashboardSummaryDto = {
       source: 'Chrome Extension',
       status: 'SUCCEEDED',
       finishedAtLabel: '今天 09:42',
-      targetHref: '/workflows',
+      targetHref: '/run-console',
       summary: '写入 42 条 projection，发现 6 条资料字段缺失。',
     },
     {
@@ -55,14 +55,14 @@ export const mockDashboardSummary: DashboardSummaryDto = {
       source: 'Mock Workflow',
       status: 'WAITING_FOR_REVIEW',
       finishedAtLabel: '今天 10:18',
-      targetHref: '/workflows',
+      targetHref: '/run-console',
       summary: '3 条 SKU 需要人工确认价格证据来源。',
     },
   ],
   primaryLinks: [
-    { label: '查看连接器', href: '/connectors', description: '确认采集来源、最近运行和边界说明' },
-    { label: '查看 SKU 列表', href: '/sku-health', description: '按服务端 projection 浏览当前健康状态' },
-    { label: '查看运行摘要', href: '/workflows', description: '进入 workflow run 视图查看长任务状态' },
+    { label: '查看连接器', href: '/data-sources', description: '确认采集来源、最近运行和边界说明' },
+    { label: '查看 SKU 列表', href: '/sku-access', description: '按服务端 projection 浏览当前健康状态' },
+    { label: '查看运行摘要', href: '/run-console', description: '进入运行日志视图查看长任务状态' },
   ],
 }
 
@@ -76,7 +76,7 @@ export const mockConnectorConsole: ConnectorConsoleDto = {
       lastIngestedAtLabel: '今天 09:42',
       lastIngestSummary: '采集 42 条商品行，生成 42 条 CurrentSkuProjection 草案。',
       capabilityBoundary: '只提交采集 payload，不执行健康判断、改价或活动报名。',
-      targetHref: '/workflows',
+      targetHref: '/run-console',
     },
     {
       id: 'connector_tmall_mock',
@@ -96,7 +96,7 @@ export const mockConnectorConsole: ConnectorConsoleDto = {
       lastIngestedAtLabel: '未接入',
       lastIngestSummary: '等待 backend-business-foundation 提供真实 query 能力。',
       capabilityBoundary: '不在本 change 中实现真实 ERP 接入。',
-      targetHref: '/connectors',
+      targetHref: '/data-sources',
     },
   ],
   collectionBoundaries: [

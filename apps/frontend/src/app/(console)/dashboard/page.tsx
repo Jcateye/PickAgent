@@ -1,5 +1,5 @@
-import { DashboardPage } from '@/modules/dashboard/dashboard-page'
+import { redirect } from 'next/navigation'
 
 export default async function DashboardRoute() {
-  return <DashboardPage />
+  redirect('/overview')
 }
