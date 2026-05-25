@@ -173,6 +173,8 @@ export interface ReportComparisonDto {
 export interface ReportExportRequestDto {
   format: "PDF" | "EXCEL" | "PPT";
   idempotencyKey?: string;
+  includeCharts?: boolean;
+  includeDetails?: boolean;
 }
 
 export interface ReportExportJobDto {
@@ -180,6 +182,8 @@ export interface ReportExportJobDto {
   reportId: string;
   status: "PENDING";
   format: ReportExportRequestDto["format"];
+  includeCharts: boolean;
+  includeDetails: boolean;
   requestedAt: string;
 }
 

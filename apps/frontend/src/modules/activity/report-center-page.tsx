@@ -27,6 +27,8 @@ export function ReportCenterPage() {
   const [comparison, setComparison] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ReportTab>('SUMMARY')
   const [format, setFormat] = useState<ExportFormat>('PDF')
+  const [includeCharts, setIncludeCharts] = useState(true)
+  const [includeDetails, setIncludeDetails] = useState(false)
   const [subscriptionFrequency, setSubscriptionFrequency] = useState<SubscriptionFrequency>('WEEKLY')
   const [subscriptionRecipients, setSubscriptionRecipients] = useState('')
   const [message, setMessage] = useState<string | null>(null)
@@ -92,9 +94,9 @@ export function ReportCenterPage() {
     try {
       const job = await fetchActivityApi<ReportExportJobDto>(`/api/reports/${detail.reportId}/export`, {
         method: 'POST',
-        body: JSON.stringify({ format, idempotencyKey: `${detail.reportId}:${format}:${Date.now()}` }),
+        body: JSON.stringify({ format, includeCharts, includeDetails, idempotencyKey: `${detail.reportId}:${format}:${includeCharts}:${includeDetails}:${Date.now()}` }),
       })
-      setMessage(`已创建导出任务：${job.exportJobId}`)
+      setMessage(`已创建导出任务：${job.exportJobId} / 图表 ${job.includeCharts ? '包含' : '不包含'} / 明细 ${job.includeDetails ? '包含' : '不包含'}`)
       await loadReports(detail.reportId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出报告失败')
@@ -261,8 +263,8 @@ export function ReportCenterPage() {
             <div className={styles.exportFormatGrid}>
               {(['PDF', 'EXCEL', 'PPT'] as ExportFormat[]).map((item) => <button className={`${styles.formatBtn} ${format === item ? styles.active : ''}`} type="button" key={item} onClick={() => setFormat(item)}>{item}</button>)}
             </div>
-            <div className={styles.checkboxItem}><input type="checkbox" checked readOnly /><span>包含图表与摘要 <span style={{ color: 'var(--primary)', fontSize: '12px' }}>(推荐)</span></span></div>
-            <div className={styles.checkboxItem} style={{ marginBottom: '24px' }}><input type="checkbox" readOnly /><span>包含明细数据</span></div>
+            <label className={styles.checkboxItem}><input type="checkbox" checked={includeCharts} onChange={(event) => setIncludeCharts(event.target.checked)} /><span>包含图表与摘要 <span style={{ color: 'var(--primary)', fontSize: '12px' }}>(推荐)</span></span></label>
+            <label className={styles.checkboxItem} style={{ marginBottom: '24px' }}><input type="checkbox" checked={includeDetails} onChange={(event) => setIncludeDetails(event.target.checked)} /><span>包含明细数据</span></label>
             <button className="primaryButton" type="button" onClick={() => void exportReport()} disabled={!detail || busy === 'export'} style={{ width: '100%' }}>导出</button>
           </div>
 

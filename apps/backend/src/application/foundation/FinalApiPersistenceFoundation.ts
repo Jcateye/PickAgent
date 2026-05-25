@@ -896,7 +896,7 @@ export class ReportRepository {
     const key = request.idempotencyKey ? `${reportId}:${request.idempotencyKey}` : "";
     const existing = key ? this.store.reportExports.get(key) : undefined;
     if (existing) return existing;
-    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, requestedAt: new Date().toISOString() };
+    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
     this.store.reportExports.set(key || job.exportJobId, job);
     return job;
   }
@@ -1851,7 +1851,7 @@ export class PrismaReportRepository extends ReportRepository {
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
     }
-    return { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING", format: request.format, requestedAt: new Date().toISOString() };
+    return { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
   }
 
   async saveSubscription(_boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): Promise<ReportSubscriptionDto> {

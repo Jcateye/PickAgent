@@ -3,6 +3,8 @@ import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../../_fin
 interface ReportExportRequestDto {
   format: 'PDF' | 'EXCEL' | 'PPT'
   idempotencyKey?: string
+  includeCharts?: boolean
+  includeDetails?: boolean
 }
 
 interface RouteContext {

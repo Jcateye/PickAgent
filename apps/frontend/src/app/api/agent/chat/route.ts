@@ -540,10 +540,12 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       if (!reportId) throw new Error('reportId is required')
       const request: ReportExportRequestDto = {
         format: input.format === 'EXCEL' || input.format === 'PPT' ? input.format : 'PDF',
+        includeCharts: typeof input.includeCharts === 'boolean' ? input.includeCharts : true,
+        includeDetails: typeof input.includeDetails === 'boolean' ? input.includeDetails : false,
         idempotencyKey: optionalString(input.idempotencyKey) ?? `agent:${Date.now().toString(36)}`,
       }
       const result = await finalApiRuntime.reportService.export(reportId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，状态：${result.status}` }], `创建报告导出：${result.exportJobId}`, { type: 'report', id: reportId })
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, { type: 'report', id: reportId })
     }
 
     if (toolName === 'subscribeReport') {

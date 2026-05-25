@@ -382,6 +382,8 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       },
       type: { type: 'string', enum: ['HEALTH', 'ACTIVITY'] },
       format: { type: 'string', enum: ['PDF', 'EXCEL', 'PPT'] },
+      includeCharts: { type: 'boolean' },
+      includeDetails: { type: 'boolean' },
       frequency: { type: 'string', enum: ['DAILY', 'WEEKLY', 'MONTHLY', 'OFF'] },
       recipients: { type: 'array', items: { type: 'string' } },
       warnings: { type: 'array', items: { type: 'string' } },
@@ -558,7 +560,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('compareReports', inputJson),
     }),
     exportReport: tool({
-      description: '为指定 reportId 创建真实报告导出任务。支持 format=PDF/EXCEL/PPT。',
+      description: '为指定 reportId 创建真实报告导出任务。支持 format=PDF/EXCEL/PPT、includeCharts、includeDetails。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('exportReport', inputJson),
     }),
