@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
+import { agentToolRiskLevel, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
@@ -78,4 +78,10 @@ test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: ['getSkuSummary'] }), true)
+})
+
+test('agent chat classifies report-producing tools as write risk', () => {
+  assert.equal(agentToolRiskLevel('generateReport'), 'L2')
+  assert.equal(agentToolRiskLevel('compareReports'), 'L2')
+  assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
 })

@@ -114,7 +114,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -162,7 +162,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
       externalToolCallId: input.externalToolCallId ?? null,
       toolName,
       status,
-      riskLevel: writeAgentTools.has(toolName) ? 'L2' : 'L1',
+      riskLevel: agentToolRiskLevel(toolName),
       reviewPolicy: 'AUTO_ALLOW',
       inputJson: safeInput,
       outputJson: scrubSensitive({ ok: status === 'SUCCEEDED', summary, result: execution.result }) as Record<string, unknown>,
@@ -183,6 +183,10 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
     })
     return { toolCall, status, summary, data: execution.result ?? null, evidenceRefs, linkedEntities, reviewGate: null }
   }
+}
+
+export function agentToolRiskLevel(toolName: string): 'L1' | 'L2' {
+  return writeAgentTools.has(toolName) ? 'L2' : 'L1'
 }
 
 interface FinalApiToolExecution {
