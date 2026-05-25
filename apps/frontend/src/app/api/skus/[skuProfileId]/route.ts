@@ -1,4 +1,5 @@
 import { fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import type { UpdateSkuNextActionInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 
 interface RouteContext {
@@ -8,9 +9,14 @@ interface RouteContext {
 export async function GET(request: Request, context: RouteContext) {
   const { skuProfileId } = await context.params
   const requestId = request.headers.get('x-request-id') ?? undefined
-  const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileId, requireApiAuthContext(request, requestId))
-  if (!detail) return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
-  return ok(detail, requestId)
+  try {
+    const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileId, requireApiAuthContext(request, requestId))
+    if (!detail) return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
+    return ok(detail, requestId)
+  } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, requestId)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU detail failed', 400, { skuProfileId }, requestId)
+  }
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -23,8 +29,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const detail = await finalApiRuntime.skuReadinessQueryService.updateNextAction(skuProfileId, input, requireApiAuthContext(request, requestId))
     return ok(detail, requestId)
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, requestId)
     if (error instanceof Error && error.message === 'SKU not found') return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
-    throw error
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU next action update failed', 400, { skuProfileId }, requestId)
   }
 }
 
