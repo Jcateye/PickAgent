@@ -2538,6 +2538,7 @@ export class FinalReportService {
   }
 
   async listVersions(reportId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReportVersionDto>> {
+    await this.requireReport(reportId, boundary);
     const items = await this.repository.listVersions(boundary, reportId);
     return { items, page: 1, pageSize: items.length || 20, total: items.length };
   }

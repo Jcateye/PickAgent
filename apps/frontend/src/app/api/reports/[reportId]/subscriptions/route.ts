@@ -13,5 +13,9 @@ export async function POST(request: Request, context: RouteContext) {
   const { reportId } = await context.params
   const payload = (await request.json().catch(() => null)) as ReportSubscriptionRequestDto | null
   if (!payload?.frequency || !Array.isArray(payload.recipients)) return fail('COMMON.VALIDATION_ERROR', 'frequency and recipients are required', 400)
-  return ok(await finalApiRuntime.reportService.saveSubscription(reportId, payload, authContextFromRequest(request)))
+  try {
+    return ok(await finalApiRuntime.reportService.saveSubscription(reportId, payload, authContextFromRequest(request)))
+  } catch (error) {
+    return fail('REPORT.NOT_FOUND', error instanceof Error ? error.message : 'Report not found', 404, { reportId })
+  }
 }
