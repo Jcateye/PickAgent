@@ -244,6 +244,7 @@ export const defaultAgentToolNames = [
   "exportSkuList",
   "listRuleSets",
   "getRuleSetDetail",
+  "listRuleSetVersions",
   "createRuleSet",
   "updateRuleSet",
   "createRuleSetVersion",

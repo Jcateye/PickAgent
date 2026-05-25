@@ -448,6 +448,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getRuleSetDetail', inputJson),
     }),
+    listRuleSetVersions: tool({
+      description: '读取指定规则集的真实版本历史。需要 ruleSetId，返回版本号、状态、创建人和版本内容。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listRuleSetVersions', inputJson),
+    }),
     createRuleSet: tool({
       description: '创建真实规则集。需要 name 和 sourceText，可选 platform、type=ACTIVITY_RULE、source=INTERNAL/PLATFORM、status=DRAFT/ENABLED/DISABLED。',
       inputSchema: objectSchema,

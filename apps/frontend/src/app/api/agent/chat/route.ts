@@ -356,6 +356,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status} / ${result.summary.ruleCount} 条规则` }], `读取规则集详情：${result.name}`, { type: 'rule_set', id: ruleSetId })
     }
 
+    if (toolName === 'listRuleSetVersions') {
+      const ruleSetId = String(input.ruleSetId ?? '')
+      if (!ruleSetId) throw new Error('ruleSetId is required')
+      const result = await finalApiRuntime.ruleSetService.listVersions(ruleSetId, agentToolAuthContext())
+      return succeeded(
+        { items: result, total: result.length, page: 1, pageSize: result.length },
+        result.slice(0, 5).map((item) => ({ type: 'rule', entityId: item.ruleSetVersionId, label: item.version, summary: `${item.status} / ${item.createdAt}` })),
+        `读取规则集版本：${result.length} 个`,
+        { type: 'rule_set', id: ruleSetId },
+      )
+    }
+
     if (toolName === 'createRuleSet') {
       const request = createRuleSetInput(input)
       const result = await finalApiRuntime.ruleSetService.create(request, agentToolAuthContext())

@@ -160,6 +160,29 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   assert.equal(detail?.status, 'DISABLED')
 })
 
+test('agent chat listRuleSetVersions tool reads persisted rule set versions', async () => {
+  const created = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent Chat 版本历史规则集',
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'ENABLED',
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+
+  const ruleSetId = (created.result as { ruleSetId: string }).ruleSetId
+  const version = await executeFinalApiTool('createRuleSetVersion', { ruleSetId })
+  assert.equal(version.status, 'SUCCEEDED')
+  const ruleSetVersionId = (version.result as { ruleSetVersionId: string }).ruleSetVersionId
+
+  const listed = await executeFinalApiTool('listRuleSetVersions', { ruleSetId })
+  assert.equal(listed.status, 'SUCCEEDED')
+  const result = listed.result as { items: Array<{ ruleSetVersionId: string; ruleSetId: string }>; total: number }
+  assert.ok(result.total >= 1)
+  assert.ok(result.items.some((item) => item.ruleSetVersionId === ruleSetVersionId && item.ruleSetId === ruleSetId))
+  assert.equal(listed.linkedEntity?.type, 'rule_set')
+  assert.equal(listed.linkedEntity?.id, ruleSetId)
+})
+
 test('agent chat settings tools read and update real workspace settings', async () => {
   const read = await executeFinalApiTool('getWorkspaceSettings', {})
   assert.equal(read.status, 'SUCCEEDED')
