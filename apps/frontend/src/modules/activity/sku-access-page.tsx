@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Wrench, HelpCircle, XCircle, Search, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DashboardSkuListItemDto, DashboardSkuReadinessDetailDto } from '../../../../contracts/types/dashboardSkuReadModels'
-import type { ReviewItemDto } from '../../../../contracts/types/businessFoundation'
+import type { ReportPreviewDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
@@ -148,6 +148,29 @@ export function SkuAccessPage() {
     }
   }
 
+  async function generateHealthReport() {
+    const skuProfileIds = rows.map((item) => item.skuProfileId)
+    if (!skuProfileIds.length) {
+      setMessage('当前筛选结果为空，无法生成报告')
+      return
+    }
+    setBusy('report')
+    try {
+      const report = await fetchActivityApi<ReportPreviewDto>('/api/reports', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'HEALTH',
+          skuProfileIds,
+        }),
+      })
+      setMessage(`已生成健康报告：${report.reportId}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '生成健康报告失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.mainArea}>
@@ -233,7 +256,7 @@ export function SkuAccessPage() {
             <button className="secondaryButton" type="button" onClick={() => selectedRow ? void createReview(selectedRow) : undefined} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
             <button className="secondaryButton" type="button" onClick={() => selectedRow ? void updateNextAction(selectedRow) : setMessage('请先选择 SKU')} disabled={!selectedRow || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
             <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('更多操作已收敛为：生成 Review、设置下一步、导出。')} style={{ height: '32px', fontSize: '13px' }}>更多 ∨</button>
+            <button className="secondaryButton" type="button" onClick={() => void generateHealthReport()} disabled={!rows.length || busy === 'report'} style={{ height: '32px', fontSize: '13px' }}>生成健康报告</button>
           </div>
         </div>
 
