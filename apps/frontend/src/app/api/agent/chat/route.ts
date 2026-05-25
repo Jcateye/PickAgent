@@ -113,8 +113,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listAgentMissions', 'getAgentMission', 'createAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -548,6 +548,93 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
         return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent 重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建 Agent 重试运行：${result.id}`, { type: 'workflow_run', id: result.id })
       }
       throw new Error('runType must be connector_sync or agent_run')
+    }
+
+    if (toolName === 'listAgentMissions') {
+      const result = finalAgentRuntime.agentService.listMissions({
+        page: numberOr(input.page, 1),
+        pageSize: numberOr(input.pageSize, 10),
+        status: optionalString(input.status),
+      })
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'agent-missions', label: 'Agent Mission 列表', summary: `读取 ${result.items.length} 个 Mission` }], `读取 Agent Mission：${result.items.length} 个`, result.items[0] ? { type: 'workflow_run', id: result.items[0].currentRun?.runId ?? result.items[0].missionId } : { type: 'dashboard', id: 'agent-missions' })
+    }
+
+    if (toolName === 'getAgentMission') {
+      const missionId = String(input.missionId ?? '')
+      if (!missionId) throw new Error('missionId is required')
+      const result = finalAgentRuntime.agentService.getMission(missionId)
+      return succeeded(result, [{ type: 'tool_trace', entityId: missionId, label: 'Agent Mission', summary: `读取 Mission：${result.objective}` }], `读取 Agent Mission：${result.objective}`, result.runs[0] ? { type: 'workflow_run', id: result.runs[0].runId } : { type: 'dashboard', id: missionId })
+    }
+
+    if (toolName === 'createAgentMission') {
+      const objective = String(input.objective ?? '')
+      if (!objective.trim()) throw new Error('objective is required')
+      const result = finalAgentRuntime.agentService.createMission({
+        sessionKey: optionalString(input.sessionKey) ?? `agent-chat-${Date.now().toString(36)}`,
+        objective,
+        missionType: optionalString(input.missionType),
+        autonomyLevel: optionalString(input.autonomyLevel),
+        sourceSurface: optionalString(input.sourceSurface) ?? 'agent-chat',
+        subjectType: optionalString(input.subjectType),
+        subjectId: optionalString(input.subjectId),
+        constraintsJson: isRecord(input.constraintsJson) ? input.constraintsJson : undefined,
+        workbenchContextJson: isRecord(input.workbenchContextJson) ? input.workbenchContextJson : undefined,
+        createdBy: optionalString(input.createdBy) ?? 'agent-chat-tool',
+      })
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.mission.id, label: 'Agent Mission', summary: `创建 Mission：${result.mission.objective}` }], `创建 Agent Mission：${result.mission.id}`, { type: 'dashboard', id: result.mission.id })
+    }
+
+    if (toolName === 'startAgentRun') {
+      const missionId = String(input.missionId ?? '')
+      if (!missionId) throw new Error('missionId is required')
+      const result = finalAgentRuntime.agentService.startRun(missionId, {
+        modelProvider: optionalString(input.modelProvider) ?? 'pi',
+        modelName: optionalString(input.modelName) ?? 'sku-ready-agent',
+        inputJson: isRecord(input.inputJson) ? input.inputJson : undefined,
+        timeoutMs: optionalNumber(input.timeoutMs),
+      })
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent Run', summary: `启动 Agent Run：${result.status}` }], `启动 Agent Run：${result.id}`, { type: 'workflow_run', id: result.id })
+    }
+
+    if (toolName === 'getAgentRunDetail') {
+      const runId = String(input.runId ?? '')
+      if (!runId) throw new Error('runId is required')
+      const result = finalAgentRuntime.agentService.getRun(runId)
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run', summary: `读取 Agent Run：${result.run.status}` }], `读取 Agent Run：${result.run.status}`, { type: 'workflow_run', id: runId })
+    }
+
+    if (toolName === 'pauseAgentRun') {
+      const runId = String(input.runId ?? '')
+      if (!runId) throw new Error('runId is required')
+      const result = finalAgentRuntime.agentService.pauseRun(runId, optionalString(input.pausedBy) ?? 'agent-chat-tool')
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 暂停', summary: `Run 状态：${result.status}` }], `暂停 Agent Run：${result.status}`, { type: 'workflow_run', id: runId })
+    }
+
+    if (toolName === 'cancelAgentRun') {
+      const runId = String(input.runId ?? '')
+      if (!runId) throw new Error('runId is required')
+      const result = finalAgentRuntime.agentService.cancelRun(runId, optionalString(input.canceledBy) ?? 'agent-chat-tool', optionalString(input.reason))
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 取消', summary: `Run 状态：${result.status}` }], `取消 Agent Run：${result.status}`, { type: 'workflow_run', id: runId })
+    }
+
+    if (toolName === 'answerAgentRunQuestion') {
+      const runId = String(input.runId ?? '')
+      const question = String(input.question ?? '')
+      if (!runId || !question.trim()) throw new Error('runId and question are required')
+      const result = finalAgentRuntime.agentService.answerQuestion(runId, { question, askedBy: optionalString(input.askedBy) ?? 'agent-chat-tool' })
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.messageId, label: 'Agent Run 问答', summary: result.answer }], `回答 Agent Run 问题：${result.messageId}`, { type: 'workflow_run', id: runId })
+    }
+
+    if (toolName === 'decideAgentReviewGate') {
+      const gateId = String(input.gateId ?? '')
+      const decision = String(input.decision ?? '')
+      if (!gateId || !decision) throw new Error('gateId and decision are required')
+      const result = finalAgentRuntime.agentService.decideReviewGate(gateId, {
+        decision: decision === 'REJECT' ? 'REJECT' : decision === 'REQUEST_CHANGES' ? 'REQUEST_CHANGES' : 'APPROVE',
+        decidedBy: optionalString(input.decidedBy) ?? optionalString(input.decisionBy) ?? 'agent-chat-tool',
+        decisionComment: optionalString(input.decisionComment),
+      })
+      return succeeded(result, [{ type: 'review', entityId: gateId, label: 'Agent Review Gate', summary: `Review Gate 决策：${result.gate.status}` }], `处理 Agent Review Gate：${result.gate.status}`, { type: 'workflow_run', id: result.continuationRun.id })
     }
 
     if (toolName === 'listReports') {
