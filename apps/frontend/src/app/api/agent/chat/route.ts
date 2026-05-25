@@ -195,7 +195,7 @@ interface FinalApiToolExecution {
   trace: Array<{ summary: string }>
 }
 
-async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {
+export async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {
   try {
     if (toolName === 'getDashboardContext') {
       const authContext = agentToolAuthContext()
@@ -360,7 +360,7 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
         name: String(input.name ?? 'Agent 解析活动规则'),
         platform: typeof input.platform === 'string' ? input.platform : undefined,
         sourceText,
-      })
+      }, agentToolAuthContext())
       return succeeded(result, result.errors.length ? [] : [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `规则解析状态：${result.parseStatus}` }], `解析规则：${result.parseStatus}`, { type: 'rule_set', id: result.ruleSetId })
     }
 
@@ -371,7 +371,7 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       const result = await finalApiRuntime.activityService.simulate(ruleSetId, {
         skuProfileIds,
         whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
-      })
+      }, agentToolAuthContext())
       const evidence = result.results.flatMap((item) => item.evidence)
       return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, { type: 'simulation_run', id: result.simulationRunId })
     }
@@ -395,7 +395,7 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
         type: input.type === 'HEALTH' ? 'HEALTH' : 'ACTIVITY',
         skuProfileIds,
         simulationResultIds: stringArray(input.simulationResultIds),
-      })
+      }, agentToolAuthContext())
       return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, { type: 'report', id: result.reportId })
     }
 

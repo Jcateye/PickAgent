@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { POST } from '../src/app/api/agent/chat/route'
+import { executeFinalApiTool, POST } from '../src/app/api/agent/chat/route'
+import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
   const previousOpenAiKey = process.env.OPENAI_API_KEY
@@ -51,4 +52,24 @@ test('agent chat route fails closed instead of returning template replies when r
     if (previousPickAgentModel === undefined) delete process.env.PICKAGENT_AGENT_MODEL
     else process.env.PICKAGENT_AGENT_MODEL = previousPickAgentModel
   }
+})
+
+test('agent chat tools write backend workflow audits with agent auth context', async () => {
+  const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
+
+  const execution = await executeFinalApiTool('parseActivityRules', {
+    name: 'Agent Chat 规则解析审计',
+    platform: 'tmall',
+    sourceText: '活动库存不得低于 30 件，好评率不少于 95%。',
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const newAudits = Array.from(finalApiRuntime.store.workflowAudits.entries())
+    .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
+    .map(([, audit]) => audit)
+  const parseAudit = newAudits.find((audit) => audit.workflowType === 'activity_rule_parse')
+
+  assert.ok(parseAudit)
+  assert.equal(parseAudit.input.actorId, 'agent_demo')
+  assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
 })

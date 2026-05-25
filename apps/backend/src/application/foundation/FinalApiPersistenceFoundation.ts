@@ -2219,7 +2219,18 @@ export class FinalActivityService {
       ruleSet.confidence = 0;
       ruleSet.errors.push(error instanceof Error ? error.message : "Rule DSL validation failed");
     }
-    return this.repository.saveRuleSet(boundary, ruleSet);
+    const saved = await this.repository.saveRuleSet(boundary, ruleSet);
+    await this.repository.recordWorkflowAudit(boundary, "activity_rule_parse", saved.ruleSetId, {
+      actorId: boundary.actorId,
+      name: input.name,
+      platform: input.platform,
+    }, {
+      ruleSetId: saved.ruleSetId,
+      parseStatus: saved.parseStatus,
+      confidence: saved.confidence,
+      ruleCount: saved.rules.length,
+    });
+    return saved;
   }
 
   async simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDto> {
