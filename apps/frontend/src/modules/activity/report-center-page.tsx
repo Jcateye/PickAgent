@@ -14,6 +14,7 @@ export function ReportCenterPage() {
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<ReportDetailDto | null>(null)
   const [versions, setVersions] = useState<ReportVersionDto[]>([])
+  const [comparison, setComparison] = useState<string | null>(null)
   const [format, setFormat] = useState<ExportFormat>('PDF')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -111,6 +112,36 @@ export function ReportCenterPage() {
     setMessage(`已复制报告链接：${detail.reportId}`)
   }
 
+  async function compareReports() {
+    if (reports.length < 2) {
+      setMessage('至少需要两个报告才能对比')
+      return
+    }
+    const baseId = selectedReportId ?? reports[0].reportId
+    const targetId = reports.find((report) => report.reportId !== baseId)?.reportId
+    if (!targetId) {
+      setMessage('未找到可对比的第二份报告')
+      return
+    }
+    setBusy('compare')
+    try {
+      const [base, target] = await Promise.all([
+        fetchActivityApi<ReportDetailDto>(`/api/reports/${baseId}`),
+        fetchActivityApi<ReportDetailDto>(`/api/reports/${targetId}`),
+      ])
+      const baseRate = passRateText(base)
+      const targetRate = passRateText(target)
+      const deltaPassed = base.summary.passedSku - target.summary.passedSku
+      const deltaBlocked = base.summary.blockedSku - target.summary.blockedSku
+      setComparison(`${base.title} 对比 ${target.title}：通过率 ${baseRate} vs ${targetRate}，通过 SKU ${signed(deltaPassed)}，阻断 SKU ${signed(deltaBlocked)}。`)
+      setMessage(`已生成报告对比：${base.reportId} / ${target.reportId}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '对比报告失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const reviewStats = detail?.summary.reviewResult
   const categoryRows = detail?.summary.categoryDistribution ?? []
   const riskRows = detail?.summary.majorRisks ?? []
@@ -146,7 +177,7 @@ export function ReportCenterPage() {
           ))}
 
           <div style={{ marginTop: 'auto', padding: '16px', borderTop: '1px solid var(--line)', textAlign: 'center' }}>
-            <button className="secondaryButton" type="button" onClick={() => setMessage('对比报告已进入待办：需要先选择两个 reportId。')} style={{ width: '100%' }}>+ 对比报告</button>
+            <button className="secondaryButton" type="button" onClick={() => void compareReports()} disabled={busy === 'compare' || reports.length < 2} style={{ width: '100%' }}>+ 对比报告</button>
           </div>
         </div>
 
@@ -173,6 +204,16 @@ export function ReportCenterPage() {
           </div>
 
           <div className={styles.centerBody}>
+            {comparison ? (
+              <section>
+                <div className={styles.sectionTitle}>报告对比</div>
+                <div className={styles.reviewSection}>
+                  <span>{comparison}</span>
+                  <button className="secondaryButton" type="button" onClick={() => setComparison(null)} style={{ height: '28px', fontSize: '12px' }}>关闭</button>
+                </div>
+              </section>
+            ) : null}
+
             <section>
               <div className={styles.sectionTitle}>活动概览</div>
               <div className={styles.overviewGrid}>
@@ -303,4 +344,12 @@ function Legend({ color, text }: { color: string; text: string }) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return <div className={styles.infoRow}><div className={styles.infoLabel}>{label}</div><div className={styles.infoValue}>{value}</div></div>
+}
+
+function passRateText(report: ReportDetailDto): string {
+  return report.summary.totalSku > 0 ? `${((report.summary.passedSku / report.summary.totalSku) * 100).toFixed(1)}%` : '0.0%'
+}
+
+function signed(value: number): string {
+  return value >= 0 ? `+${value}` : String(value)
 }
