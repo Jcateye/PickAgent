@@ -2149,6 +2149,8 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   }
 
   async update(boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): Promise<ConnectorDetailDto> {
+    const current = await this.prisma.connector.findUnique({ where: { id: connectorId } });
+    if (!current) throw new Error(`Connector not found: ${connectorId}`);
     const updated = await this.prisma.connector.update({ where: { id: connectorId }, data: { name: input.name, platform: input.platform, configJson: input.config ? sanitizeConnectorConfig(input.config) : undefined, status: input.status ? normalizeConnectorStatus(input.status).toLowerCase() : undefined } });
     const now = new Date();
     await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_update", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, fields: Object.keys(input) }, outputJson: { connectorId, status: normalizeConnectorStatus(updated.status) }, startedAt: now, completedAt: now } });
@@ -2656,7 +2658,9 @@ export class ConnectorManagementService {
     return this.repository.createRun(boundary, connectorId, input);
   }
 
-  listRuns(connectorId: string, page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorPageDto<ConnectorRunSummaryDto>> | ConnectorPageDto<ConnectorRunSummaryDto> {
+  async listRuns(connectorId: string, page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ConnectorPageDto<ConnectorRunSummaryDto>> {
+    const connector = await this.repository.get(boundary, connectorId);
+    if (!connector) throw new Error(`Connector not found: ${connectorId}`);
     return this.repository.listRuns(boundary, connectorId, page, pageSize);
   }
 

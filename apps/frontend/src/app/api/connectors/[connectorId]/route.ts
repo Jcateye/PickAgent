@@ -24,6 +24,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!payload) return fail('COMMON.VALIDATION_ERROR', 'Invalid JSON payload', 400)
     return ok(await finalApiRuntime.connectorService.update(connectorId, payload, boundary))
   } catch (error) {
+    if (isConnectorNotFound(error)) return connectorNotFound(await connectorIdFromContext(context))
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector update failed', 400)
   }
 }
@@ -34,6 +35,20 @@ export async function DELETE(request: Request, context: RouteContext) {
     const { connectorId } = await context.params
     return ok(await finalApiRuntime.connectorService.update(connectorId, { status: 'DISABLED' }, boundary))
   } catch (error) {
+    if (isConnectorNotFound(error)) return connectorNotFound(await connectorIdFromContext(context))
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector disable failed', 400)
   }
+}
+
+function isConnectorNotFound(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Connector not found')
+}
+
+async function connectorIdFromContext(context: RouteContext): Promise<string> {
+  const { connectorId } = await context.params
+  return connectorId
+}
+
+function connectorNotFound(connectorId: string) {
+  return fail('CONNECTOR.NOT_FOUND', 'Connector 不存在', 404, { connectorId })
 }
