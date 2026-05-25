@@ -1028,6 +1028,7 @@ export class ConnectorRepositoryV2 {
   }
 
   create(boundary: P0AuthContextDto, input: CreateConnectorDto): ConnectorDetailDto | Promise<ConnectorDetailDto> {
+    if (Array.from(this.store.connectors.values()).some((connector) => connector.code === input.code)) throw new Error(`Connector code already exists: ${input.code}`);
     const now = new Date().toISOString();
     const connector: ConnectorRecordDto = {
       connectorId: nextId("connector"),
@@ -2138,6 +2139,8 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   }
 
   async create(boundary: P0AuthContextDto, input: CreateConnectorDto): Promise<ConnectorDetailDto> {
+    const existing = await this.prisma.connector.findUnique({ where: { code: input.code } });
+    if (existing) throw new Error(`Connector code already exists: ${input.code}`);
     const created = await this.prisma.connector.create({ data: { code: input.code, name: input.name, kind: input.kind, platform: input.platform, configJson: sanitizeConnectorConfig(input.config ?? {}), status: normalizeConnectorStatus(input.status).toLowerCase() } });
     const now = new Date();
     await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_create", status: "SUCCEEDED", subjectType: "connector", subjectId: String(created.id), inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, code: input.code, kind: input.kind, platform: input.platform }, outputJson: { connectorId: String(created.id), status: normalizeConnectorStatus(input.status) }, startedAt: now, completedAt: now } });

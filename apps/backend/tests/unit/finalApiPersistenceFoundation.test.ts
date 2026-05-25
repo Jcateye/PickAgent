@@ -979,6 +979,26 @@ test("connector create and status updates are visible in workflow audits", async
   assert.ok(audits.some((audit) => audit.workflowType === "connector_update" && audit.subjectId === connector.connectorId && audit.output.status === "DISABLED"));
 });
 
+test("connector create rejects duplicate code before writes", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const input = {
+    code: "duplicate_connector",
+    name: "重复连接器",
+    kind: "platform_api",
+    platform: "tmall",
+    status: "ACTIVE",
+    config: { source: "unit-test" },
+  } as const;
+
+  await runtime.connectorService.create(input, tenantA);
+
+  assert.throws(
+    () => runtime.connectorService.create({ ...input, name: "重复连接器 2" }, tenantA),
+    /Connector code already exists: duplicate_connector/,
+  );
+  assert.equal((await runtime.connectorService.list(1, 20, tenantA)).items.filter((item) => item.code === input.code).length, 1);
+});
+
 test("disabled connectors cannot create sync runs", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const connector = await runtime.connectorService.create(
@@ -1022,6 +1042,31 @@ test("prisma connector run validates connector before writing workflow audit", a
   await assert.rejects(
     () => repository.createRun(tenantA, "missing_connector", { rowCount: 1, qualityScore: 0.9 }),
     /Connector not found: missing_connector/,
+  );
+  assert.deepEqual(writes, []);
+});
+
+test("prisma connector create rejects duplicate code before writes", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaConnectorRepositoryV2({
+    connector: {
+      findUnique: async () => ({ id: "existing_connector", code: "existing_connector" }),
+      create: async () => {
+        writes.push("connector.create");
+        return {};
+      },
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun.create");
+        return {};
+      },
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.create(tenantA, { code: "existing_connector", name: "重复连接器", kind: "platform_api" }),
+    /Connector code already exists: existing_connector/,
   );
   assert.deepEqual(writes, []);
 });
