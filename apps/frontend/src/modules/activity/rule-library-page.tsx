@@ -2,9 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Braces, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Edit2, Plus, Search, Trash2, User } from 'lucide-react'
-import type { RuleSetDetailDto, RuleSetListItemDto, RuleSetVersionDto } from '../../../../contracts/types/businessFoundation'
+import type { RuleSetDetailDto, RuleSetListItemDto, RuleSetStatusDto, RuleSetVersionDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './rule-library.module.css'
+
+type RuleFormState =
+  | { mode: 'create'; name: string; sourceText: string; status: RuleSetStatusDto }
+  | { mode: 'edit'; ruleSetId: string; name: string; sourceText: string; status: RuleSetStatusDto }
 
 export function RuleLibraryPage() {
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
@@ -13,6 +17,7 @@ export function RuleLibraryPage() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ENABLED' | 'DRAFT'>('ALL')
+  const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -55,24 +60,55 @@ export function RuleLibraryPage() {
   }, null, 2)
 
   async function createRuleSet() {
-    const name = window.prompt('请输入规则集名称', '新的活动规则集')
-    if (!name) return
-    setBusy('create')
+    setRuleForm({
+      mode: 'create',
+      name: '新的活动规则集',
+      sourceText: '由规则库页面创建，等待补充平台规则原文。',
+      status: 'DRAFT',
+    })
+  }
+
+  async function submitRuleForm() {
+    if (!ruleForm) return
+    const name = ruleForm.name.trim()
+    const sourceText = ruleForm.sourceText.trim()
+    if (!name || !sourceText) {
+      setMessage('规则集名称和规则原文不能为空')
+      return
+    }
+    setBusy(ruleForm.mode === 'create' ? 'create' : 'edit')
     try {
-      const created = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
-        method: 'POST',
+      if (ruleForm.mode === 'create') {
+        const created = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            sourceText,
+            type: 'ACTIVITY_RULE',
+            source: 'INTERNAL',
+            status: ruleForm.status,
+          }),
+        })
+        setRuleForm(null)
+        setMessage(`已创建规则集：${created.name}`)
+        await loadRules(created.ruleSetId)
+        return
+      }
+      const updated = await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${ruleForm.ruleSetId}`, {
+        method: 'PATCH',
         body: JSON.stringify({
           name,
-          sourceText: '由规则库页面创建，等待补充平台规则原文。',
-          type: 'ACTIVITY_RULE',
-          source: 'INTERNAL',
-          status: 'DRAFT',
+          sourceText,
+          rules: selectedRule?.ruleSetId === ruleForm.ruleSetId ? selectedRule.dslJson : undefined,
+          status: ruleForm.status,
         }),
       })
-      setMessage(`已创建规则集：${created.name}`)
-      await loadRules(created.ruleSetId)
+      setRuleForm(null)
+      setSelectedRule(updated)
+      setMessage(`已更新规则集：${updated.name}`)
+      await loadRules(updated.ruleSetId)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '创建规则集失败')
+      setMessage(error instanceof Error ? error.message : '保存规则集失败')
     } finally {
       setBusy(null)
     }
@@ -113,26 +149,13 @@ export function RuleLibraryPage() {
 
   async function editRuleSet() {
     if (!selectedRule) return
-    const name = window.prompt('修改规则集名称', selectedRule.name)
-    if (!name || name === selectedRule.name) return
-    setBusy('edit')
-    try {
-      const updated = await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${selectedRule.ruleSetId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name,
-          sourceText: selectedRule.dslJson.map((rule) => rule.message).join('\n') || `${name} 规则定义`,
-          rules: selectedRule.dslJson,
-        }),
-      })
-      setSelectedRule(updated)
-      setMessage(`已更新规则集：${updated.name}`)
-      await loadRules(updated.ruleSetId)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '编辑规则集失败')
-    } finally {
-      setBusy(null)
-    }
+    setRuleForm({
+      mode: 'edit',
+      ruleSetId: selectedRule.ruleSetId,
+      name: selectedRule.name,
+      sourceText: selectedRule.dslJson.map((rule) => rule.message).join('\n') || `${selectedRule.name} 规则定义`,
+      status: selectedRule.status,
+    })
   }
 
   return (
@@ -194,6 +217,32 @@ export function RuleLibraryPage() {
             <div className={styles.metaItem}><User size={14} /> 最后更新 {selectedRule?.updatedAt ? new Date(selectedRule.updatedAt).toLocaleString('zh-CN') : '-'} by {selectedRule?.updatedBy ?? '-'}</div>
           </div>
           {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '10px' }}>{message}</div> : null}
+          {ruleForm ? (
+            <form className={styles.ruleForm} onSubmit={(event) => { event.preventDefault(); void submitRuleForm() }}>
+              <div className={styles.formGrid}>
+                <label className={styles.formField}>
+                  <span>规则集名称</span>
+                  <input value={ruleForm.name} onChange={(event) => setRuleForm((current) => current ? { ...current, name: event.target.value } : current)} />
+                </label>
+                <label className={styles.formField}>
+                  <span>状态</span>
+                  <select value={ruleForm.status} onChange={(event) => setRuleForm((current) => current ? { ...current, status: event.target.value as RuleSetStatusDto } : current)}>
+                    <option value="DRAFT">草稿</option>
+                    <option value="ENABLED">启用</option>
+                    <option value="DISABLED">禁用</option>
+                  </select>
+                </label>
+              </div>
+              <label className={styles.formField}>
+                <span>规则原文</span>
+                <textarea value={ruleForm.sourceText} onChange={(event) => setRuleForm((current) => current ? { ...current, sourceText: event.target.value } : current)} rows={4} />
+              </label>
+              <div className={styles.formActions}>
+                <button className="secondaryButton" type="button" onClick={() => setRuleForm(null)} disabled={!!busy}>取消</button>
+                <button className="primaryButton" type="submit" disabled={!!busy}>{ruleForm.mode === 'create' ? '创建规则集' : '保存规则集'}</button>
+              </div>
+            </form>
+          ) : null}
         </div>
 
         <div className={styles.panelTabs}>
