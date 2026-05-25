@@ -1837,13 +1837,13 @@ export class PrismaReportRepository extends ReportRepository {
   async list(_boundary: P0AuthContextDto): Promise<ReportDetailDto[]> {
     if (!this.prisma.report) return [];
     const rows = await this.prisma.report.findMany({ orderBy: { createdAt: "desc" } });
-    return rows.map(toReportDetailFromRow);
+    return Promise.all(rows.map((row) => this.toDetailFromReportRow(row)));
   }
 
   async getById(_boundary: P0AuthContextDto, reportId: string): Promise<ReportDetailDto | null> {
     if (!this.prisma.report) return null;
     const row = await this.prisma.report.findUnique({ where: { id: reportId } });
-    return row ? toReportDetailFromRow(row) : null;
+    return row ? this.toDetailFromReportRow(row) : null;
   }
 
   async listVersions(_boundary: P0AuthContextDto, reportId: string): Promise<ReportVersionDto[]> {
@@ -1893,6 +1893,25 @@ export class PrismaReportRepository extends ReportRepository {
       failedRules: asArray(row.failedRulesJson) as CanonicalRuleDto[],
       evidence: asArray(row.evidenceJson) as SimulationResultDto["evidence"],
       repairSuggestions: asArray(row.repairPlanJson).map(String),
+    };
+  }
+
+  private async toDetailFromReportRow(row: Record<string, unknown>): Promise<ReportDetailDto> {
+    const latestVersionId = typeof row.latestVersionId === "string" ? row.latestVersionId : undefined;
+    const versionRow = this.prisma.reportVersion
+      ? latestVersionId
+        ? await this.prisma.reportVersion.findUnique({ where: { id: latestVersionId } })
+        : await this.prisma.reportVersion.findFirst({ where: { reportId: String(row.id) }, orderBy: { version: "desc" } })
+      : null;
+    const detail = versionRow ? toReportVersionFromRow(versionRow) : toReportDetailFromRow(row);
+    const subscription = normalizeReportSubscription(row.subscriptionJson, String(row.id));
+    return {
+      ...detail,
+      reportId: String(row.id),
+      title: String(row.title ?? detail.title),
+      status: toReportStatus(row.status),
+      generatedAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : detail.generatedAt,
+      ...(subscription ? { subscription } : {}),
     };
   }
 }

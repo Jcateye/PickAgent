@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, PrismaReportRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -210,6 +210,65 @@ test("final activity, review and report services share persistent repositories",
   assert.equal(report.status, "PREVIEW");
   assert.equal(runtime.store.reports.get(report.reportId)?.reportId, report.reportId);
   assert.ok(report.evidenceSummary.length > 0);
+});
+
+test("prisma report repository reads detail from latest version snapshot", async () => {
+  const reportRow = {
+    id: "report_1",
+    title: "报告主表标题",
+    status: "PREVIEW",
+    latestVersionId: "version_uuid_1",
+    subscriptionJson: {},
+    summaryJson: { totalSku: 0 },
+    createdAt: new Date("2026-05-24T00:00:00.000Z"),
+  };
+  const versionDetail = {
+    reportId: "report_1",
+    title: "报告版本标题",
+    version: "v1",
+    status: "PREVIEW" as const,
+    generatedAt: "2026-05-24T00:00:00.000Z",
+    tabs: ["SUMMARY" as const],
+    summary: {
+      totalSku: 3,
+      passedSku: 1,
+      repairableSku: 1,
+      blockedSku: 1,
+      categoryDistribution: [],
+      majorRisks: [],
+      repairSuggestions: [],
+      reviewResult: { total: 0, completed: 0, approved: 0, rejected: 0 },
+    },
+    evidenceSummary: [],
+  };
+  const versionRow = {
+    id: "version_uuid_1",
+    reportId: "report_1",
+    version: 1,
+    status: "PREVIEW",
+    sectionsJson: versionDetail,
+    evidenceRefsJson: [],
+    createdAt: new Date("2026-05-24T00:00:00.000Z"),
+  };
+  const repository = new PrismaReportRepository({
+    report: {
+      findMany: async () => [reportRow],
+      findUnique: async () => reportRow,
+    },
+    reportVersion: {
+      findUnique: async () => versionRow,
+      findFirst: async () => versionRow,
+      findMany: async () => [versionRow],
+    },
+  } as never);
+
+  const list = await repository.list(tenantA);
+  const detail = await repository.getById(tenantA, "report_1");
+
+  assert.equal(list[0]?.version, "v1");
+  assert.equal(list[0]?.summary.totalSku, 3);
+  assert.equal(detail?.version, "v1");
+  assert.equal(detail?.summary.totalSku, 3);
 });
 
 test("dashboard SKU read models expose filterable list and evidence-backed detail", async () => {
