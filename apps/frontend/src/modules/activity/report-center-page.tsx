@@ -8,6 +8,7 @@ import styles from './report-center.module.css'
 
 type ExportFormat = 'PDF' | 'EXCEL' | 'PPT'
 type ReportTab = ReportDetailDto['tabs'][number]
+type SubscriptionFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'OFF'
 
 const tabLabels: Record<ReportTab, string> = {
   SUMMARY: '执行摘要',
@@ -26,6 +27,8 @@ export function ReportCenterPage() {
   const [comparison, setComparison] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ReportTab>('SUMMARY')
   const [format, setFormat] = useState<ExportFormat>('PDF')
+  const [subscriptionFrequency, setSubscriptionFrequency] = useState<SubscriptionFrequency>('WEEKLY')
+  const [subscriptionRecipients, setSubscriptionRecipients] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -102,11 +105,16 @@ export function ReportCenterPage() {
 
   async function subscribeReport() {
     if (!detail) return
+    const recipients = parseRecipients(subscriptionRecipients)
+    if (subscriptionFrequency !== 'OFF' && !recipients.length) {
+      setMessage('订阅收件人不能为空；如需关闭订阅请选择 OFF')
+      return
+    }
     setBusy('subscribe')
     try {
       const subscription = await fetchActivityApi<ReportSubscriptionDto>(`/api/reports/${detail.reportId}/subscriptions`, {
         method: 'POST',
-        body: JSON.stringify({ frequency: 'WEEKLY', recipients: ['ops@example.test'] }),
+        body: JSON.stringify({ frequency: subscriptionFrequency, recipients }),
       })
       setMessage(`已更新订阅：${subscription.frequency} / ${subscription.recipients.join(', ')}`)
     } catch (error) {
@@ -271,6 +279,25 @@ export function ReportCenterPage() {
           <div className={styles.widgetCard}>
             <div className={styles.widgetTitle}>订阅设置</div>
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>设置定期发送报告到邮箱或群组。</div>
+            <label style={{ display: 'grid', gap: '6px', fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>
+              发送频率
+              <select className="secondaryButton" value={subscriptionFrequency} onChange={(event) => setSubscriptionFrequency(event.target.value as SubscriptionFrequency)} style={{ width: '100%', justifyContent: 'space-between' }}>
+                <option value="DAILY">DAILY</option>
+                <option value="WEEKLY">WEEKLY</option>
+                <option value="MONTHLY">MONTHLY</option>
+                <option value="OFF">OFF</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: '6px', fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>
+              收件人
+              <textarea
+                value={subscriptionRecipients}
+                onChange={(event) => setSubscriptionRecipients(event.target.value)}
+                placeholder="多个邮箱用逗号或换行分隔"
+                rows={3}
+                style={{ width: '100%', resize: 'vertical', border: '1px solid var(--line)', borderRadius: '6px', padding: '8px', font: 'inherit', color: 'var(--fg)' }}
+              />
+            </label>
             <button className="secondaryButton" type="button" onClick={() => void subscribeReport()} disabled={!detail || busy === 'subscribe'} style={{ width: '100%' }}>去订阅</button>
           </div>
         </div>
@@ -452,6 +479,13 @@ function Legend({ color, text }: { color: string; text: string }) {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return <div className={styles.infoRow}><div className={styles.infoLabel}>{label}</div><div className={styles.infoValue}>{value}</div></div>
+}
+
+function parseRecipients(value: string): string[] {
+  return value
+    .split(/[,\n;]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function getInitialReportId(): string | null {
