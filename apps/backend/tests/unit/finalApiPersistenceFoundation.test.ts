@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaDashboardSkuReadModelRepository, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -438,6 +438,58 @@ test("sku next action updates return and read back the same persisted action", a
   const list = await runtime.skuReadinessQueryService.list({ page: 1, pageSize: 10 }, boundary);
   assert.deepEqual(list.items.find((item) => item.skuProfileId === skuProfileId)?.nextAction, nextAction);
   assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "sku_next_action_update" && audit.subjectId === skuProfileId && audit.input.actorId === boundary.actorId));
+});
+
+test("prisma dashboard sku read model reads latest persisted next action after refresh", async () => {
+  const workflowRuns: Array<Record<string, unknown>> = [];
+  const projectionRow = {
+    skuProfileId: "sku_prisma_next",
+    skuProfile: {
+      canonicalKey: "tmall:store:sku_prisma_next",
+      productName: "持久化下一步测试 SKU",
+      platform: "tmall",
+      storeId: "store",
+    },
+    healthStatus: "READY",
+    healthScore: 92,
+    dataQualityScore: 0.98,
+    topIssuesJson: [],
+    latestSnapshot: null,
+    latestDiagnosis: null,
+    updatedAt: new Date("2026-05-24T10:00:00.000Z"),
+  };
+  const repository = new PrismaDashboardSkuReadModelRepository({
+    currentSkuProjection: {
+      findUnique: async () => projectionRow,
+      findMany: async () => [projectionRow],
+    },
+    activitySimulationResult: {
+      findMany: async () => [],
+    },
+    reviewItem: {
+      findMany: async () => [],
+    },
+    workflowRun: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        workflowRuns.push(data);
+        return data;
+      },
+      findFirst: async () => workflowRuns.at(-1) ?? null,
+    },
+  } as never);
+  const nextAction = { type: "MANUAL_REVIEW" as const, label: "提交人工确认" };
+
+  const updated = await repository.updateNextAction(tenantA, "sku_prisma_next", { nextAction, comment: "unit-test" });
+  const detail = await repository.detail(tenantA, "sku_prisma_next");
+  const list = await repository.list(tenantA);
+
+  assert.deepEqual(updated.nextActionOverride, nextAction);
+  assert.equal(detail?.nextActionOverride?.type, nextAction.type);
+  assert.equal(detail?.nextActionOverride?.label, nextAction.label);
+  assert.equal(list[0]?.nextActionOverride?.type, nextAction.type);
+  assert.equal(list[0]?.nextActionOverride?.label, nextAction.label);
+  assert.equal(workflowRuns[0]?.workflowType, "sku_next_action_update");
+  assert.equal(workflowRuns[0]?.subjectId, "sku_prisma_next");
 });
 
 test("rule library service exposes detail, versions, status updates and workflow audits", async () => {
