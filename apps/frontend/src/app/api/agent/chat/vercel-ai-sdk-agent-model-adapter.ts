@@ -247,7 +247,7 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'diagnoseSkuHealth',
   'simulateActivityReadiness',
   'explainDecisionWithEvidence',
-  'reportPreview',
+  'generateReport',
   'createReviewItems',
   'setSkuNextAction',
   'listConnectors',
@@ -398,7 +398,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('diagnoseSkuHealth', inputJson),
     }),
     simulateActivityReadiness: tool({
-      description: '执行活动准入模拟预览。需要 ruleSetId 和 skuProfileIds。',
+      description: '执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('simulateActivityReadiness', inputJson),
     }),
@@ -407,10 +407,10 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('explainDecisionWithEvidence', inputJson),
     }),
-    reportPreview: tool({
-      description: '生成健康或活动报告预览。需要 type 和 skuProfileIds。',
+    generateReport: tool({
+      description: '生成真实健康或活动报告，并写入报告中心。需要 type 和 skuProfileIds。',
       inputSchema: objectSchema,
-      execute: (inputJson) => executeTool('generateReportPreview', inputJson),
+      execute: (inputJson) => executeTool('generateReport', inputJson),
     }),
     createReviewItems: tool({
       description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',

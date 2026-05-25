@@ -111,7 +111,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'listReports', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'listReports', 'exportReport', 'subscribeReport'])
 const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -123,7 +123,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
     inputJson: Record<string, unknown>
     externalToolCallId?: string | null
   }): Promise<AgentConversationToolExecution> => {
-    const toolName = input.toolName === 'reportPreview' ? 'generateReportPreview' : input.toolName
+    const toolName = input.toolName === 'reportPreview' ? 'generateReport' : input.toolName === 'generateReportPreview' ? 'generateReport' : input.toolName
     const safeInput = scrubSensitive(input.inputJson) as Record<string, unknown>
     if (!registeredAgentTools.has(toolName) || containsSensitive(input.inputJson)) {
       const reason = containsSensitive(input.inputJson) ? 'sensitive_input_denied' : 'unregistered_tool_denied'
@@ -325,7 +325,7 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, detail.evidence, `解释决策：${detail.productName}`, { type: 'sku_profile', id: detail.skuProfileId })
     }
 
-    if (toolName === 'generateReportPreview') {
+    if (toolName === 'generateReport') {
       const skuProfileIds = stringArray(input.skuProfileIds)
       if (skuProfileIds.length === 0) throw new Error('skuProfileIds are required')
       const result = await finalApiRuntime.reportService.generate({
@@ -333,7 +333,7 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
         skuProfileIds,
         simulationResultIds: stringArray(input.simulationResultIds),
       })
-      return succeeded(result, result.evidenceSummary, `生成报告预览：${result.title}`, { type: 'report', id: result.reportId })
+      return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, { type: 'report', id: result.reportId })
     }
 
     if (toolName === 'createReviewItems') {
