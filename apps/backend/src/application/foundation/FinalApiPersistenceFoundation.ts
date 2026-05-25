@@ -642,7 +642,7 @@ export class RuleSetRepository {
       name: input.name ?? current.name,
       platform: input.platform ?? current.platform,
       sourceText: input.sourceText ?? current.sourceText,
-      rules: input.rules ?? (input.sourceText ? deterministicRules(input.sourceText) : current.rules),
+      rules: input.sourceText !== undefined ? deterministicRules(input.sourceText) : input.rules ?? current.rules,
     };
     assertValidRuleSet(updated);
     this.store.ruleSets.set(ruleSetId, updated);
@@ -1559,7 +1559,7 @@ export class PrismaRuleSetRepository extends RuleSetRepository {
   async update(boundary: P0AuthContextDto, ruleSetId: string, input: UpdateRuleSetInputDto): Promise<RuleSetDetailDto> {
     const current = await this.prisma.activityRuleSet.findUnique({ where: { id: ruleSetId } });
     if (!current) throw new Error(`Rule set not found: ${ruleSetId}`);
-    const rules = input.rules ?? (input.sourceText ? deterministicRules(input.sourceText) : asArray(current.rulesJson) as CanonicalRuleDto[]);
+    const rules = input.sourceText !== undefined ? deterministicRules(input.sourceText) : input.rules ?? (asArray(current.rulesJson) as CanonicalRuleDto[]);
     const row = await this.prisma.activityRuleSet.update({
       where: { id: ruleSetId },
       data: {

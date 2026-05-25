@@ -421,6 +421,31 @@ test("rule library service exposes detail, versions, status updates and workflow
   );
 });
 
+test("rule set source text updates reparse rules even when stale rules are submitted", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const created = await runtime.ruleSetService.create(
+    {
+      name: "规则编辑重解析",
+      platform: "tmall",
+      sourceText: "活动库存不得低于 50 件",
+      source: "INTERNAL",
+    },
+    tenantA,
+  );
+
+  const updated = await runtime.ruleSetService.update(
+    created.ruleSetId,
+    {
+      sourceText: "活动库存不得低于 200 件，好评率不少于 98%",
+      rules: created.dslJson,
+    },
+    tenantA,
+  );
+
+  assert.ok(updated.dslJson.some((rule) => rule.id === "stock_min" && rule.value === 200));
+  assert.ok(updated.dslJson.some((rule) => rule.id === "positive_rate" && rule.value === 0.98));
+});
+
 test("workspace settings service keeps L3 runtime tools denied", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const policy = await runtime.workspaceSettingsService.updateToolPolicy(
