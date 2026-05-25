@@ -132,6 +132,8 @@ export function RuleExecutionPage() {
   const requirementSummary = summarizeRequirements(checklistItems)
   const statusSummary = summarizeChecklistStatus(checklistItems)
   const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
+  const ruleSourceTitle = formatRuleSourceTitle(ruleSet?.name ?? ruleName, ruleSet?.platform ?? platform)
+  const createdByLabel = ruleSet ? '规则解析 API' : '当前编辑草稿'
 
   return (
     <div className="pageStack">
@@ -143,7 +145,7 @@ export function RuleExecutionPage() {
           </div>
           <div style={{ display: 'flex', gap: '24px', color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>
             <span>规则版本: {ruleSet?.ruleSetId ? ruleSet.ruleSetId.slice(0, 8) : '待运行'}</span>
-            <span>创建人: 运营同学</span>
+            <span>来源: {createdByLabel}</span>
             <span>创建时间: {simulationRun ? new Date(simulationRun.startedAt).toLocaleString('zh-CN') : '待运行'}</span>
             <span>适用范围: {simulationRun ? `已模拟 SKU (${simulationRun.results.length})` : '运行后读取真实 SKU'}</span>
           </div>
@@ -174,7 +176,7 @@ export function RuleExecutionPage() {
               <a href="/rule-library" style={{ color: 'var(--primary)', fontSize: '13px' }}>查看完整规则 ↗</a>
             </div>
             <div className={styles.sectionBody}>
-              <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>天猫618活动报名规则（部分类）</div>
+              <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>{ruleSourceTitle}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '12px', marginBottom: '12px' }}>
                 <input value={ruleName} onChange={(event) => setRuleName(event.target.value)} aria-label="规则名称" style={{ height: '36px', border: '1px solid var(--line)', borderRadius: '6px', padding: '0 10px' }} />
                 <input value={platform} onChange={(event) => setPlatform(event.target.value)} aria-label="平台" style={{ height: '36px', border: '1px solid var(--line)', borderRadius: '6px', padding: '0 10px' }} />
@@ -394,7 +396,7 @@ function buildChecklistItems(rules: CanonicalRuleDto[], results: SimulationResul
       source: sourceLabel(rule),
       method: ruleCondition(rule),
       status,
-      owner: status === 'missing' ? '数据同学' : '运营同学',
+      owner: ownerLabel(status, rule),
       actionHref: status === 'missing' ? '/data-sources' : status === 'pending' ? '/review-approvals' : '/sku-access',
       actionLabel: status === 'missing' ? '补数' : status === 'pending' ? '确认' : '查看',
       failedCount,
@@ -417,6 +419,12 @@ function summarizeChecklistStatus(items: ChecklistItem[]) {
     pending: items.filter((item) => item.status === 'pending').length,
     blocked: items.filter((item) => item.status === 'missing' && item.failedCount > 0).length,
   }
+}
+
+function formatRuleSourceTitle(name: string, platform: string): string {
+  const normalizedName = name.trim() || '活动规则'
+  const normalizedPlatform = platform.trim()
+  return normalizedPlatform ? `${normalizedName}（${normalizedPlatform}）` : normalizedName
 }
 
 function DecisionFlowPreview({ statusSummary, hasSimulation }: { statusSummary: ReturnType<typeof summarizeChecklistStatus>; hasSimulation: boolean }) {
@@ -465,6 +473,12 @@ function sourceLabel(rule: CanonicalRuleDto): string {
   if (rule.field === 'campaignPrice' || rule.compareField === 'lowestPrice30d') return '价格中心'
   if (rule.type === 'boolean_block') return '活动中心-报名记录'
   return 'SKU 当前投影'
+}
+
+function ownerLabel(status: ChecklistStatus, rule: CanonicalRuleDto): string {
+  if (status === 'missing') return sourceLabel(rule)
+  if (rule.type === 'manual_review' || rule.type === 'field_compare' || rule.type === 'boolean_block') return 'Review Gate'
+  return '系统规则引擎'
 }
 
 function fieldLabel(field?: string): string {
