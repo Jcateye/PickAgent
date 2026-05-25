@@ -17,7 +17,7 @@ export function RuleLibraryPage() {
   const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ENABLED' | 'DRAFT'>('ALL')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | RuleSetStatusDto>('ALL')
   const [panelTab, setPanelTab] = useState<RulePanelTab>('json')
   const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -53,6 +53,7 @@ export function RuleLibraryPage() {
   const ruleCount = rulePage?.total ?? 0
   const enabledCount = rulePage?.items.filter((item) => item.status === 'ENABLED').length ?? 0
   const draftCount = rulePage?.items.filter((item) => item.status === 'DRAFT').length ?? 0
+  const disabledCount = rulePage?.items.filter((item) => item.status === 'DISABLED').length ?? 0
   const totalPages = Math.max(1, Math.ceil((rulePage?.total ?? 0) / (rulePage?.pageSize ?? 20)))
   const dslText = JSON.stringify({
     rule_set: selectedRule?.ruleSetId,
@@ -175,6 +176,7 @@ export function RuleLibraryPage() {
             <button className={`${styles.tab} ${statusFilter === 'ALL' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ALL')}>所有 ({ruleCount})</button>
             <button className={`${styles.tab} ${statusFilter === 'ENABLED' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ENABLED')}>已启用 ({enabledCount})</button>
             <button className={`${styles.tab} ${statusFilter === 'DRAFT' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('DRAFT')}>草稿 ({draftCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'DISABLED' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('DISABLED')}>已禁用 ({disabledCount})</button>
           </div>
         </div>
 
