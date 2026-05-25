@@ -452,6 +452,44 @@
   padding: 12px;
 }
 
+.versionTimeline {
+  display: grid;
+  gap: 12px;
+}
+
+.versionItem {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.currentVersion {
+  border-color: rgba(36, 107, 255, 0.35);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.versionItemHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.versionSource {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--fg);
+  font: 12px/1.5 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .detailCardTitle {
   font-size: 13px;
   font-weight: 600;

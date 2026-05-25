@@ -9,12 +9,13 @@ import styles from './rule-library.module.css'
 type RuleFormState =
   | { mode: 'create'; name: string; sourceText: string; status: RuleSetStatusDto }
   | { mode: 'edit'; ruleSetId: string; name: string; sourceText: string; status: RuleSetStatusDto }
-type RulePanelTab = 'summary' | 'json'
+type RulePanelTab = 'summary' | 'json' | 'versions'
 
 export function RuleLibraryPage() {
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null)
   const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
+  const [versions, setVersions] = useState<RuleSetVersionDto[]>([])
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<'ALL' | RuleSetStatusDto>('ALL')
@@ -28,7 +29,21 @@ export function RuleLibraryPage() {
     setRulePage(loadedPage)
     const nextId = preferredId ?? selectedRuleId ?? loadedPage.items[0]?.ruleSetId ?? null
     setSelectedRuleId(nextId)
-    if (nextId) setSelectedRule(await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${nextId}`))
+    if (nextId) {
+      await loadRuleDetail(nextId)
+    } else {
+      setSelectedRule(null)
+      setVersions([])
+    }
+  }
+
+  async function loadRuleDetail(ruleSetId: string) {
+    const [detail, versionList] = await Promise.all([
+      fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${ruleSetId}`),
+      fetchActivityApi<RuleSetVersionDto[]>(`/api/rule-sets/${ruleSetId}/versions`),
+    ])
+    setSelectedRule(detail)
+    setVersions(versionList)
   }
 
   useEffect(() => {
@@ -37,8 +52,7 @@ export function RuleLibraryPage() {
 
   useEffect(() => {
     if (!selectedRuleId) return
-    fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${selectedRuleId}`)
-      .then(setSelectedRule)
+    loadRuleDetail(selectedRuleId)
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '规则详情加载失败'))
   }, [selectedRuleId])
 
@@ -123,6 +137,7 @@ export function RuleLibraryPage() {
     try {
       const version = await fetchActivityApi<RuleSetVersionDto>(`/api/rule-sets/${selectedRule.ruleSetId}/versions`, { method: 'POST', body: JSON.stringify({}) })
       setMessage(`已创建新版本：${version.version}`)
+      setPanelTab('versions')
       await loadRules(selectedRule.ruleSetId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建新版本失败')
@@ -252,9 +267,12 @@ export function RuleLibraryPage() {
         <div className={styles.panelTabs}>
           <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('summary')}>规则概况</button>
           <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('json')}>JSON 定义</button>
+          <button className={`${styles.panelTab} ${panelTab === 'versions' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('versions')}>版本历史 ({versions.length})</button>
         </div>
 
-        {panelTab === 'summary' ? <RuleSummaryPanel selectedRule={selectedRule} /> : <RuleJsonPanel dslText={dslText} selectedRule={selectedRule} />}
+        {panelTab === 'summary' ? <RuleSummaryPanel selectedRule={selectedRule} /> : null}
+        {panelTab === 'json' ? <RuleJsonPanel dslText={dslText} selectedRule={selectedRule} /> : null}
+        {panelTab === 'versions' ? <RuleVersionsPanel versions={versions} selectedRule={selectedRule} /> : null}
       </div>
     </div>
   )
@@ -317,6 +335,32 @@ function RuleSummaryPanel({ selectedRule }: { selectedRule: RuleSetDetailDto | n
 
 function SummaryCard({ label, value }: { label: string; value: string | number }) {
   return <div className={styles.summaryCard}><div className={styles.summaryCardLabel}>{label}</div><div className={styles.summaryCardValue}>{value}</div></div>
+}
+
+function RuleVersionsPanel({ versions, selectedRule }: { versions: RuleSetVersionDto[]; selectedRule: RuleSetDetailDto | null }) {
+  if (!selectedRule) return <div className={styles.summaryPanel}><div className={styles.emptyState}>请选择规则集。</div></div>
+  return (
+    <div className={styles.summaryPanel}>
+      <section className={styles.summarySection}>
+        <div className={styles.summaryTitle}>版本历史</div>
+        <div className={styles.versionTimeline}>
+          {versions.length ? versions.map((version) => (
+            <div className={`${styles.versionItem} ${version.version === selectedRule.version ? styles.currentVersion : ''}`} key={version.ruleSetVersionId}>
+              <div className={styles.versionItemHead}>
+                <div>
+                  <div className={styles.detailCardTitle}>{version.version}{version.version === selectedRule.version ? ' · 当前版本' : ''}</div>
+                  <div className={styles.detailMeta}>{new Date(version.createdAt).toLocaleString('zh-CN')} · {version.createdBy}</div>
+                </div>
+                <span className={`${styles.statusBadge} ${version.status === 'DRAFT' ? styles.statusDraft : styles.statusActive}`}>{version.status === 'DRAFT' ? '草稿' : version.status === 'DISABLED' ? '已禁用' : '已启用'}</span>
+              </div>
+              <div className={styles.summaryText}>规则 {version.dslJson.length} 条 · 影响字段 {version.affectedFields.length} 个 · 人工复核 {version.manualReviewItems.length} 项</div>
+              <pre className={styles.versionSource}>{version.sourceText}</pre>
+            </div>
+          )) : <div className={styles.emptyState}>当前规则集还没有版本记录。</div>}
+        </div>
+      </section>
+    </div>
+  )
 }
 
 function RuleJsonPanel({ dslText, selectedRule }: { dslText: string; selectedRule: RuleSetDetailDto | null }) {
