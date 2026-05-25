@@ -117,7 +117,7 @@ const registeredAgentTools = new Set<string>(defaultAgentToolNames)
 const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
-function createPersistentToolExecutor(repository: AgentConversationRepository) {
+export function createPersistentToolExecutor(repository: AgentConversationRepository) {
   return async (input: {
     run: { id: string }
     mission: { id: string }
@@ -150,6 +150,46 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
         payloadJson: { toolCallId: toolCall.id, toolName, reason, policyVersion: policy.policyVersion },
       })
       return { toolCall, status: 'BLOCKED_BY_POLICY', summary: reason, data: null, evidenceRefs: [], linkedEntities: [], reviewGate: null }
+    }
+
+    if (agentToolRequiresReviewGate(toolName)) {
+      const toolCall = await repository.createToolCall({
+        runId: input.run.id,
+        externalToolCallId: input.externalToolCallId ?? null,
+        toolName,
+        status: 'WAITING_FOR_APPROVAL',
+        riskLevel: agentToolRiskLevel(toolName),
+        reviewPolicy: 'REVIEW_GATE',
+        inputJson: safeInput,
+        outputJson: {},
+        evidenceRefsJson: { refs: [] },
+      })
+      const reviewGate = await repository.createReviewGate({
+        missionId: input.mission.id,
+        runId: input.run.id,
+        toolCallId: toolCall.id,
+        reasonCode: 'chat_write_tool_requires_review',
+        question: `是否允许 Agent 执行 ${toolName}？`,
+        agentRecommendation: '该工具会修改业务数据或写入审计记录，需先由人工确认再继续。',
+        riskIfApproved: '批准后，Agent 可继续执行该写入类工具并改变系统状态。',
+        riskIfRejected: '拒绝后，本次对话只保留建议和证据，不会执行该写入类工具。',
+        evidenceRefsJson: { refs: [] },
+      })
+      await repository.appendRunEvent({
+        runId: input.run.id,
+        eventType: 'review_gate.opened',
+        eventPhase: 'WAITING_FOR_APPROVAL',
+        payloadJson: { toolCallId: toolCall.id, gateId: reviewGate.id, toolName },
+      })
+      return {
+        toolCall,
+        status: 'WAITING_FOR_APPROVAL',
+        summary: `等待人工确认后执行 ${toolName}`,
+        data: null,
+        evidenceRefs: [],
+        linkedEntities: [toConversationLinkedEntity(toolName, { type: 'review_gate', id: reviewGate.id })],
+        reviewGate,
+      }
     }
 
     const execution = await executeFinalApiTool(toolName, safeInput)
@@ -187,6 +227,10 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
 
 export function agentToolRiskLevel(toolName: string): 'L1' | 'L2' {
   return writeAgentTools.has(toolName) ? 'L2' : 'L1'
+}
+
+export function agentToolRequiresReviewGate(toolName: string): boolean {
+  return agentToolRiskLevel(toolName) === 'L2'
 }
 
 interface FinalApiToolExecution {

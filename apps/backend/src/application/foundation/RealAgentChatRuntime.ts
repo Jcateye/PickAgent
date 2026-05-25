@@ -326,6 +326,8 @@ function summarizeToolExecutions(executions: AgentConversationToolExecution[]): 
     toolCallId: execution.toolCall.id,
     toolName: execution.toolCall.toolName,
     status: execution.status,
+    riskLevel: execution.toolCall.riskLevel,
+    reviewPolicy: execution.toolCall.reviewPolicy,
     summary: execution.summary,
     evidenceRefIds: execution.evidenceRefs.map((ref) => ref.id),
     linkedEntityIds: execution.linkedEntities.map((entity) => entity.id),

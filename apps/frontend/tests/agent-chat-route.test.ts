@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentToolRiskLevel, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
+import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
+import { toRecoveredTurn } from '../src/app/api/agent/sessions/[sessionKey]/messages/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
@@ -84,4 +85,61 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('generateReport'), 'L2')
   assert.equal(agentToolRiskLevel('compareReports'), 'L2')
   assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
+  assert.equal(agentToolRequiresReviewGate('generateReport'), true)
+  assert.equal(agentToolRequiresReviewGate('getReportDetail'), false)
+})
+
+test('agent chat persistent executor opens review gate before write tools', async () => {
+  const beforeReportCount = finalApiRuntime.store.reports.size
+  const calls: Array<{ kind: string; input: Record<string, unknown> }> = []
+  const repository = {
+    createToolCall: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'toolCall', input })
+      return { id: 'tool_call_review_1', ...input }
+    },
+    createReviewGate: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'reviewGate', input })
+      return { id: 'gate_review_1', status: 'PENDING', ...input }
+    },
+    appendRunEvent: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'event', input })
+      return { id: 'event_review_1', ...input }
+    },
+  }
+
+  const executor = createPersistentToolExecutor(repository as never)
+  const execution = await executor({
+    run: { id: 'run_review_1' } as never,
+    mission: { id: 'mission_review_1' } as never,
+    toolName: 'generateReport',
+    inputJson: { skuProfileIds: ['sku_should_not_write_before_review'] },
+  })
+
+  assert.equal(execution.status, 'WAITING_FOR_APPROVAL')
+  assert.equal(execution.toolCall.reviewPolicy, 'REVIEW_GATE')
+  assert.equal(execution.reviewGate?.id, 'gate_review_1')
+  assert.equal(finalApiRuntime.store.reports.size, beforeReportCount)
+  assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'reviewGate', 'event'])
+})
+
+test('agent chat session recovery preserves review gate turns', () => {
+  const turn = toRecoveredTurn({
+    toolExecutions: [
+      {
+        toolCallId: 'tool_call_review_1',
+        toolName: 'generateReport',
+        status: 'WAITING_FOR_APPROVAL',
+        riskLevel: 'L2',
+        reviewPolicy: 'REVIEW_GATE',
+        summary: '等待人工确认后执行 generateReport',
+        reviewGateId: 'gate_review_1',
+      },
+    ],
+  }, 'run_review_1')
+
+  assert.equal(turn?.toolTrace[0]?.status, 'waiting_for_approval')
+  assert.equal(turn?.toolTrace[0]?.riskLevel, 'L2')
+  assert.equal(turn?.toolTrace[0]?.reviewPolicy, 'review_gate')
+  assert.equal(turn?.reviewGate?.id, 'gate_review_1')
+  assert.equal(turn?.reviewGate?.status, 'PENDING')
 })
