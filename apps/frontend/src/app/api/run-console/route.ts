@@ -56,6 +56,22 @@ export async function GET(request: Request) {
     })))
   }
 
+  const simulationRuns = await finalApiRuntime.activityService.listRecentSimulationRuns(boundary, 20)
+  runs.push(...simulationRuns.map((run) => ({
+    runId: run.simulationRunId,
+    type: 'activity_simulation',
+    status: run.status,
+    subject: `规则集 ${run.activityRuleSetId.slice(0, 8)}`,
+    sourceId: run.activityRuleSetId,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    summary: `准入模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((result) => result.eligibility === 'BLOCKED').length} 个，需人工确认 ${run.results.filter((result) => result.eligibility === 'MANUAL_REVIEW').length} 个`,
+    logs: [
+      { time: run.startedAt, tag: 'Simulation', message: `开始活动准入模拟：${run.activityRuleSetId}`, payload: run.scope },
+      { time: run.completedAt, tag: 'Simulation', message: `模拟完成：${run.results.length} 个 SKU`, payload: { results: run.results.map((result) => ({ simulationResultId: result.simulationResultId, skuProfileId: result.skuProfileId, eligibility: result.eligibility, failedRules: result.failedRules.map((rule) => rule.id) })) } },
+    ],
+  })))
+
   if (finalApiRuntime.adapter === 'memory') {
     runs.push(...Array.from(finalApiRuntime.store.workflowAudits.values()).map((audit) => ({
       runId: audit.workflowRunId,

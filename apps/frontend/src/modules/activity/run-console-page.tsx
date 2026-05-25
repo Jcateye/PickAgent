@@ -110,6 +110,14 @@ export function RunConsolePage() {
           }),
         })
         setMessage(`已创建 Agent 重试运行：${run.runId ?? run.id ?? 'new run'}`)
+      } else if (selectedRun.type === 'activity_simulation') {
+        const skuProfileIds = simulationSkuProfileIds(selectedRun)
+        if (!skuProfileIds.length) throw new Error('当前模拟运行没有可复用的 SKU 范围')
+        const run = await fetchActivityApi<{ simulationRunId: string }>(`/api/rule-sets/${selectedRun.sourceId}/simulations`, {
+          method: 'POST',
+          body: JSON.stringify({ skuProfileIds }),
+        })
+        setMessage(`已创建规则模拟重试运行：${run.simulationRunId}`)
       } else {
         setMessage(`当前 ${selectedRun.type} 运行暂不支持自动重试。`)
       }
@@ -239,6 +247,16 @@ function formatTime(value?: string): string {
 
 function isSucceeded(status: string): boolean {
   return ['SUCCEEDED', 'SUCCESS', 'succeeded', 'completed'].includes(status)
+}
+
+function simulationSkuProfileIds(run: RunConsoleItemDto): string[] {
+  const scope = run.logs.find((log) => log.tag === 'Simulation' && isRecord(log.payload))?.payload
+  if (!isRecord(scope) || !Array.isArray(scope.skuProfileIds)) return []
+  return scope.skuProfileIds.map(String).filter(Boolean)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function isFailed(status: string): boolean {

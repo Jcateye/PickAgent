@@ -571,6 +571,12 @@ export class ActivityRepository {
     return this.store.simulationRuns.get(simulationRunId) ?? null;
   }
 
+  listRecentSimulationRuns(_boundary: P0AuthContextDto, limit = 20): ActivitySimulationRunDto[] | Promise<ActivitySimulationRunDto[]> {
+    return Array.from(this.store.simulationRuns.values())
+      .sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))
+      .slice(0, limit);
+  }
+
   recordWorkflowAudit(boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): TraceableRef | Promise<TraceableRef> {
     const workflowRunId = nextId("workflow");
     this.store.workflowAudits.set(workflowRunId, { workflowRunId, workflowType, status: "SUCCEEDED", subjectType: "activity", subjectId, input, output, createdAt: new Date().toISOString() });
@@ -1469,6 +1475,12 @@ export class PrismaActivityRepository extends ActivityRepository {
     };
   }
 
+  async listRecentSimulationRuns(boundary: P0AuthContextDto, limit = 20): Promise<ActivitySimulationRunDto[]> {
+    const rows = await this.prisma.activitySimulationRun.findMany({ orderBy: { startedAt: "desc" }, take: limit });
+    const runs = await Promise.all(rows.map((row) => this.getSimulationRun(boundary, String(row.id))));
+    return runs.filter((run): run is ActivitySimulationRunDto => run !== null);
+  }
+
   async recordWorkflowAudit(_boundary: P0AuthContextDto, workflowType: string, subjectId: string, input: Record<string, unknown>, output: Record<string, unknown>): Promise<TraceableRef> {
     const workflowRunId = nextUuid();
     const now = new Date();
@@ -2053,6 +2065,10 @@ export class FinalActivityService {
     const run = await this.repository.getSimulationRun(boundary, simulationRunId);
     if (!activity || !run) return null;
     return this.toSimulationDetail(activityId, run, await this.buildExecutionPlan(activity, boundary));
+  }
+
+  async listRecentSimulationRuns(boundary: P0AuthContextDto = explicitDevBoundary, limit = 20): Promise<ActivitySimulationRunDto[]> {
+    return this.repository.listRecentSimulationRuns(boundary, limit);
   }
 
   async parse(input: { name: string; platform?: string; sourceText: string; rules?: CanonicalRuleDto[] }, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityRuleSetDto> {
