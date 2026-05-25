@@ -7,6 +7,15 @@ import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './report-center.module.css'
 
 type ExportFormat = 'PDF' | 'EXCEL' | 'PPT'
+type ReportTab = ReportDetailDto['tabs'][number]
+
+const tabLabels: Record<ReportTab, string> = {
+  SUMMARY: '执行摘要',
+  TASKS: '任务明细',
+  RULES: '规则明细',
+  EVIDENCE: '证据详情',
+  REPAIRS: '修复记录',
+}
 
 export function ReportCenterPage() {
   const [reports, setReports] = useState<ReportListItemDto[]>([])
@@ -15,6 +24,7 @@ export function ReportCenterPage() {
   const [detail, setDetail] = useState<ReportDetailDto | null>(null)
   const [versions, setVersions] = useState<ReportVersionDto[]>([])
   const [comparison, setComparison] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<ReportTab>('SUMMARY')
   const [format, setFormat] = useState<ExportFormat>('PDF')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -48,6 +58,7 @@ export function ReportCenterPage() {
     setVersions(nextVersions)
     setSelectedVersionId(nextVersion?.versionId ?? null)
     setDetail(nextVersion ?? nextDetail)
+    setActiveTab((current) => (nextDetail.tabs.includes(current) ? current : nextDetail.tabs[0] ?? 'SUMMARY'))
   }
 
   function switchVersion(versionId: string) {
@@ -146,6 +157,7 @@ export function ReportCenterPage() {
   const categoryRows = detail?.summary.categoryDistribution ?? []
   const riskRows = detail?.summary.majorRisks ?? []
   const repairRows = detail?.summary.repairSuggestions ?? []
+  const visibleTabs: ReportTab[] = detail?.tabs.length ? detail.tabs : ['SUMMARY']
 
   return (
     <div className={styles.layout}>
@@ -196,11 +208,11 @@ export function ReportCenterPage() {
           </div>
 
           <div className={styles.centerTabs}>
-            <div className={`${styles.tab} ${styles.active}`}>执行摘要</div>
-            <div className={styles.tab}>任务明细</div>
-            <div className={styles.tab}>规则明细</div>
-            <div className={styles.tab}>证据详情</div>
-            <div className={styles.tab}>修复记录</div>
+            {visibleTabs.map((tab) => (
+              <button className={`${styles.tab} ${activeTab === tab ? styles.active : ''}`} key={tab} type="button" onClick={() => setActiveTab(tab)}>
+                {tabLabels[tab]}
+              </button>
+            ))}
           </div>
 
           <div className={styles.centerBody}>
@@ -214,76 +226,13 @@ export function ReportCenterPage() {
               </section>
             ) : null}
 
-            <section>
-              <div className={styles.sectionTitle}>活动概览</div>
-              <div className={styles.overviewGrid}>
-                <StatCard label="涉及活动 SKU" value={totalSku} />
-                <StatCard label="通过 SKU" value={detail?.summary.passedSku ?? 0} small={`${passRate.toFixed(1)}%`} />
-                <StatCard label="待修复 SKU" value={detail?.summary.repairableSku ?? 0} />
-                <StatCard label="阻断 SKU" value={detail?.summary.blockedSku ?? 0} />
-              </div>
-            </section>
-
-            <section>
-              <div className={styles.donutSection}>
-                <div style={{ flex: 1 }}>
-                  <div className={styles.sectionTitle}>SKU 准入结果</div>
-                  <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                    <div className={styles.donutChart}><span style={{ fontSize: '24px', fontWeight: 600 }}>{totalSku}</span><span style={{ fontSize: '13px', color: 'var(--muted)' }}>总数</span></div>
-                    <div>
-                      <Legend color="#16a34a" text={`通过 ${detail?.summary.passedSku ?? 0}`} />
-                      <Legend color="#d97706" text={`待修复 ${detail?.summary.repairableSku ?? 0}`} />
-                      <Legend color="#e11d48" text={`阻断 ${detail?.summary.blockedSku ?? 0}`} />
-                    </div>
-                  </div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div className={styles.sectionTitle} style={{ fontSize: '14px' }}>按类目分布</div>
-                  <div className={styles.dataTable}>
-                    <div className={`${styles.dataRow} ${styles.head}`}><span>类目</span><span>通过</span><span>待修复</span><span>阻断</span><span>通过率</span></div>
-                    {categoryRows.map((row) => (
-                      <div className={styles.dataRow} key={row.category}>
-                        <span>{row.category}</span><span>{row.passed}</span><span>{row.repairable}</span><span>{row.blocked}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div className={styles.barWrapper}><div className={styles.barFill} style={{ width: `${row.passRate}%` }}></div></div>{row.passRate.toFixed(1)}%</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <div className={styles.sectionTitle}>主要风险</div>
-              <div className={styles.dataTable}>
-                <div className={`${styles.dataRow} ${styles.head}`}><span>风险类型</span><span>影响 SKU</span><span>占比</span><span>风险趋势</span><span>示例问题</span></div>
-                {riskRows.map((row) => (
-                  <div className={styles.dataRow} key={row.riskType}><span>{row.riskType}</span><span>{row.affectedSku}</span><span>{row.ratio}%</span><span style={{ color: '#e11d48' }}>需处理</span><span>{row.sampleIssue}</span></div>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <div className={styles.sectionTitle}>修复建议</div>
-              <div className={styles.dataTable}>
-                <div className={`${styles.dataRow} ${styles.head}`}><span>优先级</span><span>建议</span><span>影响 SKU</span><span>预期修复率</span><span>操作</span></div>
-                {repairRows.map((row) => (
-                  <div className={styles.dataRow} key={row.suggestion}><span style={{ color: '#e11d48' }}>{row.priority}</span><span>{row.suggestion}</span><span>{row.affectedSku}</span><span>{row.estimatedLift}</span><span style={{ color: 'var(--primary)' }}>查看详情</span></div>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <div className={styles.sectionTitle}>Review 结果</div>
-              <div className={styles.reviewSection}>
-                <div style={{ display: 'flex', gap: '24px' }}>
-                  <span>需人工 Review 任务数 <b>{reviewStats?.total ?? 0}</b></span>
-                  <span style={{ color: 'var(--muted)' }}>已完成 Review <b>{reviewStats?.completed ?? 0}</b></span>
-                  <span style={{ color: '#16a34a' }}>通过 <b>{reviewStats?.approved ?? 0}</b></span>
-                  <span style={{ color: '#e11d48' }}>退回 <b>{reviewStats?.rejected ?? 0}</b></span>
-                </div>
-                <a href="/review-approvals" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>查看全部 <ChevronRight size={14} /></a>
-              </div>
-            </section>
+            {activeTab === 'SUMMARY' ? (
+              <ReportSummaryTab detail={detail} totalSku={totalSku} passRate={passRate} categoryRows={categoryRows} riskRows={riskRows} reviewStats={reviewStats} />
+            ) : null}
+            {activeTab === 'TASKS' ? <ReportTasksTab detail={detail} /> : null}
+            {activeTab === 'RULES' ? <ReportRulesTab detail={detail} /> : null}
+            {activeTab === 'EVIDENCE' ? <ReportEvidenceTab detail={detail} /> : null}
+            {activeTab === 'REPAIRS' ? <ReportRepairsTab repairRows={repairRows} /> : null}
           </div>
         </div>
 
@@ -336,6 +285,169 @@ export function ReportCenterPage() {
 
 function StatCard({ label, value, small }: { label: string; value: number; small?: string }) {
   return <div className={styles.statCard}><div className={styles.statLabel}>{label}</div><div className={styles.statValue}>{value} {small ? <small>{small}</small> : null}</div><div className={styles.statChange}>来自 Report DTO</div></div>
+}
+
+function ReportSummaryTab({ detail, totalSku, passRate, categoryRows, riskRows, reviewStats }: {
+  detail: ReportDetailDto | null
+  totalSku: number
+  passRate: number
+  categoryRows: NonNullable<ReportDetailDto['summary']['categoryDistribution']>
+  riskRows: NonNullable<ReportDetailDto['summary']['majorRisks']>
+  reviewStats: ReportDetailDto['summary']['reviewResult'] | undefined
+}) {
+  return (
+    <>
+      <section>
+        <div className={styles.sectionTitle}>活动概览</div>
+        <div className={styles.overviewGrid}>
+          <StatCard label="涉及活动 SKU" value={totalSku} />
+          <StatCard label="通过 SKU" value={detail?.summary.passedSku ?? 0} small={`${passRate.toFixed(1)}%`} />
+          <StatCard label="待修复 SKU" value={detail?.summary.repairableSku ?? 0} />
+          <StatCard label="阻断 SKU" value={detail?.summary.blockedSku ?? 0} />
+        </div>
+      </section>
+
+      <section>
+        <div className={styles.donutSection}>
+          <div style={{ flex: 1 }}>
+            <div className={styles.sectionTitle}>SKU 准入结果</div>
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+              <div className={styles.donutChart}><span style={{ fontSize: '24px', fontWeight: 600 }}>{totalSku}</span><span style={{ fontSize: '13px', color: 'var(--muted)' }}>总数</span></div>
+              <div>
+                <Legend color="#16a34a" text={`通过 ${detail?.summary.passedSku ?? 0}`} />
+                <Legend color="#d97706" text={`待修复 ${detail?.summary.repairableSku ?? 0}`} />
+                <Legend color="#e11d48" text={`阻断 ${detail?.summary.blockedSku ?? 0}`} />
+              </div>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className={styles.sectionTitle} style={{ fontSize: '14px' }}>按类目分布</div>
+            <div className={styles.dataTable}>
+              <div className={`${styles.dataRow} ${styles.head}`}><span>类目</span><span>通过</span><span>待修复</span><span>阻断</span><span>通过率</span></div>
+              {categoryRows.map((row) => (
+                <div className={styles.dataRow} key={row.category}>
+                  <span>{row.category}</span><span>{row.passed}</span><span>{row.repairable}</span><span>{row.blocked}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div className={styles.barWrapper}><div className={styles.barFill} style={{ width: `${row.passRate}%` }}></div></div>{row.passRate.toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div className={styles.sectionTitle}>主要风险</div>
+        <RiskTable riskRows={riskRows} />
+      </section>
+
+      <section>
+        <div className={styles.sectionTitle}>Review 结果</div>
+        <div className={styles.reviewSection}>
+          <div style={{ display: 'flex', gap: '24px' }}>
+            <span>需人工 Review 任务数 <b>{reviewStats?.total ?? 0}</b></span>
+            <span style={{ color: 'var(--muted)' }}>已完成 Review <b>{reviewStats?.completed ?? 0}</b></span>
+            <span style={{ color: '#16a34a' }}>通过 <b>{reviewStats?.approved ?? 0}</b></span>
+            <span style={{ color: '#e11d48' }}>退回 <b>{reviewStats?.rejected ?? 0}</b></span>
+          </div>
+          <a href="/review-approvals" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center' }}>查看全部 <ChevronRight size={14} /></a>
+        </div>
+      </section>
+    </>
+  )
+}
+
+function ReportTasksTab({ detail }: { detail: ReportDetailDto | null }) {
+  const rows = [
+    { label: '报告对象', entity: detail?.activity ?? detail?.sourceRun, status: detail?.status ?? '-' },
+    { label: '来源运行', entity: detail?.sourceRun, status: detail?.sourceRun ? '已关联' : '未关联' },
+    { label: '报告生成', entity: detail ? { label: detail.title, entityId: detail.reportId, href: `/report-center?reportId=${detail.reportId}` } : undefined, status: detail?.generatedAt ? '已生成' : '未生成' },
+  ]
+  return (
+    <section>
+      <div className={styles.sectionTitle}>任务明细</div>
+      <div className={styles.dataTable}>
+        <div className={`${styles.dataRow} ${styles.head}`}><span>任务</span><span>实体</span><span>ID</span><span>状态</span><span>入口</span></div>
+        {rows.map((row) => (
+          <div className={styles.dataRow} key={row.label}>
+            <span>{row.label}</span>
+            <span>{row.entity?.label ?? '-'}</span>
+            <span>{row.entity?.entityId ?? '-'}</span>
+            <span>{row.status}</span>
+            <span>{row.entity?.href ? <a href={row.entity.href} style={{ color: 'var(--primary)' }}>打开</a> : '-'}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ReportRulesTab({ detail }: { detail: ReportDetailDto | null }) {
+  const ruleRefs = (detail?.evidenceSummary ?? []).filter((ref) => ref.entityType === 'rule_set' || ref.ruleId)
+  return (
+    <>
+      <section>
+        <div className={styles.sectionTitle}>规则明细</div>
+        <div className={styles.dataTable}>
+          <div className={`${styles.dataRow} ${styles.head}`}><span>规则/证据</span><span>字段</span><span>规则 ID</span><span>来源</span><span>入口</span></div>
+          {ruleRefs.length ? ruleRefs.map((ref) => (
+            <div className={styles.dataRow} key={`${ref.entityId}:${ref.ruleId ?? ref.field ?? ref.label}`}>
+              <span>{ref.label}</span><span>{ref.field ?? '-'}</span><span>{ref.ruleId ?? ref.entityId}</span><span>{ref.sourceType}</span><span>{ref.href ? <a href={ref.href} style={{ color: 'var(--primary)' }}>查看</a> : '-'}</span>
+            </div>
+          )) : <EmptyTableRow text="当前报告没有单独返回规则证据，主要风险可作为规则影响摘要。" />}
+        </div>
+      </section>
+      <section>
+        <div className={styles.sectionTitle}>规则影响摘要</div>
+        <RiskTable riskRows={detail?.summary.majorRisks ?? []} />
+      </section>
+    </>
+  )
+}
+
+function ReportEvidenceTab({ detail }: { detail: ReportDetailDto | null }) {
+  const refs = detail?.evidenceSummary ?? []
+  return (
+    <section>
+      <div className={styles.sectionTitle}>证据详情</div>
+      <div className={styles.dataTable}>
+        <div className={`${styles.dataRow} ${styles.head}`}><span>证据</span><span>实体类型</span><span>字段</span><span>采集时间</span><span>入口</span></div>
+        {refs.length ? refs.map((ref) => (
+          <div className={styles.dataRow} key={`${ref.entityType}:${ref.entityId}:${ref.field ?? ref.label}`}>
+            <span>{ref.evidenceText ?? ref.label}</span><span>{ref.entityType}</span><span>{ref.field ?? '-'}</span><span>{ref.collectedAt ? new Date(ref.collectedAt).toLocaleString('zh-CN') : '-'}</span><span>{ref.href ? <a href={ref.href} style={{ color: 'var(--primary)' }}>查看</a> : '-'}</span>
+          </div>
+        )) : <EmptyTableRow text="当前报告没有返回证据引用。" />}
+      </div>
+    </section>
+  )
+}
+
+function ReportRepairsTab({ repairRows }: { repairRows: ReportDetailDto['summary']['repairSuggestions'] }) {
+  return (
+    <section>
+      <div className={styles.sectionTitle}>修复建议</div>
+      <div className={styles.dataTable}>
+        <div className={`${styles.dataRow} ${styles.head}`}><span>优先级</span><span>建议</span><span>影响 SKU</span><span>预期修复率</span><span>入口</span></div>
+        {repairRows.length ? repairRows.map((row) => (
+          <div className={styles.dataRow} key={row.suggestion}><span style={{ color: '#e11d48' }}>{row.priority}</span><span>{row.suggestion}</span><span>{row.affectedSku}</span><span>{row.estimatedLift}</span><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看 SKU</a></div>
+        )) : <EmptyTableRow text="当前报告没有待修复建议。" />}
+      </div>
+    </section>
+  )
+}
+
+function RiskTable({ riskRows }: { riskRows: ReportDetailDto['summary']['majorRisks'] }) {
+  return (
+    <div className={styles.dataTable}>
+      <div className={`${styles.dataRow} ${styles.head}`}><span>风险类型</span><span>影响 SKU</span><span>占比</span><span>风险趋势</span><span>示例问题</span></div>
+      {riskRows.length ? riskRows.map((row) => (
+        <div className={styles.dataRow} key={row.riskType}><span>{row.riskType}</span><span>{row.affectedSku}</span><span>{row.ratio}%</span><span style={{ color: '#e11d48' }}>需处理</span><span>{row.sampleIssue}</span></div>
+      )) : <EmptyTableRow text="当前报告没有主要风险。" />}
+    </div>
+  )
+}
+
+function EmptyTableRow({ text }: { text: string }) {
+  return <div className={`${styles.dataRow} ${styles.emptyRow}`}><span>{text}</span></div>
 }
 
 function Legend({ color, text }: { color: string; text: string }) {

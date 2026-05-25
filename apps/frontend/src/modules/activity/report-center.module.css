@@ -173,6 +173,8 @@
   color: var(--muted);
   cursor: pointer;
   position: relative;
+  border: 0;
+  background: transparent;
 }
 
 .tab.active {
@@ -283,6 +285,11 @@
 .dataRow.head {
   background: var(--surface-soft);
   font-weight: 600;
+  color: var(--muted);
+}
+
+.dataRow.emptyRow {
+  grid-template-columns: 1fr;
   color: var(--muted);
 }
 
