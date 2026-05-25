@@ -226,7 +226,7 @@ export function createPersistentToolExecutor(repository: AgentConversationReposi
 }
 
 export function agentToolRiskLevel(toolName: string): 'L1' | 'L2' {
-  return writeAgentTools.has(toolName) ? 'L2' : 'L1'
+  return writeAgentTools.has(normalizePolicyToolName(toolName)) ? 'L2' : 'L1'
 }
 
 export function agentToolRequiresReviewGate(toolName: string): boolean {

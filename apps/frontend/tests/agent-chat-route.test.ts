@@ -84,9 +84,13 @@ test('agent chat tool policy treats an empty allowlist as deny all', () => {
 
 test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('generateReport'), 'L2')
+  assert.equal(agentToolRiskLevel('generateReportPreview'), 'L2')
+  assert.equal(agentToolRiskLevel('reportPreview'), 'L2')
   assert.equal(agentToolRiskLevel('compareReports'), 'L2')
   assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
   assert.equal(agentToolRequiresReviewGate('generateReport'), true)
+  assert.equal(agentToolRequiresReviewGate('generateReportPreview'), true)
+  assert.equal(agentToolRequiresReviewGate('reportPreview'), true)
   assert.equal(agentToolRequiresReviewGate('getReportDetail'), false)
 })
 
@@ -121,6 +125,46 @@ test('agent chat persistent executor opens review gate before write tools', asyn
   assert.equal(execution.reviewGate?.id, 'gate_review_1')
   assert.equal(finalApiRuntime.store.reports.size, beforeReportCount)
   assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'reviewGate', 'event'])
+})
+
+test('agent chat persistent executor gates report preview aliases before write', async () => {
+  const beforeReportCount = finalApiRuntime.store.reports.size
+  const calls: Array<{ kind: string; input: Record<string, unknown> }> = []
+  const repository = {
+    createToolCall: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'toolCall', input })
+      return { id: `tool_call_${calls.length}`, ...input }
+    },
+    createReviewGate: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'reviewGate', input })
+      return { id: `gate_${calls.length}`, status: 'PENDING', ...input }
+    },
+    appendRunEvent: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'event', input })
+      return { id: `event_${calls.length}`, ...input }
+    },
+  }
+  const executor = createPersistentToolExecutor(repository as never)
+
+  const preview = await executor({
+    run: { id: 'run_report_preview_1' } as never,
+    mission: { id: 'mission_report_preview_1' } as never,
+    toolName: 'generateReportPreview',
+    inputJson: { skuProfileIds: ['sku_preview_should_not_write'] },
+  })
+  const legacy = await executor({
+    run: { id: 'run_report_preview_2' } as never,
+    mission: { id: 'mission_report_preview_2' } as never,
+    toolName: 'reportPreview',
+    inputJson: { skuProfileIds: ['sku_legacy_preview_should_not_write'] },
+  })
+
+  assert.equal(preview.status, 'WAITING_FOR_APPROVAL')
+  assert.equal(legacy.status, 'WAITING_FOR_APPROVAL')
+  assert.equal(preview.toolCall.toolName, 'generateReport')
+  assert.equal(legacy.toolCall.toolName, 'generateReport')
+  assert.equal(finalApiRuntime.store.reports.size, beforeReportCount)
+  assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'reviewGate', 'event', 'toolCall', 'reviewGate', 'event'])
 })
 
 test('agent chat session recovery preserves review gate turns', () => {
