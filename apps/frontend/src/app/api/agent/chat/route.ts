@@ -2,7 +2,7 @@ import { fail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
-import type { EvidenceLinkDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
+import type { EvidenceLinkDto, ReviewItemDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
 import { createVercelAiSdkAgentModelAdapterFromEnv } from './vercel-ai-sdk-agent-model-adapter'
@@ -109,7 +109,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const readOnlyTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReportPreview', 'createReviewItems'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -122,7 +122,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
   }): Promise<AgentConversationToolExecution> => {
     const toolName = input.toolName === 'reportPreview' ? 'generateReportPreview' : input.toolName
     const safeInput = scrubSensitive(input.inputJson) as Record<string, unknown>
-    if (!readOnlyTools.has(toolName) || containsSensitive(input.inputJson)) {
+    if (!registeredAgentTools.has(toolName) || containsSensitive(input.inputJson)) {
       const reason = containsSensitive(input.inputJson) ? 'sensitive_input_denied' : 'unregistered_tool_denied'
       const toolCall = await repository.createToolCall({
         runId: input.run.id,
@@ -155,7 +155,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
       externalToolCallId: input.externalToolCallId ?? null,
       toolName,
       status,
-      riskLevel: 'L1',
+      riskLevel: toolName === 'createReviewItems' ? 'L2' : 'L1',
       reviewPolicy: 'AUTO_ALLOW',
       inputJson: safeInput,
       outputJson: scrubSensitive({ ok: status === 'SUCCEEDED', summary, result: execution.result }) as Record<string, unknown>,
@@ -331,6 +331,25 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
         simulationResultIds: stringArray(input.simulationResultIds),
       })
       return succeeded(result, result.evidenceSummary, `生成报告预览：${result.title}`, { type: 'report', id: result.reportId })
+    }
+
+    if (toolName === 'createReviewItems') {
+      const skuProfileId = String(input.skuProfileId ?? '')
+      const sourceId = String(input.sourceId ?? skuProfileId)
+      if (!sourceId) throw new Error('skuProfileId or sourceId is required')
+      const detail = skuProfileId ? await getRequiredSkuDetail(skuProfileId) : null
+      const evidence: EvidenceLinkDto[] = detail?.evidence.length ? detail.evidence : [{ type: 'tool_trace', entityId: sourceId, label: 'Agent Review', summary: String(input.question ?? 'Agent 创建人工确认项') }]
+      const item: Omit<ReviewItemDto, 'reviewItemId' | 'status'> = {
+        skuProfileId: skuProfileId || undefined,
+        sourceType: input.sourceType === 'simulation' || input.sourceType === 'health' ? input.sourceType : 'agent',
+        sourceId,
+        question: String(input.question ?? (detail ? `确认 ${detail.productName} 的下一步处理` : '确认 Agent 建议的业务动作')),
+        recommendation: optionalString(input.recommendation) ?? detail?.nextActions.join('；') ?? undefined,
+        riskLevel: input.riskLevel === 'L2' || input.riskLevel === 'L0' ? input.riskLevel : 'L1',
+        evidence,
+      }
+      const result = await finalApiRuntime.reviewService.create([item], agentToolAuthContext())
+      return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
     }
 
     throw new Error(`Unsupported tool: ${toolName}`)

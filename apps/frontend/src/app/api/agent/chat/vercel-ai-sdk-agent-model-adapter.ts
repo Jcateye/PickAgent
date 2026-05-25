@@ -23,6 +23,7 @@ const PICKAGENT_SYSTEM_PROMPT_TEMPLATE = [
   '- Never claim that a SKU is ready, blocked, repairable, or safe unless that conclusion comes from a registered PickAgent tool result.',
   '- Never suggest automatic price changes, campaign submission, product page edits, procurement orders, credential access, direct SQL, shell, file, or production-changing browser actions.',
   '- Treat write-side or high-impact actions as Review Gate candidates. If a needed action is outside the exposed tools, describe the safe next step instead of pretending it was done.',
+  '- You may create Review items with createReviewItems when the user asks to hand off, approve later, queue human review, or resolve ambiguity. Do not use it to approve or reject business changes.',
   '',
   'Mission planning prompt:',
   '- First identify the user objective, subject entity, constraints, missing inputs, and success criteria.',
@@ -246,6 +247,7 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'simulateActivityReadiness',
   'explainDecisionWithEvidence',
   'reportPreview',
+  'createReviewItems',
 ] as const
 
 function summarizeConversation(messages: ModelMessage[]): string {
@@ -317,6 +319,10 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       platform: { type: 'string' },
       sourceText: { type: 'string' },
       question: { type: 'string' },
+      sourceId: { type: 'string' },
+      sourceType: { type: 'string', enum: ['health', 'simulation', 'agent'] },
+      recommendation: { type: 'string' },
+      riskLevel: { type: 'string', enum: ['L0', 'L1', 'L2'] },
       type: { type: 'string', enum: ['HEALTH', 'ACTIVITY'] },
       skuProfileIds: { type: 'array', items: { type: 'string' } },
       simulationResultIds: { type: 'array', items: { type: 'string' } },
@@ -378,6 +384,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '生成健康或活动报告预览。需要 type 和 skuProfileIds。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('generateReportPreview', inputJson),
+    }),
+    createReviewItems: tool({
+      description: '创建真实人工 Review 项。用于规则歧义、数据冲突、L2 写动作前置确认或用户明确要求提交人工复核。需要 skuProfileId 或 sourceId，建议提供 question/recommendation/riskLevel。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('createReviewItems', inputJson),
     }),
   }
 }
