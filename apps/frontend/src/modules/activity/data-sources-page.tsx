@@ -58,7 +58,7 @@ export function DataSourcesPage() {
 
   const connectors = connectorPage?.items ?? []
   const allRuns = useMemo(() => connectors.map((connector) => connector.latestRun).filter((run): run is ConnectorRunSummaryDto => Boolean(run)), [connectors])
-  const displayRuns = runs.length ? runs : allRuns
+  const displayRuns = selectedConnector ? runs : allRuns
 
   async function createConnector() {
     setConnectorForm({
@@ -146,7 +146,11 @@ export function DataSourcesPage() {
       })
       setMessage(`已创建采集运行：${run.connectorRunId}`)
       await loadConnectors(connectorId)
-      const nextRuns = await fetchActivityApi<PageDto<ConnectorRunSummaryDto>>(`/api/connectors/${connectorId}/sync-runs?pageSize=10`)
+      const [nextDetail, nextRuns] = await Promise.all([
+        fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${connectorId}`),
+        fetchActivityApi<PageDto<ConnectorRunSummaryDto>>(`/api/connectors/${connectorId}/sync-runs?pageSize=10`),
+      ])
+      setDetail(nextDetail)
       setRuns(nextRuns.items)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建采集运行失败')
