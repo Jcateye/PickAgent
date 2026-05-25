@@ -15,14 +15,22 @@ export function SkuAccessPage() {
   const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: '20',
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    })
+    if (healthStatus !== 'ALL') params.set('healthStatus', healthStatus)
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
-      fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?page=${page}&pageSize=20&sortBy=updatedAt&sortOrder=desc`),
+      fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
     ])
       .then(([nextSummary, nextSkuPage]) => {
         if (cancelled) return
@@ -39,7 +47,7 @@ export function SkuAccessPage() {
     return () => {
       cancelled = true
     }
-  }, [page])
+  }, [page, healthStatus])
 
   useEffect(() => {
     if (!selectedId) return
@@ -172,8 +180,12 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.filterItem}>
             状态
-            <select className={styles.filterSelect}>
-              <option>全部</option>
+            <select className={styles.filterSelect} value={healthStatus} onChange={(event) => { setHealthStatus(event.target.value as DashboardSkuListItemDto['healthStatus'] | 'ALL'); setPage(1) }}>
+              <option value="ALL">全部</option>
+              <option value="READY">可直接报名</option>
+              <option value="REPAIRABLE">可修复</option>
+              <option value="RISKY">待人工确认</option>
+              <option value="BLOCKED">不建议报名</option>
             </select>
           </div>
           <div style={{ flex: 1 }}></div>
@@ -181,7 +193,7 @@ export function SkuAccessPage() {
             <Search size={16} color="var(--muted)" />
             <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
-          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setPage(1) }} style={{ height: '32px' }}>重置</button>
+          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setHealthStatus('ALL'); setPage(1) }} style={{ height: '32px' }}>重置</button>
         </div>
 
         <div className={styles.summaryCards}>
