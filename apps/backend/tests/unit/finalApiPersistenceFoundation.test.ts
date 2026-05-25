@@ -530,6 +530,26 @@ test("connector create and status updates are visible in workflow audits", async
   assert.ok(audits.some((audit) => audit.workflowType === "connector_update" && audit.subjectId === connector.connectorId && audit.output.status === "DISABLED"));
 });
 
+test("disabled connectors cannot create sync runs", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const connector = await runtime.connectorService.create(
+    {
+      code: "disabled_run_connector",
+      name: "停用运行连接器",
+      kind: "platform_api",
+      platform: "tmall",
+      status: "DISABLED",
+      config: { source: "unit-test" },
+    },
+    tenantA,
+  );
+
+  await assert.rejects(
+    async () => runtime.connectorService.createSyncRun(connector.connectorId, { rowCount: 1, qualityScore: 0.9 }, tenantA),
+    /Connector is disabled:/,
+  );
+});
+
 test("prisma connector run validates connector before writing workflow audit", async () => {
   const writes: string[] = [];
   const repository = new PrismaConnectorRepositoryV2({
@@ -553,6 +573,33 @@ test("prisma connector run validates connector before writing workflow audit", a
   await assert.rejects(
     () => repository.createRun(tenantA, "missing_connector", { rowCount: 1, qualityScore: 0.9 }),
     /Connector not found: missing_connector/,
+  );
+  assert.deepEqual(writes, []);
+});
+
+test("prisma connector run rejects disabled connector before writing workflow audit", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaConnectorRepositoryV2({
+    connector: {
+      findUnique: async () => ({ id: "disabled_connector", code: "disabled_connector", name: "停用连接器", kind: "platform_api", configJson: {}, status: "disabled", createdAt: new Date(), updatedAt: new Date() }),
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun");
+        return {};
+      },
+    },
+    connectorRun: {
+      create: async () => {
+        writes.push("connectorRun");
+        return {};
+      },
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.createRun(tenantA, "disabled_connector", { rowCount: 1, qualityScore: 0.9 }),
+    /Connector is disabled: disabled_connector/,
   );
   assert.deepEqual(writes, []);
 });

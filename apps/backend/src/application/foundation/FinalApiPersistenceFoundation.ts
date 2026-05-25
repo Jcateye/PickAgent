@@ -1075,6 +1075,7 @@ export class ConnectorRepositoryV2 {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(connectorId), connectorId);
     const connector = this.store.connectors.get(connectorId);
     if (!connector) throw new Error(`Connector not found: ${connectorId}`);
+    if (normalizeConnectorStatus(connector.status) === "DISABLED") throw new Error(`Connector is disabled: ${connectorId}`);
     const now = new Date().toISOString();
     const run: ConnectorRunRecordDto = {
       connectorRunId: nextId("connector_run"),
@@ -2108,6 +2109,7 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   async createRun(boundary: P0AuthContextDto, connectorId: string, input: CreateConnectorSyncRunDto): Promise<ConnectorRunDetailDto> {
     const connector = await this.prisma.connector.findUnique({ where: { id: connectorId } });
     if (!connector) throw new Error(`Connector not found: ${connectorId}`);
+    if (normalizeConnectorStatus((connector as Record<string, unknown>).status) === "DISABLED") throw new Error(`Connector is disabled: ${connectorId}`);
     const now = new Date();
     const workflowRunId = nextUuid();
     const qualityScore = normalizeConnectorQualityScore(input.qualityScore);
