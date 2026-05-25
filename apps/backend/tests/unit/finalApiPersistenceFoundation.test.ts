@@ -492,6 +492,28 @@ test("connector sync run normalizes fractional quality scores for persistence", 
   assert.equal(detail?.qualityScore, 90);
 });
 
+test("connector create and status updates are visible in workflow audits", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const connector = await runtime.connectorService.create(
+    {
+      code: "audit_connector",
+      name: "审计连接器",
+      kind: "platform_api",
+      platform: "tmall",
+      status: "ACTIVE",
+      config: { source: "unit-test" },
+    },
+    tenantA,
+  );
+
+  const disabled = await runtime.connectorService.update(connector.connectorId, { status: "DISABLED" }, tenantA);
+  const audits = await runtime.workflowAuditService.list(tenantA, 20);
+
+  assert.equal(disabled.status, "DISABLED");
+  assert.ok(audits.some((audit) => audit.workflowType === "connector_create" && audit.subjectId === connector.connectorId && audit.input.actorId === tenantA.actorId));
+  assert.ok(audits.some((audit) => audit.workflowType === "connector_update" && audit.subjectId === connector.connectorId && audit.output.status === "DISABLED"));
+});
+
 test("prisma connector run validates connector before writing workflow audit", async () => {
   const writes: string[] = [];
   const repository = new PrismaConnectorRepositoryV2({

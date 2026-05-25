@@ -985,6 +985,18 @@ export class ConnectorRepositoryV2 {
     };
     this.store.connectors.set(connector.connectorId, connector);
     this.store.tenantByEntityId.set(connector.connectorId, boundary.tenantId);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "connector_create",
+      status: "SUCCEEDED",
+      subjectType: "connector",
+      subjectId: connector.connectorId,
+      input: { actorId: boundary.actorId, code: input.code, kind: input.kind, platform: input.platform },
+      output: { connectorId: connector.connectorId, status: connector.status },
+      createdAt: now,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     return { ...this.toMemoryListItem(connector), config: connector.config, permissions: permissionsFromConfig(connector.config), recentRuns: [] };
   }
 
@@ -1001,6 +1013,18 @@ export class ConnectorRepositoryV2 {
       updatedAt: new Date().toISOString(),
     };
     this.store.connectors.set(connectorId, updated);
+    const audit: WorkflowAuditRecord = {
+      workflowRunId: nextId("workflow"),
+      workflowType: "connector_update",
+      status: "SUCCEEDED",
+      subjectType: "connector",
+      subjectId: connectorId,
+      input: { actorId: boundary.actorId, fields: Object.keys(input) },
+      output: { connectorId, status: updated.status },
+      createdAt: updated.updatedAt,
+    };
+    this.store.workflowAudits.set(audit.workflowRunId, audit);
+    this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
     const recentRuns = this.runsForConnector(connectorId).slice(0, 5).map(toConnectorRunSummary);
     return { ...this.toMemoryListItem(updated), config: updated.config, permissions: permissionsFromConfig(updated.config), recentRuns };
   }
@@ -2001,14 +2025,18 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
     return { ...(await this.toPrismaListItem(row)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: runs.map((item) => toConnectorRunSummary(toConnectorRunRecord(item))) };
   }
 
-  async create(_boundary: P0AuthContextDto, input: CreateConnectorDto): Promise<ConnectorDetailDto> {
+  async create(boundary: P0AuthContextDto, input: CreateConnectorDto): Promise<ConnectorDetailDto> {
     const created = await this.prisma.connector.create({ data: { code: input.code, name: input.name, kind: input.kind, platform: input.platform, configJson: sanitizeConnectorConfig(input.config ?? {}), status: normalizeConnectorStatus(input.status).toLowerCase() } });
+    const now = new Date();
+    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_create", status: "SUCCEEDED", subjectType: "connector", subjectId: String(created.id), inputJson: { actorId: boundary.actorId, code: input.code, kind: input.kind, platform: input.platform }, outputJson: { connectorId: String(created.id), status: normalizeConnectorStatus(input.status) }, startedAt: now, completedAt: now } });
     const record = toConnectorRecord(created);
     return { ...(await this.toPrismaListItem(created)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: [] };
   }
 
-  async update(_boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): Promise<ConnectorDetailDto> {
+  async update(boundary: P0AuthContextDto, connectorId: string, input: UpdateConnectorDto): Promise<ConnectorDetailDto> {
     const updated = await this.prisma.connector.update({ where: { id: connectorId }, data: { name: input.name, platform: input.platform, configJson: input.config ? sanitizeConnectorConfig(input.config) : undefined, status: input.status ? normalizeConnectorStatus(input.status).toLowerCase() : undefined } });
+    const now = new Date();
+    await this.prisma.workflowRun.create({ data: { id: nextUuid(), workflowType: "connector_update", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { actorId: boundary.actorId, fields: Object.keys(input) }, outputJson: { connectorId, status: normalizeConnectorStatus(updated.status) }, startedAt: now, completedAt: now } });
     const runs = await this.prisma.connectorRun.findMany({ where: { connectorId }, orderBy: { createdAt: "desc" }, take: 5 });
     const record = toConnectorRecord(updated);
     return { ...(await this.toPrismaListItem(updated)), config: record.config, permissions: permissionsFromConfig(record.config), recentRuns: runs.map((item) => toConnectorRunSummary(toConnectorRunRecord(item))) };
