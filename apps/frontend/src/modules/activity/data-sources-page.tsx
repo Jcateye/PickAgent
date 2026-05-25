@@ -2,15 +2,20 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, Plus, RefreshCw, X } from 'lucide-react'
-import type { ConnectorDetailDto, ConnectorListItemDto, ConnectorRunSummaryDto, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
+import type { ConnectorDetailDto, ConnectorKind, ConnectorListItemDto, ConnectorRunSummaryDto, ConnectorStatus, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './data-sources.module.css'
+
+type ConnectorFormState =
+  | { mode: 'create'; code: string; name: string; kind: ConnectorKind; platform: string; status: ConnectorStatus; configText: string }
+  | { mode: 'edit'; connectorId: string; name: string; platform: string; status: ConnectorStatus; configText: string }
 
 export function DataSourcesPage() {
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null)
   const [detail, setDetail] = useState<ConnectorDetailDto | null>(null)
   const [runs, setRuns] = useState<ConnectorRunSummaryDto[]>([])
+  const [connectorForm, setConnectorForm] = useState<ConnectorFormState | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -54,23 +59,67 @@ export function DataSourcesPage() {
   const displayRuns = runs.length ? runs : allRuns
 
   async function createConnector() {
-    const name = window.prompt('请输入连接器名称', '新数据源连接器')
-    if (!name) return
-    setBusy('create')
+    setConnectorForm({
+      mode: 'create',
+      code: `custom_${Date.now()}`,
+      name: '新数据源连接器',
+      kind: 'platform_api',
+      platform: 'custom',
+      status: 'ACTIVE',
+      configText: JSON.stringify({ createdFrom: 'data-sources-page' }, null, 2),
+    })
+  }
+
+  async function submitConnectorForm() {
+    if (!connectorForm) return
+    const name = connectorForm.name.trim()
+    const platform = connectorForm.platform.trim()
+    if (!name) {
+      setMessage('连接器名称不能为空')
+      return
+    }
+    let config: Record<string, unknown>
     try {
-      const payload: CreateConnectorDto = {
-        code: `custom_${Date.now()}`,
-        name,
-        kind: 'platform_api',
-        platform: 'custom',
-        status: 'ACTIVE',
-        config: { createdFrom: 'data-sources-page' },
+      const parsed = JSON.parse(connectorForm.configText || '{}') as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('config must be an object')
+      config = parsed as Record<string, unknown>
+    } catch {
+      setMessage('连接器配置必须是合法 JSON 对象')
+      return
+    }
+    setBusy(connectorForm.mode === 'create' ? 'create' : 'edit-connector')
+    try {
+      if (connectorForm.mode === 'create') {
+        const payload: CreateConnectorDto = {
+          code: connectorForm.code.trim() || `custom_${Date.now()}`,
+          name,
+          kind: connectorForm.kind,
+          platform: platform || undefined,
+          status: connectorForm.status,
+          config,
+        }
+        const created = await fetchActivityApi<ConnectorDetailDto>('/api/connectors', { method: 'POST', body: JSON.stringify(payload) })
+        setConnectorForm(null)
+        setMessage(`已添加连接器：${created.name}`)
+        await loadConnectors(created.connectorId)
+        return
       }
-      const created = await fetchActivityApi<ConnectorDetailDto>('/api/connectors', { method: 'POST', body: JSON.stringify(payload) })
-      setMessage(`已添加连接器：${created.name}`)
-      await loadConnectors(created.connectorId)
+      const payload: UpdateConnectorDto = {
+        name,
+        platform: platform || null,
+        status: connectorForm.status,
+        config: { ...config, updatedFrom: 'data-sources-page', updatedAt: new Date().toISOString() },
+      }
+      const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${connectorForm.connectorId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      setConnectorForm(null)
+      setDetail(updated)
+      setMessage(`已更新连接器配置：${updated.name}`)
+      await loadConnectors(updated.connectorId)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '添加连接器失败')
+      setMessage(error instanceof Error ? error.message : '保存连接器失败')
     } finally {
       setBusy(null)
     }
@@ -130,26 +179,14 @@ export function DataSourcesPage() {
 
   async function editConnectorConfig() {
     if (!detail) return
-    const name = window.prompt('修改连接器名称', detail.name)
-    if (!name || name === detail.name) return
-    setBusy('edit-connector')
-    try {
-      const payload: UpdateConnectorDto = {
-        name,
-        config: { ...detail.config, updatedFrom: 'data-sources-page', updatedAt: new Date().toISOString() },
-      }
-      const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${detail.connectorId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      })
-      setDetail(updated)
-      setMessage(`已更新连接器配置：${updated.name}`)
-      await loadConnectors(updated.connectorId)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '编辑连接器配置失败')
-    } finally {
-      setBusy(null)
-    }
+    setConnectorForm({
+      mode: 'edit',
+      connectorId: detail.connectorId,
+      name: detail.name,
+      platform: detail.platform ?? '',
+      status: detail.status,
+      configText: JSON.stringify(detail.config, null, 2),
+    })
   }
 
   return (
@@ -160,6 +197,54 @@ export function DataSourcesPage() {
         <h1 className={styles.pageTitle}>数据源连接器</h1>
         <div className={styles.pageDesc}>管理数据连接器，监控采集运行状态与数据新鲜度</div>
         {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>{message}</div> : null}
+        {connectorForm ? (
+          <form className={styles.connectorForm} onSubmit={(event) => { event.preventDefault(); void submitConnectorForm() }}>
+            <div className={styles.formGrid}>
+              {connectorForm.mode === 'create' ? (
+                <label className={styles.formField}>
+                  <span>编码</span>
+                  <input value={connectorForm.code} onChange={(event) => setConnectorForm((current) => current && current.mode === 'create' ? { ...current, code: event.target.value } : current)} />
+                </label>
+              ) : null}
+              <label className={styles.formField}>
+                <span>名称</span>
+                <input value={connectorForm.name} onChange={(event) => setConnectorForm((current) => current ? { ...current, name: event.target.value } : current)} />
+              </label>
+              {connectorForm.mode === 'create' ? (
+                <label className={styles.formField}>
+                  <span>类型</span>
+                  <select value={connectorForm.kind} onChange={(event) => setConnectorForm((current) => current && current.mode === 'create' ? { ...current, kind: event.target.value as ConnectorKind } : current)}>
+                    <option value="platform_api">平台 API</option>
+                    <option value="browser_extension">浏览器插件</option>
+                    <option value="report_import">报表导入</option>
+                  </select>
+                </label>
+              ) : null}
+              <label className={styles.formField}>
+                <span>平台</span>
+                <input value={connectorForm.platform} onChange={(event) => setConnectorForm((current) => current ? { ...current, platform: event.target.value } : current)} />
+              </label>
+              <label className={styles.formField}>
+                <span>状态</span>
+                <select value={connectorForm.status} onChange={(event) => setConnectorForm((current) => current ? { ...current, status: event.target.value as ConnectorStatus } : current)}>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="NEEDS_AUTH">NEEDS_AUTH</option>
+                  <option value="FAILED">FAILED</option>
+                  <option value="DISABLED">DISABLED</option>
+                </select>
+              </label>
+            </div>
+            <label className={styles.formField}>
+              <span>配置 JSON</span>
+              <textarea value={connectorForm.configText} onChange={(event) => setConnectorForm((current) => current ? { ...current, configText: event.target.value } : current)} rows={5} />
+            </label>
+            <div className={styles.formActions}>
+              <button className="secondaryButton" type="button" onClick={() => setConnectorForm(null)} disabled={!!busy}>取消</button>
+              <button className="primaryButton" type="submit" disabled={!!busy}>{connectorForm.mode === 'create' ? '添加连接器' : '保存配置'}</button>
+            </div>
+          </form>
+        ) : null}
 
         <div className={styles.sectionHeader} style={{ marginTop: '16px' }}>
           <div className={styles.sectionTitle}>连接器概览</div>
