@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
-import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
+import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi } from './api-client'
 import styles from './rule-execution.module.css'
 
@@ -27,6 +27,29 @@ export function RuleExecutionPage() {
       setMessage(`运行检查已完成：${ruleSet.ruleSetId}，解析 ${ruleSet.rules.length} 条规则，置信度 ${ruleSet.confidence}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveRuleSetToLibrary() {
+    setBusy(true)
+    try {
+      const saved = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: ruleSet?.name ?? '天猫618规则执行路径',
+          platform: ruleSet?.platform ?? 'tmall',
+          sourceText: ruleSet?.sourceText ?? '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。',
+          rules: structuredRules,
+          type: 'ACTIVITY_RULE',
+          source: 'INTERNAL',
+          status: 'DRAFT',
+        }),
+      })
+      setMessage(`已保存到规则库：${saved.name} / ${saved.ruleSetId}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存规则集失败')
     } finally {
       setBusy(false)
     }
@@ -100,7 +123,7 @@ export function RuleExecutionPage() {
           <a className="secondaryButton" href="/run-console" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <FileText size={16} /> 查看 Run
           </a>
-          <button className="iconButton" type="button" onClick={() => setMessage('更多操作已收敛到规则库、Run 控制台和 SKU 准入工作台。')}>
+          <button className="iconButton" type="button" onClick={() => void saveRuleSetToLibrary()} disabled={busy} title="保存到规则库">
             <MoreHorizontal size={18} />
           </button>
         </div>
@@ -315,7 +338,7 @@ export function RuleExecutionPage() {
 
           <div className="panel">
             <div className={styles.sectionHeader} style={{ padding: '16px 20px', borderBottom: 'none' }}>
-              <div style={{ fontSize: '15px', fontWeight: 600 }}>决策流程 (预览)</div>
+              <div style={{ fontSize: '15px', fontWeight: 600 }}>决策流程</div>
               <ChevronDown size={16} color="var(--muted)" />
             </div>
             <div className={styles.sectionBody} style={{ paddingTop: 0 }}>
