@@ -8,12 +8,21 @@ import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-cli
 import styles from './sku-access.module.css'
 
 type SkuDrawerTab = 'overview' | 'evidence' | 'raw' | 'history'
+type SkuNextAction = DashboardSkuListItemDto['nextAction']
 
 const skuDrawerTabs: Array<{ value: SkuDrawerTab; label: string }> = [
   { value: 'overview', label: '概览' },
   { value: 'evidence', label: '证据' },
   { value: 'raw', label: '原始字段' },
   { value: 'history', label: '历史' },
+]
+
+const nextActionOptions: SkuNextAction[] = [
+  { type: 'JOIN_ACTIVITY', label: '加入活动报名' },
+  { type: 'REPAIR_ISSUE', label: '修复后再报名' },
+  { type: 'MANUAL_REVIEW', label: '提交人工确认' },
+  { type: 'VIEW_BLOCKER', label: '查看阻塞原因' },
+  { type: 'VIEW_DETAIL', label: '查看 SKU 详情' },
 ]
 
 export function SkuAccessPage() {
@@ -29,6 +38,7 @@ export function SkuAccessPage() {
   const [sourceKind, setSourceKind] = useState('ALL')
   const [category, setCategory] = useState('ALL')
   const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>('overview')
+  const [nextActionType, setNextActionType] = useState<SkuNextAction['type']>('MANUAL_REVIEW')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -158,24 +168,25 @@ export function SkuAccessPage() {
       setMessage('请先选择 SKU')
       return
     }
+    const nextAction = nextActionOptions.find((option) => option.type === nextActionType) ?? nextActionOptions[0]
     if (items.length > 1) {
       setBusy('bulk-next')
       try {
         const details = await Promise.all(items.map((item) => fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
           method: 'PATCH',
           body: JSON.stringify({
-            nextAction: item.nextAction,
-            comment: 'sku-access-page-bulk',
+            nextAction,
+            comment: `sku-access-page-bulk:${nextAction.type}`,
           }),
         })))
         const updatedIds = new Set(items.map((item) => item.skuProfileId))
         setSkuPage((current) => current ? {
           ...current,
-          items: current.items.map((row) => updatedIds.has(row.skuProfileId) ? { ...row, nextAction: { ...row.nextAction } } : row),
+          items: current.items.map((row) => updatedIds.has(row.skuProfileId) ? { ...row, nextAction } : row),
         } : current)
         const selected = details.find((detail) => detail.skuProfileId === selectedId)
         if (selected) setSelectedDetail(selected)
-        setMessage(`已批量设置下一步：${items.length} 个 SKU`)
+        setMessage(`已批量设置下一步为「${nextAction.label}」：${items.length} 个 SKU`)
       } catch (error) {
         setMessage(error instanceof Error ? error.message : '批量设置下一步失败')
       } finally {
@@ -189,14 +200,14 @@ export function SkuAccessPage() {
       const detail = await fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          nextAction: item.nextAction,
-          comment: 'sku-access-page',
+          nextAction,
+          comment: `sku-access-page:${nextAction.type}`,
         }),
       })
       setSelectedDetail(detail)
       setSkuPage((current) => current ? {
         ...current,
-        items: current.items.map((row) => row.skuProfileId === item.skuProfileId ? { ...row, nextAction: { ...item.nextAction } } : row),
+        items: current.items.map((row) => row.skuProfileId === item.skuProfileId ? { ...row, nextAction } : row),
       } : current)
       setMessage(`已设置下一步：${detail.statusSummary.nextStep}`)
     } catch (error) {
@@ -316,7 +327,10 @@ export function SkuAccessPage() {
           <div className={styles.tableToolbarLeft}>已选择 {selectedRows.length} 项</div>
           <div className={styles.tableToolbarRight}>
             <button className="secondaryButton" type="button" onClick={() => void createReviews(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
-            <button className="secondaryButton" type="button" onClick={() => void updateNextActions(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
+            <select className="secondaryButton" value={nextActionType} onChange={(event) => setNextActionType(event.target.value as SkuNextAction['type'])} style={{ height: '32px', fontSize: '13px', width: '128px' }} aria-label="下一步动作">
+              {nextActionOptions.map((option) => <option value={option.type} key={option.type}>{option.label}</option>)}
+            </select>
+            <button className="secondaryButton" type="button" onClick={() => void updateNextActions(selectedRows)} disabled={!selectedRows.length || !!busy} style={{ height: '32px', fontSize: '13px' }}>批量设置下一步</button>
             <button className="secondaryButton" type="button" onClick={() => exportRows(rows)} style={{ height: '32px', fontSize: '13px' }}>导出当前结果</button>
             <button className="secondaryButton" type="button" onClick={() => void generateHealthReport()} disabled={!rows.length || busy === 'report'} style={{ height: '32px', fontSize: '13px' }}>生成健康报告</button>
           </div>
@@ -406,7 +420,7 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.drawerFooter}>
             <button className="secondaryButton" type="button" onClick={() => void createReview(selectedRow)} disabled={busy === selectedRow.skuProfileId}>生成 Review</button>
-            <button className="primaryButton" type="button" onClick={() => void updateNextAction(selectedRow)} disabled={busy === `next:${selectedRow.skuProfileId}`} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设置下一步 ∨</button>
+            <button className="primaryButton" type="button" onClick={() => void updateNextAction(selectedRow)} disabled={busy === `next:${selectedRow.skuProfileId}`} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>设为{(nextActionOptions.find((option) => option.type === nextActionType) ?? nextActionOptions[0]).label}</button>
           </div>
         </div>
       )}
