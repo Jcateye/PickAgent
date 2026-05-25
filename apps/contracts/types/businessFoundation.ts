@@ -4,16 +4,6 @@ export type SimulationEligibility = "DIRECT_READY" | "REPAIRABLE_READY" | "MANUA
 export type ReviewStatus = "OPEN" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
 export type ReviewDecision = "APPROVE" | "REJECT" | "REQUEST_CHANGES";
 export type ReportType = "HEALTH" | "ACTIVITY";
-export type AgentToolName =
-  | "getSkuSummary"
-  | "parseActivityRules"
-  | "simulateActivityReadiness"
-  | "runSimulation"
-  | "checkDataFreshness"
-  | "diagnoseSkuHealth"
-  | "createReviewItems"
-  | "explainDecisionWithEvidence"
-  | "generateReportPreview";
 
 export interface EvidenceLinkDto {
   type: "snapshot" | "diagnosis" | "rule" | "simulation" | "review" | "report" | "tool_trace";
@@ -243,6 +233,62 @@ export interface ToolPolicyDto {
   updatedAt: string;
   updatedBy: string;
 }
+
+export const defaultAgentToolNames = [
+  "getDashboardContext",
+  "searchSkus",
+  "listRuleSets",
+  "getRuleSetDetail",
+  "createRuleSet",
+  "updateRuleSet",
+  "createRuleSetVersion",
+  "listActivities",
+  "createActivity",
+  "updateActivity",
+  "getActivityExecutionPlan",
+  "startActivityRun",
+  "getSkuSummary",
+  "parseActivityRules",
+  "checkDataFreshness",
+  "diagnoseSkuHealth",
+  "simulateActivityReadiness",
+  "explainDecisionWithEvidence",
+  "generateReport",
+  "generateReportPreview",
+  "createReviewItems",
+  "getReviewDetail",
+  "updateReviewItem",
+  "decideReviewItem",
+  "setSkuNextAction",
+  "listConnectors",
+  "getConnectorDetail",
+  "createConnector",
+  "updateConnector",
+  "detectBrowserPage",
+  "previewBrowserScan",
+  "runConnectorSync",
+  "setConnectorStatus",
+  "setRuleSetStatus",
+  "retryRun",
+  "listAgentMissions",
+  "getAgentMission",
+  "createAgentMission",
+  "startAgentRun",
+  "getAgentRunDetail",
+  "pauseAgentRun",
+  "cancelAgentRun",
+  "answerAgentRunQuestion",
+  "decideAgentReviewGate",
+  "listReports",
+  "getReportDetail",
+  "listReportVersions",
+  "getReportVersion",
+  "compareReports",
+  "exportReport",
+  "subscribeReport",
+] as const;
+
+export type AgentToolName = (typeof defaultAgentToolNames)[number] | "runSimulation";
 
 export interface SettingsUserDto {
   userId: string;

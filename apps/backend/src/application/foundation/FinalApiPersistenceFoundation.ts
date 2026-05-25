@@ -26,6 +26,7 @@ import {
   type WorkspaceSettingsDto,
   assertValidIngestPayload,
   assertValidRuleSet,
+  defaultAgentToolNames,
 } from "../../../../contracts/types/businessFoundation";
 import type {
   DashboardSkuEligibilityStatus,
@@ -2492,7 +2493,7 @@ export class WorkspaceSettingsService {
 
 const toolPolicyVersion = "p1";
 const forcedDeniedRuntimeTools = ["coding", "file", "bash", "shell", "terminal", "runtime:exec", "prisma:migrate"];
-const defaultAllowedAgentTools = ["getDashboardContext", "searchSkus", "listRuleSets", "getRuleSetDetail", "createRuleSet", "updateRuleSet", "createRuleSetVersion", "listActivities", "createActivity", "updateActivity", "getActivityExecutionPlan", "startActivityRun", "getSkuSummary", "parseActivityRules", "checkDataFreshness", "diagnoseSkuHealth", "simulateActivityReadiness", "explainDecisionWithEvidence", "generateReport", "generateReportPreview", "createReviewItems", "getReviewDetail", "updateReviewItem", "decideReviewItem", "setSkuNextAction", "listConnectors", "getConnectorDetail", "createConnector", "updateConnector", "detectBrowserPage", "previewBrowserScan", "runConnectorSync", "setConnectorStatus", "setRuleSetStatus", "retryRun", "listAgentMissions", "getAgentMission", "createAgentMission", "startAgentRun", "getAgentRunDetail", "pauseAgentRun", "cancelAgentRun", "answerAgentRunQuestion", "decideAgentReviewGate", "listReports", "getReportDetail", "listReportVersions", "getReportVersion", "compareReports", "exportReport", "subscribeReport"];
+const defaultAllowedAgentTools = [...defaultAgentToolNames];
 
 function defaultRuleSetMetadata(): RuleSetMetadata {
   return { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedAt: new Date(0).toISOString(), updatedBy: "system" };

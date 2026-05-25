@@ -5,7 +5,7 @@ import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAg
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
-import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type EvidenceLinkDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
@@ -113,7 +113,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listAgentMissions', 'getAgentMission', 'createAgentMission', 'startAgentRun', 'getAgentRunDetail', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set<string>(defaultAgentToolNames)
 const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 

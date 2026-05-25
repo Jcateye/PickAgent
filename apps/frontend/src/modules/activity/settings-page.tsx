@@ -1,62 +1,8 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import type { SettingsUserDto, ToolPolicyDto, WorkspaceSettingsDto } from '../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type SettingsUserDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../contracts/types/businessFoundation'
 import { fetchActivityApi } from './api-client'
-
-const commonAgentTools = [
-  'getDashboardContext',
-  'searchSkus',
-  'listRuleSets',
-  'getRuleSetDetail',
-  'createRuleSet',
-  'updateRuleSet',
-  'createRuleSetVersion',
-  'listActivities',
-  'createActivity',
-  'updateActivity',
-  'getActivityExecutionPlan',
-  'startActivityRun',
-  'getSkuSummary',
-  'diagnoseSkuHealth',
-  'checkDataFreshness',
-  'parseActivityRules',
-  'simulateActivityReadiness',
-  'explainDecisionWithEvidence',
-  'generateReport',
-  'createReviewItems',
-  'getReviewDetail',
-  'updateReviewItem',
-  'decideReviewItem',
-  'generateReportPreview',
-  'listConnectors',
-  'getConnectorDetail',
-  'createConnector',
-  'updateConnector',
-  'runConnectorSync',
-  'setConnectorStatus',
-  'setRuleSetStatus',
-  'retryRun',
-  'listAgentMissions',
-  'getAgentMission',
-  'createAgentMission',
-  'startAgentRun',
-  'getAgentRunDetail',
-  'pauseAgentRun',
-  'cancelAgentRun',
-  'answerAgentRunQuestion',
-  'decideAgentReviewGate',
-  'listReports',
-  'getReportDetail',
-  'listReportVersions',
-  'getReportVersion',
-  'compareReports',
-  'exportReport',
-  'subscribeReport',
-  'setSkuNextAction',
-  'detectBrowserPage',
-  'previewBrowserScan',
-]
 
 export function SettingsPage() {
   const [workspace, setWorkspace] = useState<WorkspaceSettingsDto | null>(null)
@@ -179,7 +125,7 @@ export function SettingsPage() {
           <div style={{ color: 'var(--muted)', fontSize: '13px' }}>policy {toolPolicy?.policyVersion ?? '-'}</div>
         </div>
         <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-          {commonAgentTools.map((toolName) => (
+          {defaultAgentToolNames.map((toolName) => (
             <label key={toolName} style={{ border: '1px solid var(--line)', borderRadius: '8px', padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: allowedTools.has(toolName) ? 'rgba(22, 163, 74, 0.06)' : 'white' }}>
               <input type="checkbox" checked={allowedTools.has(toolName)} disabled={busy === `tool:${toolName}`} onChange={() => void toggleTool(toolName)} />
               <span style={{ fontSize: '13px', fontWeight: 600 }}>{toolName}</span>
