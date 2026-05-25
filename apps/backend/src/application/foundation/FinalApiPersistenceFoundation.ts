@@ -991,7 +991,7 @@ export class ConnectorRepositoryV2 {
       connectorId,
       status: "SUCCEEDED",
       rowCount: input.rowCount ?? 0,
-      qualityScore: input.qualityScore,
+      qualityScore: normalizeConnectorQualityScore(input.qualityScore),
       warnings: input.warnings ?? [],
       summary: input.summary ?? {},
       startedAt: now,
@@ -1966,8 +1966,9 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   async createRun(boundary: P0AuthContextDto, connectorId: string, input: CreateConnectorSyncRunDto): Promise<ConnectorRunDetailDto> {
     const now = new Date();
     const workflowRunId = nextUuid();
-    await this.prisma.workflowRun.create({ data: { id: workflowRunId, workflowType: "connector_sync", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { connectorId, actorId: boundary.actorId, tenantId: boundary.tenantId, surface: boundary.surface }, outputJson: { rowCount: input.rowCount ?? 0, qualityScore: input.qualityScore }, startedAt: now, completedAt: now } });
-    const created = await this.prisma.connectorRun.create({ data: { connectorId, workflowRunId, status: "succeeded", rowCount: input.rowCount ?? 0, qualityScore: input.qualityScore, warningsJson: input.warnings ?? [], summaryJson: input.summary ?? {}, startedAt: now, completedAt: now } });
+    const qualityScore = normalizeConnectorQualityScore(input.qualityScore);
+    await this.prisma.workflowRun.create({ data: { id: workflowRunId, workflowType: "connector_sync", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { connectorId, actorId: boundary.actorId, tenantId: boundary.tenantId, surface: boundary.surface }, outputJson: { rowCount: input.rowCount ?? 0, qualityScore }, startedAt: now, completedAt: now } });
+    const created = await this.prisma.connectorRun.create({ data: { connectorId, workflowRunId, status: "succeeded", rowCount: input.rowCount ?? 0, qualityScore, warningsJson: input.warnings ?? [], summaryJson: input.summary ?? {}, startedAt: now, completedAt: now } });
     const connector = await this.prisma.connector.findUnique({ where: { id: connectorId } });
     if (!connector) throw new Error(`Connector not found: ${connectorId}`);
     return toConnectorRunDetail(toConnectorRunRecord(created), toConnectorRecord(connector));
@@ -3495,6 +3496,14 @@ function normalizeConnectorRunStatus(value: unknown): ConnectorRunSummaryDto["st
   const upper = String(value ?? "PENDING").toUpperCase();
   if (upper === "RUNNING" || upper === "SUCCEEDED" || upper === "FAILED") return upper;
   return "PENDING";
+}
+
+function normalizeConnectorQualityScore(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  const percent = numeric > 0 && numeric <= 1 ? numeric * 100 : numeric;
+  return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
 function sanitizeConnectorConfig(config: Record<string, unknown>): Record<string, unknown> {

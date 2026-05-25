@@ -442,3 +442,27 @@ test("workspace settings service keeps L3 runtime tools denied", async () => {
   assert.equal((await runtime.workspaceSettingsService.listUsers(tenantA)).length, 3);
   assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "tool_policy_update"));
 });
+
+test("connector sync run normalizes fractional quality scores for persistence", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const connector = await runtime.connectorService.create(
+    {
+      code: "quality_score_connector",
+      name: "质量分连接器",
+      kind: "platform_api",
+      platform: "tmall",
+      status: "ACTIVE",
+      config: { source: "unit-test" },
+    },
+    tenantA,
+  );
+
+  const run = await runtime.connectorService.createSyncRun(connector.connectorId, { rowCount: 10, qualityScore: 0.9 }, tenantA);
+  assert.equal(run.qualityScore, 90);
+
+  const runs = await runtime.connectorService.listRuns(connector.connectorId, 1, 10, tenantA);
+  assert.equal(runs.items[0]?.qualityScore, 90);
+
+  const detail = await runtime.connectorService.getRun(run.connectorRunId, tenantA);
+  assert.equal(detail?.qualityScore, 90);
+});
