@@ -4,7 +4,7 @@ import test from 'node:test'
 import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
 import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/[sessionKey]/messages/route'
-import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
+import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
   const previousOpenAiKey = process.env.OPENAI_API_KEY
@@ -239,6 +239,9 @@ test('agent chat session recovery preserves review gate turns', () => {
 })
 
 test('approved chat review gate executes original write tool on continuation run', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
   const beforeReportCount = finalApiRuntime.store.reports.size
   const calls: Array<{ kind: string; input: Record<string, unknown> }> = []
   const repository = {
@@ -268,7 +271,7 @@ test('approved chat review gate executes original write tool on continuation run
       status: 'WAITING_FOR_APPROVAL',
       riskLevel: 'L2',
       reviewPolicy: 'REVIEW_GATE',
-      inputJson: { skuProfileIds: ['sku_missing_but_report_writes'] },
+      inputJson: { skuProfileIds: [skuProfileId] },
       outputJson: {},
       evidenceRefsJson: {},
       errorMessage: null,

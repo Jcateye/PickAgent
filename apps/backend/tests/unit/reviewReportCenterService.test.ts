@@ -88,3 +88,22 @@ test("review workbench detail, decision audit, report versions, export and subsc
   assert.ok(audits.some((audit) => audit.workflowType === "report_compare" && audit.subjectId === preview.reportId));
   assert.ok(audits.some((audit) => audit.workflowType === "report_subscription" && audit.subjectId === preview.reportId));
 });
+
+test("report generation rejects missing evidence inputs before writes", async () => {
+  const runtime = createFinalApiPersistenceRuntime({ adapter: "memory" });
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture, boundary);
+  const reportCountBeforeMissingSku = runtime.store.reports.size;
+
+  await assert.rejects(
+    () => runtime.reportService.generate({ type: "HEALTH", skuProfileIds: ["missing_sku_profile"], simulationResultIds: [] }, boundary),
+    /SKU not found for report: missing_sku_profile/,
+  );
+  assert.equal(runtime.store.reports.size, reportCountBeforeMissingSku);
+
+  const reportCountBeforeMissingSimulation = runtime.store.reports.size;
+  await assert.rejects(
+    () => runtime.reportService.generate({ type: "ACTIVITY", skuProfileIds: [ingest.summaries[0].skuProfileId], simulationResultIds: ["missing_simulation_result"] }, boundary),
+    /Simulation result not found for report: missing_simulation_result/,
+  );
+  assert.equal(runtime.store.reports.size, reportCountBeforeMissingSimulation);
+});

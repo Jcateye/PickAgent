@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { POST as createReport } from '../src/app/api/reports/route'
 import { POST as compareReports } from '../src/app/api/reports/compare/route'
 import { POST as exportReport } from '../src/app/api/reports/[reportId]/export/route'
 import { POST as subscribeReport } from '../src/app/api/reports/[reportId]/subscriptions/route'
@@ -61,4 +62,19 @@ test('report routes return not found for missing report write and version action
   const compareEnvelope = await compareResponse.json()
   assert.equal(compareResponse.status, 404)
   assert.equal(compareEnvelope.code, 'REPORT.NOT_FOUND')
+})
+
+test('report create route rejects missing sku evidence instead of creating empty report', async () => {
+  const response = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: ['missing_sku_profile_for_route'], simulationResultIds: [] }),
+    }),
+  )
+  const envelope = await response.json()
+
+  assert.equal(response.status, 400)
+  assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  assert.match(envelope.message, /SKU not found for report: missing_sku_profile_for_route/)
 })

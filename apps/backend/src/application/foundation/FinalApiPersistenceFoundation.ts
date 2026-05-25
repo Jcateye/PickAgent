@@ -2497,8 +2497,14 @@ export class FinalReportService {
   constructor(private readonly repository: ReportRepository, private readonly skuQueryRepository: SkuQueryRepository) {}
 
   async generate(input: ReportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportPreviewDto> {
-    const details = (await Promise.all(input.skuProfileIds.map((id) => this.skuQueryRepository.detail(boundary, id)))).filter((item): item is SkuDetailDto => item !== null);
-    const simulations = (await Promise.all((input.simulationResultIds ?? []).map((id) => this.repository.getSimulationResult(boundary, id)))).filter((item): item is SimulationResultDto => item !== null);
+    const detailEntries = await Promise.all(input.skuProfileIds.map(async (id) => ({ id, detail: await this.skuQueryRepository.detail(boundary, id) })));
+    const missingSkuProfileIds = detailEntries.filter((item) => !item.detail).map((item) => item.id);
+    if (missingSkuProfileIds.length) throw new Error(`SKU not found for report: ${missingSkuProfileIds.join(", ")}`);
+    const simulationEntries = await Promise.all((input.simulationResultIds ?? []).map(async (id) => ({ id, simulation: await this.repository.getSimulationResult(boundary, id) })));
+    const missingSimulationResultIds = simulationEntries.filter((item) => !item.simulation).map((item) => item.id);
+    if (missingSimulationResultIds.length) throw new Error(`Simulation result not found for report: ${missingSimulationResultIds.join(", ")}`);
+    const details = detailEntries.map((item) => item.detail!);
+    const simulations = simulationEntries.map((item) => item.simulation!);
     const simulationEvidence = simulations.map((result) => evidence("simulation", result.simulationResultId, "活动模拟", `准入状态：${result.eligibility}`));
     const unresolvedHealthRisks = details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map((issue) => `${item.productName}：${issue}`));
     const unresolvedSimulationRisks = simulations.filter((item) => item.eligibility === "MANUAL_REVIEW" || item.eligibility === "BLOCKED").map((item) => `${item.simulationResultId}：${item.eligibility}，失败规则 ${item.failedRules.length} 条`);
