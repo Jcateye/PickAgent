@@ -469,6 +469,21 @@ test("workspace settings service keeps L3 runtime tools denied", async () => {
   assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "tool_policy_update"));
 });
 
+test("workspace settings and tool policy read back memory updates", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+
+  await runtime.workspaceSettingsService.updateWorkspace({ dataFreshnessThresholdHours: 6 }, tenantA);
+  await runtime.workspaceSettingsService.updateToolPolicy({ allowedAgentTools: [], deniedRuntimeTools: ["customDenied"] }, tenantA);
+
+  const workspace = await runtime.workspaceSettingsService.getWorkspace(tenantA);
+  const policy = await runtime.workspaceSettingsService.getToolPolicy(tenantA);
+
+  assert.equal(workspace.dataFreshnessThresholdHours, 6);
+  assert.deepEqual(policy.allowedAgentTools, []);
+  assert.ok(policy.deniedRuntimeTools.includes("customDenied"));
+  assert.ok(policy.deniedRuntimeTools.includes("bash"));
+});
+
 test("connector sync run normalizes fractional quality scores for persistence", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const connector = await runtime.connectorService.create(

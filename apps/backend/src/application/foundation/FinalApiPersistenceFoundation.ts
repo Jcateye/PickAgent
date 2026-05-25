@@ -254,6 +254,9 @@ export class FinalApiPersistenceStore {
   readonly reportSubscriptions = new Map<string, ReportSubscriptionDto>();
   readonly connectors = new Map<string, ConnectorRecordDto>();
   readonly connectorRuns = new Map<string, ConnectorRunRecordDto>();
+  workspaceSettings?: WorkspaceSettingsDto;
+  toolPolicy?: ToolPolicyDto;
+  settingsUsers?: SettingsUserDto[];
   readonly workflowAudits = new Map<string, WorkflowAuditRecord>();
   readonly skuNextActionOverrides = new Map<string, DashboardSkuListItemDto["nextAction"]>();
   readonly tenantByEntityId = new Map<string, string>();
@@ -735,24 +738,29 @@ export class WorkspaceSettingsRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
   getWorkspace(_boundary: P0AuthContextDto): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
-    return defaultWorkspaceSettings();
+    return this.store.workspaceSettings ?? defaultWorkspaceSettings();
   }
 
   updateWorkspace(_boundary: P0AuthContextDto, input: Partial<WorkspaceSettingsDto>): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
-    return normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), ...input });
+    const updated = normalizeWorkspaceSettings({ ...(this.store.workspaceSettings ?? defaultWorkspaceSettings()), ...input });
+    this.store.workspaceSettings = updated;
+    return updated;
   }
 
   getToolPolicy(boundary: P0AuthContextDto): ToolPolicyDto | Promise<ToolPolicyDto> {
-    const workspace = this.getWorkspace(boundary) as WorkspaceSettingsDto;
-    return toToolPolicy(workspace, boundary.actorId);
+    return this.store.toolPolicy ?? toToolPolicy(this.getWorkspace(boundary) as WorkspaceSettingsDto, boundary.actorId);
   }
 
   updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): ToolPolicyDto | Promise<ToolPolicyDto> {
-    return toToolPolicy(normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools }), boundary.actorId);
+    const currentWorkspace = this.store.workspaceSettings ?? defaultWorkspaceSettings();
+    const workspace = normalizeWorkspaceSettings({ ...currentWorkspace, allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools });
+    this.store.workspaceSettings = workspace;
+    this.store.toolPolicy = toToolPolicy(workspace, boundary.actorId);
+    return this.store.toolPolicy;
   }
 
   listUsers(_boundary: P0AuthContextDto): SettingsUserDto[] | Promise<SettingsUserDto[]> {
-    return defaultSettingsUsers();
+    return this.store.settingsUsers ?? defaultSettingsUsers();
   }
 }
 
