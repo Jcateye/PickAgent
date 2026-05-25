@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, PrismaReportRepository, PrismaReviewRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -465,4 +465,31 @@ test("connector sync run normalizes fractional quality scores for persistence", 
 
   const detail = await runtime.connectorService.getRun(run.connectorRunId, tenantA);
   assert.equal(detail?.qualityScore, 90);
+});
+
+test("prisma connector run validates connector before writing workflow audit", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaConnectorRepositoryV2({
+    connector: {
+      findUnique: async () => null,
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun");
+        return {};
+      },
+    },
+    connectorRun: {
+      create: async () => {
+        writes.push("connectorRun");
+        return {};
+      },
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.createRun(tenantA, "missing_connector", { rowCount: 1, qualityScore: 0.9 }),
+    /Connector not found: missing_connector/,
+  );
+  assert.deepEqual(writes, []);
 });

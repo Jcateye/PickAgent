@@ -1964,13 +1964,13 @@ export class PrismaConnectorRepositoryV2 extends ConnectorRepositoryV2 {
   }
 
   async createRun(boundary: P0AuthContextDto, connectorId: string, input: CreateConnectorSyncRunDto): Promise<ConnectorRunDetailDto> {
+    const connector = await this.prisma.connector.findUnique({ where: { id: connectorId } });
+    if (!connector) throw new Error(`Connector not found: ${connectorId}`);
     const now = new Date();
     const workflowRunId = nextUuid();
     const qualityScore = normalizeConnectorQualityScore(input.qualityScore);
     await this.prisma.workflowRun.create({ data: { id: workflowRunId, workflowType: "connector_sync", status: "SUCCEEDED", subjectType: "connector", subjectId: connectorId, inputJson: { connectorId, actorId: boundary.actorId, tenantId: boundary.tenantId, surface: boundary.surface }, outputJson: { rowCount: input.rowCount ?? 0, qualityScore }, startedAt: now, completedAt: now } });
     const created = await this.prisma.connectorRun.create({ data: { connectorId, workflowRunId, status: "succeeded", rowCount: input.rowCount ?? 0, qualityScore, warningsJson: input.warnings ?? [], summaryJson: input.summary ?? {}, startedAt: now, completedAt: now } });
-    const connector = await this.prisma.connector.findUnique({ where: { id: connectorId } });
-    if (!connector) throw new Error(`Connector not found: ${connectorId}`);
     return toConnectorRunDetail(toConnectorRunRecord(created), toConnectorRecord(connector));
   }
 
