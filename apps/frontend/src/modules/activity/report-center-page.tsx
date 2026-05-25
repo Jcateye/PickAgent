@@ -63,6 +63,8 @@ export function ReportCenterPage() {
     setVersions(nextVersions)
     setSelectedVersionId(nextVersion?.versionId ?? null)
     setDetail(nextVersion ?? nextDetail)
+    setSubscriptionFrequency(nextDetail.subscription?.frequency ?? 'OFF')
+    setSubscriptionRecipients(nextDetail.subscription?.recipients.join('\n') ?? '')
     setActiveTab((current) => (nextDetail.tabs.includes(current) ? current : nextDetail.tabs[0] ?? 'SUMMARY'))
   }
 
@@ -119,6 +121,7 @@ export function ReportCenterPage() {
         body: JSON.stringify({ frequency: subscriptionFrequency, recipients }),
       })
       setMessage(`已更新订阅：${subscription.frequency} / ${subscription.recipients.join(', ')}`)
+      setDetail((current) => current && current.reportId === subscription.reportId ? { ...current, subscription } : current)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '订阅报告失败')
     } finally {

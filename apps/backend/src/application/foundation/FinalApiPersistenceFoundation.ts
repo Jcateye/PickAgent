@@ -878,7 +878,10 @@ export class ReportRepository {
 
   getById(boundary: P0AuthContextDto, reportId: string): ReportDetailDto | null | Promise<ReportDetailDto | null> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
-    return this.store.reportDetails.get(reportId) ?? null;
+    const detail = this.store.reportDetails.get(reportId);
+    if (!detail) return null;
+    const subscription = this.store.reportSubscriptions.get(reportId);
+    return subscription ? { ...detail, subscription } : detail;
   }
 
   listVersions(boundary: P0AuthContextDto, reportId: string): ReportVersionDto[] | Promise<ReportVersionDto[]> {
@@ -3348,6 +3351,7 @@ function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T>
 
 function toReportDetailFromRow(row: Record<string, unknown>): ReportDetailDto {
   const summary = isRecord(row.summaryJson) ? row.summaryJson : {};
+  const subscription = normalizeReportSubscription(row.subscriptionJson, String(row.id));
   return {
     reportId: String(row.id),
     title: String(row.title ?? "报告"),
@@ -3357,6 +3361,7 @@ function toReportDetailFromRow(row: Record<string, unknown>): ReportDetailDto {
     tabs: ["SUMMARY", "TASKS", "RULES", "EVIDENCE", "REPAIRS"],
     summary: normalizeReportSummary(summary),
     evidenceSummary: [],
+    ...(subscription ? { subscription } : {}),
   };
 }
 
@@ -3389,6 +3394,18 @@ function normalizeReportSummary(value: Record<string, unknown>): ReportDetailDto
       approved: Number(value.reviewResult.approved ?? 0),
       rejected: Number(value.reviewResult.rejected ?? 0),
     } : { total: 0, completed: 0, approved: 0, rejected: 0 },
+  };
+}
+
+function normalizeReportSubscription(value: unknown, reportId: string): ReportSubscriptionDto | undefined {
+  if (!isRecord(value)) return undefined;
+  const frequency = value.frequency;
+  if (frequency !== "DAILY" && frequency !== "WEEKLY" && frequency !== "MONTHLY" && frequency !== "OFF") return undefined;
+  return {
+    reportId: typeof value.reportId === "string" ? value.reportId : reportId,
+    frequency,
+    recipients: asArray(value.recipients).map(String).filter(Boolean),
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date(0).toISOString(),
   };
 }
 

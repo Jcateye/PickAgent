@@ -135,6 +135,7 @@ export interface ReportDetailDto {
     };
   };
   evidenceSummary: EvidenceRef[];
+  subscription?: ReportSubscriptionDto;
 }
 
 export interface ReportListItemDto {
