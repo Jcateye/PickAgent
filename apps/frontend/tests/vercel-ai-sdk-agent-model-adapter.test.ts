@@ -169,6 +169,8 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
     model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
     generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
       await input.tools?.listConnectors?.execute?.({ pageSize: 5 })
+      await input.tools?.detectBrowserPage?.execute?.({ url: 'https://tmall.example.test/items', title: '天猫商品列表' })
+      await input.tools?.previewBrowserScan?.execute?.({ url: 'https://tmall.example.test/items', rows: [{ sku: 'SKU-1', title: '商品1', stock: 12 }] })
       await input.tools?.runConnectorSync?.execute?.({ connectorId: 'connector_1', rowCount: 12, qualityScore: 98 })
       await input.tools?.setConnectorStatus?.execute?.({ connectorId: 'connector_1', status: 'DISABLED' })
       await input.tools?.setRuleSetStatus?.execute?.({ ruleSetId: 'rule_1', status: 'DISABLED' })
@@ -219,7 +221,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 

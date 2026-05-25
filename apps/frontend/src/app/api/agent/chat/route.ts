@@ -2,7 +2,7 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
-import type { CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
+import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
@@ -112,7 +112,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'exportReport', 'subscribeReport'])
 const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -429,6 +429,18 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, [{ type: 'tool_trace', entityId: 'connectors', label: '连接器列表', summary: `读取 ${result.items.length} 个连接器` }], `读取连接器：${result.items.length} 个`, result.items[0] ? { type: 'connector', id: result.items[0].connectorId } : { type: 'dashboard', id: 'connectors' })
     }
 
+    if (toolName === 'detectBrowserPage') {
+      const request = browserPageDetectionInput(input)
+      const result = finalApiRuntime.browserConnectorService.detectPage(request)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.traceRef.entityId, label: '浏览器页面识别', summary: `${result.pageType} / ${result.platform ?? 'unknown'} / ${result.reason}` }], `页面识别：${result.supported ? '可采集' : '需确认'}，置信度 ${result.confidence}`, { type: 'connector', id: result.traceRef.entityId })
+    }
+
+    if (toolName === 'previewBrowserScan') {
+      const request = browserScanPreviewInput(input)
+      const result = finalApiRuntime.browserConnectorService.scanPreview(request)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.detected.traceRef.entityId, label: '浏览器扫描预览', summary: `行数 ${result.rowCount}，质量分 ${result.qualityScore}，ready=${result.ingestReady}` }], `扫描预览：${result.rowCount} 行，质量分 ${result.qualityScore}`, result.connectorId ? { type: 'connector', id: result.connectorId } : { type: 'connector', id: result.detected.traceRef.entityId })
+    }
+
     if (toolName === 'runConnectorSync') {
       const connectorId = String(input.connectorId ?? '')
       if (!connectorId) throw new Error('connectorId is required')
@@ -619,6 +631,33 @@ function reviewPatchInput(input: Record<string, unknown>): Partial<Pick<ReviewIt
   if (riskLevel) patch.riskLevel = riskLevel
   if (Object.keys(patch).length === 0) throw new Error('question, recommendation, or riskLevel is required')
   return patch
+}
+
+function browserPageDetectionInput(input: Record<string, unknown>): BrowserPageDetectionRequestDto {
+  const url = optionalString(input.url)
+  if (!url) throw new Error('url is required')
+  return {
+    url,
+    title: optionalString(input.title),
+    htmlTextSample: optionalString(input.htmlTextSample ?? input.sample),
+  }
+}
+
+function browserScanPreviewInput(input: Record<string, unknown>): BrowserScanPreviewRequestDto {
+  const url = optionalString(input.url)
+  if (!url) throw new Error('url is required')
+  const rows = recordArray(input.rows)
+  if (!rows.length) throw new Error('rows are required')
+  return {
+    connectorId: optionalString(input.connectorId),
+    url,
+    collectedAt: optionalString(input.collectedAt),
+    rows,
+  }
+}
+
+function recordArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? value.filter(isRecord) : []
 }
 
 function normalizeReviewRiskLevel(value: unknown): ReviewItemDto['riskLevel'] | undefined {

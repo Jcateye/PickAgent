@@ -37,6 +37,8 @@ const commonAgentTools = [
   'exportReport',
   'subscribeReport',
   'setSkuNextAction',
+  'detectBrowserPage',
+  'previewBrowserScan',
 ]
 
 export function SettingsPage() {
