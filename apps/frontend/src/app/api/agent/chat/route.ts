@@ -115,6 +115,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
 const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
+const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 export function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -226,7 +227,9 @@ export function createPersistentToolExecutor(repository: AgentConversationReposi
 }
 
 export function agentToolRiskLevel(toolName: string): 'L1' | 'L2' {
-  return writeAgentTools.has(normalizePolicyToolName(toolName)) ? 'L2' : 'L1'
+  const normalizedToolName = normalizePolicyToolName(toolName)
+  if (autoAllowedWriteAgentTools.has(normalizedToolName)) return 'L1'
+  return writeAgentTools.has(normalizedToolName) ? 'L2' : 'L1'
 }
 
 export function agentToolRequiresReviewGate(toolName: string): boolean {

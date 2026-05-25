@@ -88,10 +88,22 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('reportPreview'), 'L2')
   assert.equal(agentToolRiskLevel('compareReports'), 'L2')
   assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
+  assert.equal(agentToolRiskLevel('createReviewItems'), 'L1')
+  assert.equal(agentToolRiskLevel('runConnectorSync'), 'L1')
+  assert.equal(agentToolRiskLevel('setSkuNextAction'), 'L1')
+  assert.equal(agentToolRiskLevel('exportReport'), 'L1')
+  assert.equal(agentToolRiskLevel('subscribeReport'), 'L1')
+  assert.equal(agentToolRiskLevel('answerAgentRunQuestion'), 'L1')
   assert.equal(agentToolRequiresReviewGate('generateReport'), true)
   assert.equal(agentToolRequiresReviewGate('generateReportPreview'), true)
   assert.equal(agentToolRequiresReviewGate('reportPreview'), true)
   assert.equal(agentToolRequiresReviewGate('getReportDetail'), false)
+  assert.equal(agentToolRequiresReviewGate('createReviewItems'), false)
+  assert.equal(agentToolRequiresReviewGate('runConnectorSync'), false)
+  assert.equal(agentToolRequiresReviewGate('setSkuNextAction'), false)
+  assert.equal(agentToolRequiresReviewGate('exportReport'), false)
+  assert.equal(agentToolRequiresReviewGate('subscribeReport'), false)
+  assert.equal(agentToolRequiresReviewGate('answerAgentRunQuestion'), false)
 })
 
 test('agent chat persistent executor opens review gate before write tools', async () => {
@@ -125,6 +137,43 @@ test('agent chat persistent executor opens review gate before write tools', asyn
   assert.equal(execution.reviewGate?.id, 'gate_review_1')
   assert.equal(finalApiRuntime.store.reports.size, beforeReportCount)
   assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'reviewGate', 'event'])
+})
+
+test('agent chat persistent executor directly executes low-risk audited product tools', async () => {
+  const beforeReviewCount = finalApiRuntime.store.reviews.size
+  const calls: Array<{ kind: string; input: Record<string, unknown> }> = []
+  const repository = {
+    createToolCall: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'toolCall', input })
+      return { id: 'tool_call_low_risk_1', ...input }
+    },
+    createReviewGate: async () => {
+      throw new Error('low-risk tool should not open review gate')
+    },
+    appendRunEvent: async (input: Record<string, unknown>) => {
+      calls.push({ kind: 'event', input })
+      return { id: 'event_low_risk_1', ...input }
+    },
+  }
+
+  const executor = createPersistentToolExecutor(repository as never)
+  const execution = await executor({
+    run: { id: 'run_low_risk_1' } as never,
+    mission: { id: 'mission_low_risk_1' } as never,
+    toolName: 'createReviewItems',
+    inputJson: {
+      sourceId: 'agent_low_risk_source',
+      question: '是否需要补充证据后再推进？',
+      recommendation: '提交人工复核并保留证据链。',
+      riskLevel: 'L1',
+    },
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  assert.equal(execution.toolCall.reviewPolicy, 'AUTO_ALLOW')
+  assert.equal(execution.toolCall.riskLevel, 'L1')
+  assert.equal(finalApiRuntime.store.reviews.size, beforeReviewCount + 1)
+  assert.deepEqual(calls.map((item) => item.kind), ['toolCall', 'event'])
 })
 
 test('agent chat persistent executor gates report preview aliases before write', async () => {
