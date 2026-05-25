@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, RefreshCw } from 'lucide-react'
 import type { ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto } from '../../../../contracts/types/reviewReportCenter'
-import { fetchActivityApi } from './api-client'
+import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './report-center.module.css'
 
 type ExportFormat = 'PDF' | 'EXCEL' | 'PPT'
@@ -17,7 +17,8 @@ export function ReportCenterPage() {
   const [busy, setBusy] = useState<string | null>(null)
 
   async function loadReports(preferredId?: string | null) {
-    const list = await fetchActivityApi<ReportListItemDto[]>('/api/reports')
+    const page = await fetchActivityApi<PageDto<ReportListItemDto>>('/api/reports')
+    const list = page.items
     setReports(list)
     const nextId = preferredId ?? selectedReportId ?? list[0]?.reportId ?? null
     setSelectedReportId(nextId)

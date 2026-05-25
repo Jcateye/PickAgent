@@ -2,17 +2,18 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertOctagon, CheckCircle2, ChevronRight, Edit, FileCheck, HelpCircle, Package, Search, ShieldAlert, SlidersHorizontal, X, XCircle } from 'lucide-react'
-import type { ReviewItemDto, ReviewDecision } from '../../../../contracts/types/businessFoundation'
+import type { ReviewDetailDto, ReviewListItemDto, ReviewRiskLevel, ReviewWorkbenchStatus, ReviewWorkbenchType } from '../../../../contracts/types/reviewReportCenter'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './review-approvals.module.css'
 
-type ReviewTab = 'all' | 'OPEN' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED'
+type ReviewDecision = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'
+type ReviewTab = 'all' | ReviewWorkbenchStatus
 
 const tabCopy: Array<{ value: ReviewTab; label: string }> = [
-  { value: 'OPEN', label: '待审批建议' },
+  { value: 'PENDING', label: '待审批建议' },
   { value: 'APPROVED', label: '已批准' },
   { value: 'REJECTED', label: '已驳回' },
-  { value: 'CHANGES_REQUESTED', label: '已修改' },
+  { value: 'MODIFIED', label: '已修改' },
   { value: 'all', label: '全部' },
 ]
 
@@ -23,10 +24,10 @@ const decisionStatusCopy: Record<ReviewDecision, string> = {
 }
 
 export function ReviewApprovalsPage() {
-  const [reviews, setReviews] = useState<ReviewItemDto[]>([])
+  const [reviews, setReviews] = useState<ReviewListItemDto[]>([])
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
-  const [detail, setDetail] = useState<ReviewItemDto | null>(null)
-  const [activeTab, setActiveTab] = useState<ReviewTab>('OPEN')
+  const [detail, setDetail] = useState<ReviewDetailDto | null>(null)
+  const [activeTab, setActiveTab] = useState<ReviewTab>('PENDING')
   const [query, setQuery] = useState('')
   const [remark, setRemark] = useState('')
   const [loading, setLoading] = useState(true)
@@ -35,7 +36,7 @@ export function ReviewApprovalsPage() {
 
   const loadReviews = async () => {
     setLoading(true)
-    const page = await fetchActivityApi<PageDto<ReviewItemDto>>('/api/reviews?pageSize=50')
+    const page = await fetchActivityApi<PageDto<ReviewListItemDto>>('/api/reviews?pageSize=50')
     setReviews(page.items)
     setSelectedItem((current) => current && page.items.some((item) => item.reviewItemId === current) ? current : page.items[0]?.reviewItemId ?? null)
     setLoading(false)
@@ -54,12 +55,12 @@ export function ReviewApprovalsPage() {
       return
     }
     let cancelled = false
-    fetchActivityApi<ReviewItemDto>(`/api/reviews/${selectedItem}`)
+    fetchActivityApi<ReviewDetailDto>(`/api/reviews/${selectedItem}`)
       .then((nextDetail) => {
         if (!cancelled) setDetail(nextDetail)
       })
       .catch(() => {
-        if (!cancelled) setDetail(reviews.find((item) => item.reviewItemId === selectedItem) ?? null)
+        if (!cancelled) setDetail(null)
       })
     return () => {
       cancelled = true
@@ -70,7 +71,7 @@ export function ReviewApprovalsPage() {
     const normalizedQuery = query.trim().toLowerCase()
     return reviews.filter((item) => {
       const tabMatched = activeTab === 'all' || item.status === activeTab
-      const queryMatched = !normalizedQuery || [item.reviewItemId, item.question, item.recommendation, item.skuProfileId, item.sourceId].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery))
+      const queryMatched = !normalizedQuery || [item.reviewItemId, item.title, item.summary, item.assignee.name, item.assignee.team].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalizedQuery))
       return tabMatched && queryMatched
     })
   }, [activeTab, query, reviews])
@@ -80,7 +81,7 @@ export function ReviewApprovalsPage() {
     if (!target) return
     setBusy(decision)
     try {
-      const updated = await fetchActivityApi<ReviewItemDto>(`/api/reviews/${target.reviewItemId}/decision`, {
+      const updated = await fetchActivityApi<ReviewDetailDto>(`/api/reviews/${target.reviewItemId}/decision`, {
         method: 'POST',
         body: JSON.stringify({
           decision,
@@ -89,7 +90,7 @@ export function ReviewApprovalsPage() {
           modifiedPayload: decision === 'REQUEST_CHANGES' ? { requestedFrom: 'review-approvals' } : undefined,
         }),
       })
-      setReviews((current) => current.map((item) => (item.reviewItemId === updated.reviewItemId ? updated : item)))
+      setReviews((current) => current.map((item) => (item.reviewItemId === updated.reviewItemId ? listItemFromDetail(updated) : item)))
       setDetail(updated)
       setMessage(`${updated.reviewItemId} 已${decisionStatusCopy[decision]}`)
     } catch (error) {
@@ -100,7 +101,7 @@ export function ReviewApprovalsPage() {
   }
 
   const selectedReview = detail ?? reviews.find((item) => item.reviewItemId === selectedItem) ?? null
-  const openCount = reviews.filter((item) => item.status === 'OPEN').length
+  const openCount = reviews.filter((item) => item.status === 'PENDING').length
 
   return (
     <div className={styles.layout}>
@@ -114,7 +115,7 @@ export function ReviewApprovalsPage() {
         <div className={styles.tabs}>
           {tabCopy.map((tab) => (
             <button className={`${styles.tab} ${activeTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => setActiveTab(tab.value)}>
-              {tab.label} {tab.value === 'OPEN' ? <span className={styles.tabBadge}>{openCount}</span> : null}
+              {tab.label} {tab.value === 'PENDING' ? <span className={styles.tabBadge}>{openCount}</span> : null}
             </button>
           ))}
         </div>
@@ -155,10 +156,10 @@ export function ReviewApprovalsPage() {
             <button className={`${styles.tableRow} ${selectedItem === item.reviewItemId ? styles.selected : ''}`} key={item.reviewItemId} type="button" onClick={() => setSelectedItem(item.reviewItemId)}>
               <div><input type="radio" checked={selectedItem === item.reviewItemId} readOnly /></div>
               <div><span className={`${styles.priorityBadge} ${priorityClass(item.riskLevel)}`}>{priorityLabel(item.riskLevel)}</span></div>
-              <div className={styles.rowType}>{reviewIcon(item.sourceType)} {sourceTypeLabel(item.sourceType)}</div>
+              <div className={styles.rowType}>{reviewIcon(item.type)} {sourceTypeLabel(item.type)}</div>
               <div>
-                <div className={styles.rowTitle}>{item.question}</div>
-                <div className={styles.rowDesc}>{item.recommendation ?? '等待人工确认后继续执行'}</div>
+                <div className={styles.rowTitle}>{item.title}</div>
+                <div className={styles.rowDesc}>{item.summary}</div>
               </div>
               <div><span className={styles.statusBadge}>{statusLabel(item.status)}</span></div>
               <div className={styles.riskLevel}><span className={`${styles.riskDot} ${riskDotClass(item.riskLevel)}`}></span> {item.riskLevel}</div>
@@ -166,13 +167,13 @@ export function ReviewApprovalsPage() {
                 <div className={styles.ownerAvatar}>OP</div>
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 500 }}>运营专员</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{item.decisionBy ?? 'op_team'}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{item.assignee.team}</div>
                 </div>
               </div>
-              <div>{item.sourceId}</div>
+              <div>{item.assignee.name}</div>
               <div>
-                <div style={{ fontSize: '12px' }}>{item.evidence[0]?.label ?? item.skuProfileId ?? '-'}</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.evidence.length} 条证据</div>
+                <div style={{ fontSize: '12px' }}>{item.evidenceSummary}</div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{item.dueAt ? new Date(item.dueAt).toLocaleString('zh-CN') : '未设置到期时间'}</div>
               </div>
             </button>
           ))}
@@ -191,8 +192,8 @@ export function ReviewApprovalsPage() {
           <div className={styles.drawerHeader}>
             <div>
               <div className={styles.drawerTitle}>
-                {reviewIcon(selectedReview.sourceType)}
-                {selectedReview.question}
+                {reviewIcon(selectedReview.type)}
+                {selectedReview.title}
                 <span className={styles.drawerRisk}>{selectedReview.riskLevel}</span>
               </div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '8px' }}>
@@ -212,20 +213,20 @@ export function ReviewApprovalsPage() {
             </div>
 
             <div style={{ fontWeight: 600, marginBottom: '12px' }}>建议内容</div>
-            <div className={styles.suggestionBox}>{selectedReview.recommendation ?? '请根据证据链进行人工确认。'}</div>
+            <div className={styles.suggestionBox}>{isReviewDetail(selectedReview) ? selectedReview.recommendation.content : selectedReview.summary}</div>
 
             <div className={styles.metricGrid}>
               <div className={styles.metricItem}><span className={styles.metricLabel}>状态</span><span className={styles.metricValue}>{statusLabel(selectedReview.status)}</span></div>
               <div className={styles.metricItem}><span className={styles.metricLabel}>风险等级</span><span className={styles.metricValue}>{selectedReview.riskLevel}</span></div>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>证据数</span><span className={styles.metricValue}>{selectedReview.evidence.length}</span></div>
-              <div className={styles.metricItem}><span className={styles.metricLabel}>来源</span><span className={styles.metricValue}>{selectedReview.sourceType}</span></div>
+              <div className={styles.metricItem}><span className={styles.metricLabel}>证据数</span><span className={styles.metricValue}>{isReviewDetail(selectedReview) ? selectedReview.evidenceRefs.length : 0}</span></div>
+              <div className={styles.metricItem}><span className={styles.metricLabel}>来源</span><span className={styles.metricValue}>{selectedReview.type}</span></div>
             </div>
 
             <div style={{ fontWeight: 600, marginBottom: '12px' }}>理由与依据</div>
             <ul className={styles.reasonsList}>
-              {selectedReview.evidence.map((evidence) => (
-                <li key={`${evidence.type}:${evidence.entityId}`}>{evidence.label}：{evidence.summary}</li>
-              ))}
+              {isReviewDetail(selectedReview) ? selectedReview.evidenceRefs.map((evidence) => (
+                <li key={`${evidence.sourceType}:${evidence.sourceId}`}>{evidence.label}：{evidence.evidenceText ?? evidence.field ?? evidence.sourceId}</li>
+              )) : <li>{selectedReview.evidenceSummary}</li>}
             </ul>
 
             <div className={styles.approvalWarning}>
@@ -237,9 +238,9 @@ export function ReviewApprovalsPage() {
             </div>
 
             <div className={styles.actionArea}>
-              <button className={`${styles.actionBtn} ${styles.btnApprove}`} type="button" onClick={() => void applyDecision('APPROVE')} disabled={!!busy || selectedReview.status !== 'OPEN'}><CheckCircle2 size={16} /> 批准</button>
-              <button className={`${styles.actionBtn} ${styles.btnReject}`} type="button" onClick={() => void applyDecision('REJECT')} disabled={!!busy || selectedReview.status !== 'OPEN'}><XCircle size={16} /> 驳回</button>
-              <button className={`${styles.actionBtn} ${styles.btnModify}`} type="button" onClick={() => void applyDecision('REQUEST_CHANGES')} disabled={!!busy || selectedReview.status !== 'OPEN'}><Edit size={16} /> 修改后批准</button>
+              <button className={`${styles.actionBtn} ${styles.btnApprove}`} type="button" onClick={() => void applyDecision('APPROVE')} disabled={!!busy || selectedReview.status !== 'PENDING'}><CheckCircle2 size={16} /> 批准</button>
+              <button className={`${styles.actionBtn} ${styles.btnReject}`} type="button" onClick={() => void applyDecision('REJECT')} disabled={!!busy || selectedReview.status !== 'PENDING'}><XCircle size={16} /> 驳回</button>
+              <button className={`${styles.actionBtn} ${styles.btnModify}`} type="button" onClick={() => void applyDecision('REQUEST_CHANGES')} disabled={!!busy || selectedReview.status !== 'PENDING'}><Edit size={16} /> 修改后批准</button>
             </div>
 
             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>备注 (选填)</div>
@@ -251,40 +252,62 @@ export function ReviewApprovalsPage() {
   )
 }
 
-function statusLabel(status: ReviewItemDto['status']) {
-  if (status === 'OPEN') return '待审批'
+function statusLabel(status: ReviewWorkbenchStatus) {
+  if (status === 'PENDING') return '待审批'
   if (status === 'APPROVED') return '已批准'
   if (status === 'REJECTED') return '已驳回'
   return '需修改'
 }
 
-function sourceTypeLabel(sourceType: ReviewItemDto['sourceType']) {
-  if (sourceType === 'health') return '健康诊断'
-  if (sourceType === 'simulation') return '活动模拟'
+function sourceTypeLabel(sourceType: ReviewWorkbenchType) {
+  if (sourceType === 'CERTIFICATE') return '健康诊断'
+  if (sourceType === 'ACTIVITY_CONFLICT') return '活动模拟'
+  if (sourceType === 'RULE_AMBIGUITY') return '规则口径'
+  if (sourceType === 'REPLENISHMENT') return '补货建议'
+  if (sourceType === 'PRICE') return '价格确认'
   return 'Agent Gate'
 }
 
-function priorityLabel(riskLevel: ReviewItemDto['riskLevel']) {
-  if (riskLevel === 'L2') return 'P1'
-  if (riskLevel === 'L1') return 'P2'
+function priorityLabel(riskLevel: ReviewRiskLevel) {
+  if (riskLevel === 'HIGH') return 'P1'
+  if (riskLevel === 'MEDIUM') return 'P2'
   return 'P3'
 }
 
-function priorityClass(riskLevel: ReviewItemDto['riskLevel']) {
-  if (riskLevel === 'L2') return styles.p1
-  if (riskLevel === 'L1') return styles.p2
+function priorityClass(riskLevel: ReviewRiskLevel) {
+  if (riskLevel === 'HIGH') return styles.p1
+  if (riskLevel === 'MEDIUM') return styles.p2
   return styles.p3
 }
 
-function riskDotClass(riskLevel: ReviewItemDto['riskLevel']) {
-  if (riskLevel === 'L2') return styles.high
-  if (riskLevel === 'L1') return styles.medium
+function riskDotClass(riskLevel: ReviewRiskLevel) {
+  if (riskLevel === 'HIGH') return styles.high
+  if (riskLevel === 'MEDIUM') return styles.medium
   return styles.low
 }
 
-function reviewIcon(sourceType: ReviewItemDto['sourceType']) {
-  if (sourceType === 'health') return <Package size={14} color="#d97706" />
-  if (sourceType === 'simulation') return <FileCheck size={14} color="#2563eb" />
-  if (sourceType === 'agent') return <HelpCircle size={14} color="#64748b" />
+function reviewIcon(sourceType: ReviewWorkbenchType) {
+  if (sourceType === 'REPLENISHMENT') return <Package size={14} color="#d97706" />
+  if (sourceType === 'CERTIFICATE') return <FileCheck size={14} color="#2563eb" />
+  if (sourceType === 'AGENT_REVIEW_GATE') return <HelpCircle size={14} color="#64748b" />
   return <AlertOctagon size={14} color="#e11d48" />
+}
+
+function listItemFromDetail(detail: ReviewDetailDto): ReviewListItemDto {
+  return {
+    reviewItemId: detail.reviewItemId,
+    priority: detail.priority,
+    type: detail.type,
+    title: detail.title,
+    summary: detail.summary,
+    status: detail.status,
+    riskLevel: detail.riskLevel,
+    assignee: detail.assignee,
+    dueAt: detail.dueAt,
+    evidenceSummary: detail.evidenceSummary,
+  }
+}
+
+function isReviewDetail(item: ReviewDetailDto | ReviewListItemDto): item is ReviewDetailDto {
+  return 'evidenceRefs' in item
 }

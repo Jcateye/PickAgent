@@ -1720,10 +1720,11 @@ export class PrismaReportRepository extends ReportRepository {
   async save(_boundary: P0AuthContextDto, report: ReportPreviewDto): Promise<ReportPreviewDto> {
     await this.prisma.workflowRun.create({
       data: {
-        id: report.reportId,
+        id: nextUuid(),
         workflowType: "report_preview",
         status: "SUCCEEDED",
         subjectType: report.type,
+        subjectId: report.reportId,
         inputJson: { type: report.type },
         outputJson: report,
         startedAt: new Date(),
@@ -2150,7 +2151,7 @@ export class FinalReportService {
     const unresolvedHealthRisks = details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map((issue) => `${item.productName}：${issue}`));
     const unresolvedSimulationRisks = simulations.filter((item) => item.eligibility === "MANUAL_REVIEW" || item.eligibility === "BLOCKED").map((item) => `${item.simulationResultId}：${item.eligibility}，失败规则 ${item.failedRules.length} 条`);
     const report: ReportPreviewDto = {
-      reportId: nextId("report"),
+      reportId: nextUuid(),
       type: input.type,
       status: "PREVIEW",
       title: input.type === "HEALTH" ? "SKU 健康报告预览" : "活动准入报告预览",

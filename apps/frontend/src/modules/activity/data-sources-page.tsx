@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, MoreVertical, Plus, RefreshCw, X } from 'lucide-react'
-import type { ConnectorDetailDto, ConnectorListItemDto, ConnectorRunSummaryDto, CreateConnectorDto } from '../../../../contracts/types/connectorBackend'
+import type { ConnectorDetailDto, ConnectorListItemDto, ConnectorRunSummaryDto, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './data-sources.module.css'
 
@@ -94,6 +94,30 @@ export function DataSourcesPage() {
       setRuns(nextRuns.items)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建采集运行失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function editConnectorConfig() {
+    if (!detail) return
+    const name = window.prompt('修改连接器名称', detail.name)
+    if (!name || name === detail.name) return
+    setBusy('edit-connector')
+    try {
+      const payload: UpdateConnectorDto = {
+        name,
+        config: { ...detail.config, updatedFrom: 'data-sources-page', updatedAt: new Date().toISOString() },
+      }
+      const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${detail.connectorId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      setDetail(updated)
+      setMessage(`已更新连接器配置：${updated.name}`)
+      await loadConnectors(updated.connectorId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '编辑连接器配置失败')
     } finally {
       setBusy(null)
     }
@@ -202,7 +226,7 @@ export function DataSourcesPage() {
           <div className={styles.panelBody}>
             <div className={styles.blockTitle}>
               当前配置
-              <button className="secondaryButton" type="button" onClick={() => setMessage(`配置详情：${JSON.stringify(detail.config)}`)} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
+              <button className="secondaryButton" type="button" onClick={() => void editConnectorConfig()} disabled={busy === 'edit-connector'} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
             </div>
             <div className={styles.configList}>
               <div className={styles.configRow}><div className={styles.configLabel}>连接器编码</div><div className={styles.configValue}>{detail.code}</div></div>

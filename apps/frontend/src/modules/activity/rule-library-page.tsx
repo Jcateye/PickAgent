@@ -101,6 +101,30 @@ export function RuleLibraryPage() {
     }
   }
 
+  async function editRuleSet() {
+    if (!selectedRule) return
+    const name = window.prompt('修改规则集名称', selectedRule.name)
+    if (!name || name === selectedRule.name) return
+    setBusy('edit')
+    try {
+      const updated = await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${selectedRule.ruleSetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name,
+          sourceText: selectedRule.dslJson.map((rule) => rule.message).join('\n') || `${name} 规则定义`,
+          rules: selectedRule.dslJson,
+        }),
+      })
+      setSelectedRule(updated)
+      setMessage(`已更新规则集：${updated.name}`)
+      await loadRules(updated.ruleSetId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '编辑规则集失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className={styles.layout}>
       <div className={styles.leftSidebar}>
@@ -149,7 +173,7 @@ export function RuleLibraryPage() {
           <div className={styles.headerTitleRow}>
             <div className={styles.mainTitle}>{selectedRule?.name ?? '请选择规则集'}</div>
             <div className={styles.headerActions}>
-              <button className="secondaryButton" type="button" onClick={() => setMessage('编辑已进入受控状态：请在后续表单中修改 sourceText 与 DSL。')}><Edit2 size={14} /> 编辑</button>
+              <button className="secondaryButton" type="button" onClick={() => void editRuleSet()} disabled={!selectedRule || !!busy}><Edit2 size={14} /> 编辑</button>
               <button className="secondaryButton" type="button" onClick={() => void createVersion()} disabled={!selectedRule || !!busy}><Copy size={14} /> 创建新版本</button>
               <button className="secondaryButton" type="button" onClick={() => void toggleStatus()} disabled={!selectedRule || !!busy} style={{ color: '#dc2626', borderColor: '#fca5a5' }}><Trash2 size={14} /> {selectedRule?.status === 'DISABLED' ? '启用' : '禁用'}</button>
             </div>
