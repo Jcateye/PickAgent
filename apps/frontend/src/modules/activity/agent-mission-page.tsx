@@ -129,7 +129,7 @@ export function AgentMissionPage() {
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null)
   const [objective, setObjective] = useState(defaultObjective)
   const [loading, setLoading] = useState(true)
-  const [actionBusy, setActionBusy] = useState<'approve' | 'pause' | null>(null)
+  const [actionBusy, setActionBusy] = useState<'approve' | 'pause' | 'cancel' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const runEvents = useAgentRunEvents(runId)
 
@@ -306,6 +306,25 @@ export function AgentMissionPage() {
     }
   }
 
+  async function cancelCurrentRun() {
+    if (!runId) return
+    setActionBusy('cancel')
+    setError(null)
+    try {
+      await apiPost(`/api/agent/runs/${encodeURIComponent(runId)}/cancel`, {
+        canceledBy: 'agent-mission-console',
+        reason: '从 Agent Mission 控制台取消当前运行。',
+      })
+      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+      setRunDetail(detail)
+      await loadMissionConsole()
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Run 取消失败')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
   return (
     <div className={styles.console}>
       <header className={styles.topbar}>
@@ -339,7 +358,7 @@ export function AgentMissionPage() {
                 <p>我会围绕当前 Mission 异步调用只读工具，展示工具链、证据和需要人工确认的步骤。</p>
               </div>
               <button className="secondaryButton" type="button" onClick={startMission} disabled={loading || !objective.trim()}>
-                查看任务
+                启动任务
               </button>
             </div>
 
@@ -478,6 +497,7 @@ export function AgentMissionPage() {
           <div className={styles.monitorActions}>
             <button className="primaryButton" type="button" onClick={() => void approvePendingGates()} disabled={actionBusy === 'approve' || !gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
             <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={actionBusy === 'pause' || !runId}>暂停任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void cancelCurrentRun()} disabled={actionBusy === 'cancel' || !runId}>取消任务</button>
           </div>
         </aside>
       </main>
