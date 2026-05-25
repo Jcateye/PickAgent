@@ -27,6 +27,9 @@ export async function POST(request: Request, context: RouteContext) {
     }
     return ok(finalAgentRuntime.agentService.decideReviewGate(gateId, { decision: payload.decision, decidedBy: payload.decidedBy, decisionComment: payload.decisionComment }))
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Agent review gate not found')) {
+      return fail('AGENT_REVIEW_GATE.NOT_FOUND', error.message, 404, { gateId })
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent review gate decision failed', 400, { gateId })
   }
 }

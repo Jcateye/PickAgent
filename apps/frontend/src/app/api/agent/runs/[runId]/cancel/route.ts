@@ -10,6 +10,9 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     return ok(finalAgentRuntime.agentService.cancelRun(runId, payload.canceledBy, payload.reason))
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Agent run not found')) {
+      return fail('AGENT_RUN.NOT_FOUND', error.message, 404, { runId })
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent run cancel failed', 400, { runId })
   }
 }

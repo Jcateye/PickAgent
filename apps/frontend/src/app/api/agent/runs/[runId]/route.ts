@@ -9,6 +9,9 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     return ok(finalAgentRuntime.agentService.getRun(runId))
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Agent run not found')) {
+      return fail('AGENT_RUN.NOT_FOUND', error.message, 404, { runId })
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent run detail failed', 404, { runId })
   }
 }
