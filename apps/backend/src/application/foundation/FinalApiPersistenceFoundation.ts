@@ -590,6 +590,14 @@ export class ActivityRepository {
     return updated;
   }
 
+  bindWorkflowRunToActivity(boundary: P0AuthContextDto, activityId: string, workflowRunId: string): ActivityDto | Promise<ActivityDto> {
+    const current = this.getActivity(boundary, activityId) as ActivityDto | null;
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const updated = { ...current, latestRunId: workflowRunId, status: "RUNNING" as const, updatedAt: new Date().toISOString() };
+    this.store.activities.set(activityId, updated);
+    return updated;
+  }
+
   getSimulationRun(boundary: P0AuthContextDto, simulationRunId: string): ActivitySimulationRunDto | null | Promise<ActivitySimulationRunDto | null> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(simulationRunId), simulationRunId);
     return this.store.simulationRuns.get(simulationRunId) ?? null;
@@ -1570,6 +1578,11 @@ export class PrismaActivityRepository extends ActivityRepository {
     return { ...toActivityDto(row), latestRunId: simulationRunId };
   }
 
+  async bindWorkflowRunToActivity(_boundary: P0AuthContextDto, activityId: string, workflowRunId: string): Promise<ActivityDto> {
+    const row = await this.prisma.activity.update({ where: { id: activityId }, data: { status: "running", latestWorkflowRunId: workflowRunId } });
+    return { ...toActivityDto(row), latestRunId: workflowRunId, status: "RUNNING" };
+  }
+
   async getSimulationRun(_boundary: P0AuthContextDto, simulationRunId: string): Promise<ActivitySimulationRunDto | null> {
     const row = await this.prisma.activitySimulationRun.findUnique({ where: { id: simulationRunId }, include: { results: true } });
     if (!row) return null;
@@ -2287,7 +2300,8 @@ export class FinalActivityService {
     const activity = await this.repository.getActivity(boundary, activityId);
     if (!activity) throw new Error(`Activity not found: ${activityId}`);
     const audit = await this.repository.recordWorkflowAudit(boundary, "activity_execution_path", activityId, { activityId }, { status: "planned" });
-    return { ...(await this.buildExecutionPlan({ ...activity, latestRunId: audit.entityId, status: "RUNNING" }, boundary)), runId: audit.entityId };
+    const updated = await this.repository.bindWorkflowRunToActivity(boundary, activityId, audit.entityId);
+    return { ...(await this.buildExecutionPlan(updated, boundary)), runId: audit.entityId };
   }
 
   async simulateForActivity(activityId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDetailDto> {

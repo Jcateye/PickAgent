@@ -212,6 +212,66 @@ test("final activity, review and report services share persistent repositories",
   assert.ok(report.evidenceSummary.length > 0);
 });
 
+test("activity start run persists latest run into refreshed execution plan", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const activity = await runtime.activityService.create(
+    {
+      name: "持久化运行活动",
+      platform: "tmall",
+      productScopeText: "全部当前 SKU",
+    },
+    tenantA,
+  );
+
+  const started = await runtime.activityService.startRun(activity.activityId, tenantA);
+  const refreshed = await runtime.activityService.executionPlan(activity.activityId, tenantA);
+
+  assert.match(started.runId ?? "", /^workflow_/);
+  assert.equal(refreshed?.runId, started.runId);
+  assert.equal(refreshed?.relatedRuns[0]?.entityId, started.runId);
+});
+
+test("prisma activity start run persists latest workflow run before refresh", async () => {
+  const workflowRows: Array<Record<string, unknown>> = [];
+  const updates: Array<Record<string, unknown>> = [];
+  const activityRow = {
+    id: "activity_prisma_run",
+    name: "Prisma 持久化运行活动",
+    platform: "tmall",
+    status: "draft",
+    scopeJson: { categoryScope: [], productScopeText: "全部当前 SKU" },
+    summaryJson: {},
+    currentRuleSetId: null,
+    latestWorkflowRunId: null,
+    createdAt: new Date("2026-05-24T10:00:00.000Z"),
+    updatedAt: new Date("2026-05-24T10:00:00.000Z"),
+  };
+  const service = new FinalActivityService(new PrismaActivityRepository({
+    activity: {
+      findUnique: async () => activityRow,
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        updates.push(data);
+        Object.assign(activityRow, data, { updatedAt: new Date("2026-05-24T10:01:00.000Z") });
+        return activityRow;
+      },
+    },
+    workflowRun: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        workflowRows.push(data);
+        return data;
+      },
+    },
+  } as never), {} as never);
+
+  const started = await service.startRun("activity_prisma_run", tenantA);
+  const refreshed = await service.executionPlan("activity_prisma_run", tenantA);
+
+  assert.equal(workflowRows[0]?.workflowType, "activity_execution_path");
+  assert.equal(updates[0]?.status, "running");
+  assert.equal(updates[0]?.latestWorkflowRunId, started.runId);
+  assert.equal(refreshed?.runId, started.runId);
+});
+
 test("review decisions cannot be overwritten after the item leaves pending state", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const [review] = await runtime.reviewService.create(
