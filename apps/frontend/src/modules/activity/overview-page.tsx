@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { FileText, Database, Plug, LayoutList, CheckCircle2, ChevronRight, Download, Filter, HelpCircle, FileCheck2, ChevronDown, Lock, ShieldAlert, Check } from 'lucide-react'
+import type { RuleSetListItemDto } from '../../../../contracts/types/businessFoundation'
+import type { ConnectorListItemDto } from '../../../../contracts/types/connectorBackend'
 import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import type { ReviewListItemDto } from '../../../../contracts/types/reviewReportCenter'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
@@ -28,6 +30,8 @@ export function OverviewPage() {
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
   const [reviewPage, setReviewPage] = useState<PageDto<ReviewListItemDto> | null>(null)
   const [runPage, setRunPage] = useState<RunConsolePageDto | null>(null)
+  const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
+  const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
   const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
   const [page, setPage] = useState(1)
   const [message, setMessage] = useState<string | null>(null)
@@ -46,13 +50,17 @@ export function OverviewPage() {
       fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
       fetchActivityApi<PageDto<ReviewListItemDto>>('/api/reviews?pageSize=20'),
       fetchActivityApi<RunConsolePageDto>('/api/run-console'),
+      fetchActivityApi<PageDto<RuleSetListItemDto>>('/api/rule-sets?pageSize=20'),
+      fetchActivityApi<PageDto<ConnectorListItemDto>>('/api/connectors?pageSize=20'),
     ])
-      .then(([nextSummary, nextSkuPage, nextReviewPage, nextRunPage]) => {
+      .then(([nextSummary, nextSkuPage, nextReviewPage, nextRunPage, nextRulePage, nextConnectorPage]) => {
         if (cancelled) return
         setSummary(nextSummary)
         setSkuPage(nextSkuPage)
         setReviewPage(nextReviewPage)
         setRunPage(nextRunPage)
+        setRulePage(nextRulePage)
+        setConnectorPage(nextConnectorPage)
       })
       .catch(() => {
         if (!cancelled) setSummary(null)
@@ -63,10 +71,10 @@ export function OverviewPage() {
   }, [page, statusFilter])
 
   const overview = useMemo(() => {
-    const total = summary?.total ?? 1258
-    const ready = summary?.ready ?? 862
-    const blocked = summary?.blocked ?? 8
-    const reviewCount = reviewPage?.total ?? 142
+    const total = summary?.total ?? 0
+    const ready = summary?.ready ?? 0
+    const blocked = summary?.blocked ?? 0
+    const reviewCount = reviewPage?.total ?? 0
     return {
       total,
       ready,
@@ -78,9 +86,18 @@ export function OverviewPage() {
 
   const apiRows = skuPage?.items ?? []
   const runs = runPage?.items ?? []
+  const rules = rulePage?.items ?? []
+  const connectors = connectorPage?.items ?? []
+  const latestRule = rules[0] ?? null
+  const activeRules = rules.filter((rule) => rule.status === 'ENABLED')
+  const healthyConnectors = connectors.filter((connector) => connector.status === 'ACTIVE' && connector.latestRun?.status !== 'FAILED')
+  const abnormalConnectors = connectors.filter((connector) => connector.status === 'FAILED' || connector.status === 'NEEDS_AUTH' || connector.latestRun?.status === 'FAILED')
+  const latestConnectorRunAt = latestRunTime(connectors)
+  const averageQuality = averageConnectorQuality(connectors)
   const latestRun = runs[0] ?? null
   const latestRunLogs = latestRun?.logs.slice(0, 5) ?? []
   const missionSteps = buildMissionSteps(runs, reviewPage?.items ?? [])
+  const reviewRate = overview.total > 0 ? `${((overview.reviewCount / overview.total) * 100).toFixed(1)}%` : '0.0%'
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
   const visiblePages = paginationWindow(page, totalPages)
 
@@ -92,17 +109,17 @@ export function OverviewPage() {
         {/* Header Summary */}
         <div className={styles.pageHeader}>
           <div className={styles.titleRow}>
-            <h1 className={styles.pageTitle}>执行天猫618选品规则检查</h1>
+            <h1 className={styles.pageTitle}>{latestRule ? `执行${latestRule.name}` : '执行 SKU Ready 规则检查'}</h1>
             <div className={styles.runningBadge}>
               <div className={styles.pulseDot}></div>
               {latestRun ? statusLabel(latestRun.status) : '待运行'}
             </div>
           </div>
           <div style={{ fontSize: '13px', color: 'var(--fg)', marginBottom: '8px' }}>
-            <strong>目标：</strong>解析并校验天猫618选品规则，识别不符合项，生成可报名 SKU 清单与待处理项。
+            <strong>目标：</strong>解析并校验当前启用规则，识别不符合项，生成可报名 SKU 清单与待处理项。
           </div>
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            <strong>下一步：</strong>完成准入模拟，生成 Review 清单并进入人工确认。
+            <strong>下一步：</strong>{nextOverviewAction(missionSteps, overview.reviewCount)}
           </div>
           {message ? <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>{message}</div> : null}
           
@@ -114,7 +131,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceIcon}><FileCheck2 size={20} /></div>
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>规则版本</span>
-                    <span className={styles.evidenceData}>v3.2.1</span>
+                    <span className={styles.evidenceData}>{latestRule?.version ?? '暂无规则'}</span>
                     <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
                   </div>
                 </div>
@@ -122,7 +139,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceIcon}><Database size={20} /></div>
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>数据源</span>
-                    <span className={styles.evidenceData}>8/8 正常</span>
+                    <span className={styles.evidenceData}>{healthyConnectors.length}/{connectors.length} 正常</span>
                     <a href="/data-sources" className={styles.evidenceLink}>查看数据</a>
                   </div>
                 </div>
@@ -149,46 +166,17 @@ export function OverviewPage() {
 
         {/* Stepper */}
         <div className={styles.stepperContainer}>
-          <div className={styles.stepItem}>
-            <div className={`${styles.stepIcon} ${styles.completed}`}><Check size={16} /></div>
-            <div className={styles.stepLabel}>1 规则解析</div>
-            <div className={styles.stepStatus}>已完成</div>
-            <div className={styles.stepTime}>05-09 10:33</div>
-            <div className={`${styles.stepLine} ${styles.completed}`}></div>
-          </div>
-          <div className={styles.stepItem}>
-            <div className={`${styles.stepIcon} ${styles.completed}`}><Check size={16} /></div>
-            <div className={styles.stepLabel}>2 数据检查</div>
-            <div className={styles.stepStatus}>已完成</div>
-            <div className={styles.stepTime}>05-09 10:36</div>
-            <div className={`${styles.stepLine} ${styles.completed}`}></div>
-          </div>
-          <div className={styles.stepItem}>
-            <div className={`${styles.stepIcon} ${styles.completed}`}><Check size={16} /></div>
-            <div className={styles.stepLabel}>3 插件采集</div>
-            <div className={styles.stepStatus}>已完成</div>
-            <div className={styles.stepTime}>05-09 10:41</div>
-            <div className={`${styles.stepLine} ${styles.running}`}></div>
-          </div>
-          <div className={styles.stepItem}>
-            <div className={`${styles.stepIcon} ${styles.running}`}>4</div>
-            <div className={styles.stepLabel} style={{ color: 'var(--primary)' }}>4 SKU 诊断</div>
-            <div className={styles.stepStatus} style={{ color: 'var(--primary)' }}>运行中</div>
-            <div className={styles.stepTime}>预计 2 分钟</div>
-            <div className={`${styles.stepLine} ${styles.waiting}`}></div>
-          </div>
-          <div className={styles.stepItem}>
-            <div className={`${styles.stepIcon} ${styles.waiting}`}>5</div>
-            <div className={styles.stepLabel}>5 准入模拟</div>
-            <div className={styles.stepStatus}>待开始</div>
-            <div className={styles.stepTime}>—</div>
-            <div className={`${styles.stepLine} ${styles.waiting}`}></div>
-          </div>
-          <div className={styles.stepItem} style={{ flex: 0, minWidth: '80px' }}>
-            <div className={`${styles.stepIcon} ${styles.waiting}`}>6</div>
-            <div className={styles.stepLabel}>6 Review 生成</div>
-            <div className={styles.stepStatus}>待开始</div>
-          </div>
+          {missionSteps.map((step, index) => (
+            <div className={styles.stepItem} style={index === missionSteps.length - 1 ? { flex: 0, minWidth: '80px' } : undefined} key={step.label}>
+              <div className={`${styles.stepIcon} ${step.status === 'completed' ? styles.completed : step.status === 'running' ? styles.running : styles.waiting}`}>
+                {step.status === 'completed' ? <Check size={16} /> : index + 1}
+              </div>
+              <div className={styles.stepLabel} style={step.status === 'running' ? { color: 'var(--primary)' } : undefined}>{step.label.replace(/^[0-9]+\\. /, `${index + 1} `)}</div>
+              <div className={styles.stepStatus} style={step.status === 'running' ? { color: 'var(--primary)' } : undefined}>{step.statusText}</div>
+              <div className={styles.stepTime}>{formatTime(step.time)}</div>
+              {index < missionSteps.length - 1 ? <div className={`${styles.stepLine} ${step.status === 'completed' ? styles.completed : step.status === 'running' ? styles.running : styles.waiting}`}></div> : null}
+            </div>
+          ))}
         </div>
 
         {/* Indicators */}
@@ -196,12 +184,12 @@ export function OverviewPage() {
           <div className={styles.indicatorCard}>
             <div className={styles.indicatorTitle}>规则解析</div>
             <div className={styles.indicatorMain}>
-              <div className={styles.indicatorBigValue}>v3.2.1</div>
-              <div className={styles.ruleVersionBadge}>已更新</div>
+              <div className={styles.indicatorBigValue}>{latestRule?.version ?? '-'}</div>
+              <div className={styles.ruleVersionBadge}>{latestRule?.status ?? 'NO_RULE'}</div>
             </div>
             <div className={styles.indicatorMetaRow} style={{ marginTop: 'auto', marginBottom: '16px' }}>
-              <span>规则条款 <span className={styles.indicatorMetaVal}>28 条</span></span>
-              <span>关键限制项 <span className={styles.indicatorMetaVal}>12 条</span></span>
+              <span>规则集 <span className={styles.indicatorMetaVal}>{rules.length} 个</span></span>
+              <span>启用 <span className={styles.indicatorMetaVal}>{activeRules.length} 个</span></span>
             </div>
             <div className={styles.indicatorFooter}>
               <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
@@ -212,17 +200,17 @@ export function OverviewPage() {
             <div className={styles.indicatorTitle}>数据新鲜度</div>
             <div className={styles.donutWrapper}>
               <div className={styles.donutCircle}>
-                <div className={styles.donutInner}>98%</div>
+                <div className={styles.donutInner}>{averageQuality}</div>
               </div>
               <div className={styles.donutMeta}>
                 <div style={{ color: 'var(--muted)' }}>整体新鲜度</div>
                 <div style={{ color: 'var(--fg)', fontWeight: 500 }}>最新更新时间</div>
-                <div>2025-05-09 10:41</div>
+                <div>{latestConnectorRunAt ? formatDateTime(latestConnectorRunAt) : '-'}</div>
               </div>
             </div>
             <div className={styles.indicatorMetaRow} style={{ marginBottom: '16px' }}>
               <span>异常数据源</span>
-              <span className={styles.indicatorMetaVal} style={{ color: '#ef4444' }}>1 个</span>
+              <span className={styles.indicatorMetaVal} style={{ color: '#ef4444' }}>{abnormalConnectors.length} 个</span>
             </div>
             <div className={styles.indicatorFooter}>
               <a href="/data-sources" className={styles.evidenceLink}>查看数据详情</a>
@@ -248,7 +236,7 @@ export function OverviewPage() {
             <div className={styles.indicatorTitle}>待人工确认</div>
             <div className={styles.indicatorMain}>
               <div className={`${styles.indicatorBigValue} ${styles.orange}`}>{overview.reviewCount.toLocaleString()}</div>
-              <div className={`${styles.indicatorSubValue} ${styles.orange}`}>11.3%</div>
+              <div className={`${styles.indicatorSubValue} ${styles.orange}`}>{reviewRate}</div>
             </div>
             <div className={styles.indicatorMetaRow} style={{ marginTop: 'auto', marginBottom: '16px' }}>
               <span>需审批 <span className={styles.indicatorMetaVal}>{overview.reviewCount.toLocaleString()}</span></span>
@@ -301,7 +289,7 @@ export function OverviewPage() {
                     <td>{item.displaySku}</td>
                     <td><span className={`${styles.statusTag} ${item.healthStatus === 'READY' ? styles.success : item.healthStatus === 'REPAIRABLE' || item.healthStatus === 'RISKY' ? styles.warning : styles.danger}`}>{healthStatusLabel(item.healthStatus)}</span></td>
                     <td>{item.eligibilityLabel ?? '—'} <span className={styles.ruleTag}>健康诊断</span></td>
-                    <td>天猫618大促</td>
+                    <td>{latestRule?.name ?? '当前规则集'}</td>
                     <td>{item.nextAction.label}</td>
                     <td><a href={`/sku-health/${item.skuProfileId}`} className={styles.evidenceLink}>查看证据 <ChevronRight size={14} /></a></td>
                   </tr>
@@ -460,6 +448,33 @@ function stepFromRun(label: string, run: RunConsoleItemDto | undefined, complete
   if (completed) return { label, status: 'completed', statusText: '已完成', time: run?.completedAt ?? run?.startedAt }
   if (run && !isSucceeded(run.status)) return { label, status: 'running', statusText: statusLabel(run.status), time: run.startedAt ?? run.completedAt }
   return { label, status: 'waiting', statusText: '等待中' }
+}
+
+function nextOverviewAction(steps: MissionStepView[], reviewCount: number): string {
+  const running = steps.find((step) => step.status === 'running')
+  if (running) return `${running.label.replace(/^[0-9]+\\. /, '')}正在处理，完成后继续下一步。`
+  const waiting = steps.find((step) => step.status === 'waiting')
+  if (waiting) return `等待${waiting.label.replace(/^[0-9]+\\. /, '')}。`
+  if (reviewCount > 0) return `进入人工确认，当前有 ${reviewCount} 个 Review 项。`
+  return '当前执行步骤已完成，继续查看报告或运行记录。'
+}
+
+function latestRunTime(connectors: ConnectorListItemDto[]): string | undefined {
+  return connectors
+    .map((connector) => connector.latestRun?.completedAt ?? connector.latestRun?.startedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0]
+}
+
+function averageConnectorQuality(connectors: ConnectorListItemDto[]): string {
+  const scores = connectors.map((connector) => connector.latestRun?.qualityScore).filter((value): value is number => typeof value === 'number')
+  if (!scores.length) return '0%'
+  return `${Math.round((scores.reduce((sum, value) => sum + value, 0) / scores.length) * 100)}%`
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  return new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function healthStatusLabel(status: DashboardSkuListItemDto['healthStatus']): string {
