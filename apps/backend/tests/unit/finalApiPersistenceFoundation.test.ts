@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaDashboardSkuReadModelRepository, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaDashboardSkuReadModelRepository, PrismaReportRepository, PrismaReviewRepository, PrismaRuleSetRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -611,17 +611,19 @@ test("prisma dashboard sku read model reads latest persisted next action after r
 
 test("rule library service exposes detail, versions, status updates and workflow audits", async () => {
   const runtime = createFinalApiPersistenceRuntime();
+  const sourceText = "活动库存不得低于 50 件，好评率不少于 95%，证书必须有效，人工确认特殊资质。";
   const created = await runtime.ruleSetService.create(
     {
       name: "规则库验收规则",
       platform: "tmall",
-      sourceText: "活动库存不得低于 50 件，好评率不少于 95%，证书必须有效，人工确认特殊资质。",
+      sourceText,
       source: "INTERNAL",
     },
     tenantA,
   );
 
   assert.equal(created.status, "DRAFT");
+  assert.equal(created.sourceText, sourceText);
   assert.equal(created.dslJson.length, 4);
   assert.ok(created.affectedFields.some((field) => field.field === "stock" && field.dataSources.length > 0));
   assert.ok(created.manualReviewItems.length > 0);
@@ -637,6 +639,7 @@ test("rule library service exposes detail, versions, status updates and workflow
   const updated = await runtime.ruleSetService.update(created.ruleSetId, { name: "规则库验收规则 v2", status: "ENABLED" }, tenantA);
   assert.equal(updated.name, "规则库验收规则 v2");
   assert.equal(updated.status, "ENABLED");
+  assert.equal(updated.sourceText, sourceText);
 
   const enabled = await runtime.ruleSetService.setStatus(created.ruleSetId, "ENABLED", tenantA);
   assert.equal(enabled.status, "ENABLED");
@@ -646,6 +649,34 @@ test("rule library service exposes detail, versions, status updates and workflow
     () => runtime.ruleSetService.get(created.ruleSetId, tenantB),
     (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
   );
+});
+
+test("prisma rule set detail exposes original source text for edit forms", async () => {
+  const sourceText = "平台原文：库存不得低于 88 件，好评率不得低于 97%。";
+  const repository = new PrismaRuleSetRepository({
+    activityRuleSet: {
+      findUnique: async () => ({
+        id: "rule_prisma_source",
+        name: "Prisma 原文规则",
+        platform: "tmall",
+        sourceText,
+        rulesJson: [{ id: "stock_min", type: "threshold", field: "stock", operator: "gte", value: 88, message: "活动库存不少于 88", severity: "blocking" }],
+        parseStatus: "parsed",
+        parseConfidence: 0.9,
+        parseMetadataJson: { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedBy: "actor_a" },
+        updatedAt: new Date("2026-05-24T10:00:00.000Z"),
+      }),
+    },
+    activitySimulationRun: {
+      findMany: async () => [],
+      count: async () => 0,
+    },
+  } as never);
+
+  const detail = await repository.getDetail(tenantA, "rule_prisma_source");
+
+  assert.equal(detail?.sourceText, sourceText);
+  assert.notEqual(detail?.sourceText, detail?.dslJson.map((rule) => rule.message).join("\n"));
 });
 
 test("disabled rule sets cannot be used for simulations", async () => {

@@ -176,6 +176,7 @@ export interface RuleSetListItemDto {
 }
 
 export interface RuleSetDetailDto extends RuleSetListItemDto {
+  sourceText: string;
   summary: {
     ruleCount: number;
     validationMode: "BLOCK_AND_HINT" | "HINT_ONLY";

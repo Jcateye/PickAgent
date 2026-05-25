@@ -2753,6 +2753,7 @@ function defaultRuleSetMetadata(): RuleSetMetadata {
 function assembleRuleSetDetail(item: RuleSetListItemDto, ruleSet: ActivityRuleSetDto, relatedRuns: TraceableRefDto[]): RuleSetDetailDto {
   return {
     ...item,
+    sourceText: ruleSet.sourceText,
     summary: {
       ruleCount: ruleSet.rules.length,
       validationMode: ruleSet.rules.some((rule) => rule.severity === "blocking") ? "BLOCK_AND_HINT" : "HINT_ONLY",

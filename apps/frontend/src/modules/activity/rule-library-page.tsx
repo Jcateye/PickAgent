@@ -156,7 +156,7 @@ export function RuleLibraryPage() {
       mode: 'edit',
       ruleSetId: selectedRule.ruleSetId,
       name: selectedRule.name,
-      sourceText: selectedRule.dslJson.map((rule) => rule.message).join('\n') || `${selectedRule.name} 规则定义`,
+      sourceText: selectedRule.sourceText,
       status: selectedRule.status,
     })
   }
