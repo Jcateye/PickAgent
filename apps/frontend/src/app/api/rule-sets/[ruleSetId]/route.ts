@@ -15,3 +15,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ ruleS
   if (!payload || Object.keys(payload).length === 0) return fail('COMMON.VALIDATION_ERROR', 'at least one field is required', 400)
   return ok(await finalApiRuntime.ruleSetService.update(ruleSetId, payload, authContextFromRequest(request)))
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ ruleSetId: string }> }) {
+  const { ruleSetId } = await context.params
+  return ok(await finalApiRuntime.ruleSetService.setStatus(ruleSetId, 'DISABLED', authContextFromRequest(request)))
+}

@@ -115,8 +115,8 @@ export function DataSourcesPage() {
           : {}),
       }
       const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${target.connectorId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
+        method: nextStatus === 'DISABLED' ? 'DELETE' : 'PATCH',
+        body: nextStatus === 'DISABLED' ? undefined : JSON.stringify(payload),
       })
       setDetail(updated)
       setMessage(`${updated.name} 已${updated.status === 'DISABLED' ? '停用' : '启用'}`)

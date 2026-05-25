@@ -97,7 +97,10 @@ export function RuleLibraryPage() {
     const action = selectedRule.status === 'DISABLED' ? 'enable' : 'disable'
     setBusy(action)
     try {
-      const updated = await fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${selectedRule.ruleSetId}/${action}`, { method: 'POST', body: JSON.stringify({}) })
+      const updated = await fetchActivityApi<RuleSetDetailDto>(
+        selectedRule.status === 'DISABLED' ? `/api/rule-sets/${selectedRule.ruleSetId}/enable` : `/api/rule-sets/${selectedRule.ruleSetId}`,
+        { method: selectedRule.status === 'DISABLED' ? 'POST' : 'DELETE', body: selectedRule.status === 'DISABLED' ? JSON.stringify({}) : undefined },
+      )
       setSelectedRule(updated)
       setMessage(`${updated.name} 已${updated.status === 'DISABLED' ? '禁用' : '启用'}`)
       await loadRules(updated.ruleSetId)

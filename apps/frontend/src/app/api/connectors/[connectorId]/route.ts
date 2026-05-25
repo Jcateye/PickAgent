@@ -27,3 +27,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector update failed', 400)
   }
 }
+
+export async function DELETE(request: Request, context: RouteContext) {
+  try {
+    const boundary = authContextFromRequest(request)
+    const { connectorId } = await context.params
+    return ok(await finalApiRuntime.connectorService.update(connectorId, { status: 'DISABLED' }, boundary))
+  } catch (error) {
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector disable failed', 400)
+  }
+}
