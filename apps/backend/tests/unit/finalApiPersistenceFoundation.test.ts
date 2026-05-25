@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, PrismaReportRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, PrismaReportRepository, PrismaReviewRepository } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -269,6 +269,56 @@ test("prisma report repository reads detail from latest version snapshot", async
   assert.equal(list[0]?.summary.totalSku, 3);
   assert.equal(detail?.version, "v1");
   assert.equal(detail?.summary.totalSku, 3);
+});
+
+test("prisma review repository records create audit history", async () => {
+  const workflowRuns: Array<Record<string, unknown>> = [];
+  const reviewRow = {
+    id: "review_1",
+    skuProfileId: "sku_1",
+    simulationResultId: null,
+    diagnosisId: null,
+    snapshotId: null,
+    reviewType: "health",
+    status: "PENDING",
+    question: "是否提交人工确认？",
+    agentRecommendation: "提交人工确认",
+    riskLevel: "L1",
+    evidenceJson: [],
+  };
+  const repository = new PrismaReviewRepository({
+    reviewItem: {
+      create: async () => reviewRow,
+      findMany: async () => [reviewRow],
+      findUnique: async () => reviewRow,
+    },
+    workflowRun: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        workflowRuns.push(data);
+        return data;
+      },
+      findMany: async () => workflowRuns.map((item) => ({ ...item, startedAt: new Date("2026-05-24T00:00:00.000Z") })),
+    },
+  } as never);
+
+  const created = await repository.create(tenantA, [
+    {
+      skuProfileId: "sku_1",
+      sourceType: "health",
+      sourceId: "sku_1",
+      question: "是否提交人工确认？",
+      recommendation: "提交人工确认",
+      riskLevel: "L1",
+      evidence: [],
+    },
+  ]);
+  const history = await repository.approvalHistory(tenantA, created[0].reviewItemId);
+
+  assert.equal(created[0].status, "OPEN");
+  assert.equal(workflowRuns[0]?.workflowType, "review_create");
+  assert.equal((workflowRuns[0]?.inputJson as { actorId?: string }).actorId, tenantA.actorId);
+  assert.equal(history[0]?.action, "review_create");
+  assert.equal(history[0]?.actor, tenantA.actorId);
 });
 
 test("dashboard SKU read models expose filterable list and evidence-backed detail", async () => {

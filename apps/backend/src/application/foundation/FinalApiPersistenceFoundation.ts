@@ -1689,11 +1689,11 @@ export class PrismaReviewRepository extends ReviewRepository {
     });
   }
 
-  async create(_boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
+  async create(boundary: P0AuthContextDto, items: Array<Omit<ReviewItemDto, "reviewItemId" | "status">>): Promise<ReviewItemDto[]> {
     const created: ReviewItemDto[] = [];
     for (const item of items) {
       const id = nextUuid();
-      await this.prisma.reviewItem.create({
+      const row = await this.prisma.reviewItem.create({
         data: {
           id,
           skuProfileId: item.skuProfileId,
@@ -1707,7 +1707,20 @@ export class PrismaReviewRepository extends ReviewRepository {
           evidenceJson: item.evidence,
         },
       });
-      created.push({ ...item, reviewItemId: id, status: "OPEN" });
+      await this.prisma.workflowRun.create({
+        data: {
+          id: nextUuid(),
+          workflowType: "review_create",
+          status: "SUCCEEDED",
+          subjectType: "review_item",
+          subjectId: id,
+          inputJson: { actorId: boundary.actorId, sourceType: item.sourceType, sourceId: item.sourceId },
+          outputJson: { reviewItemId: id, status: "OPEN" },
+          startedAt: new Date(),
+          completedAt: new Date(),
+        },
+      });
+      created.push(toReviewItemDto(row));
     }
     return created;
   }
@@ -1717,7 +1730,7 @@ export class PrismaReviewRepository extends ReviewRepository {
     return row ? toReviewItemDto(row) : null;
   }
 
-  async update(_boundary: P0AuthContextDto, reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>): Promise<ReviewItemDto> {
+  async update(boundary: P0AuthContextDto, reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>): Promise<ReviewItemDto> {
     const updated = await this.prisma.reviewItem.update({
       where: { id: reviewItemId },
       data: {
@@ -1733,7 +1746,7 @@ export class PrismaReviewRepository extends ReviewRepository {
         status: "SUCCEEDED",
         subjectType: "review_item",
         subjectId: reviewItemId,
-        inputJson: patch,
+        inputJson: { actorId: boundary.actorId, patch },
         outputJson: { reviewItemId },
         startedAt: new Date(),
         completedAt: new Date(),
@@ -1742,7 +1755,7 @@ export class PrismaReviewRepository extends ReviewRepository {
     return toReviewItemDto(updated);
   }
 
-  async decide(_boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
+  async decide(boundary: P0AuthContextDto, reviewItemId: string, request: ReviewDecisionRequestDto): Promise<ReviewItemDto> {
     const statusByDecision = { APPROVE: "APPROVED", REJECT: "REJECTED", REQUEST_CHANGES: "MODIFIED" } as const;
     const updated = await this.prisma.reviewItem.update({
       where: { id: reviewItemId },
@@ -1761,7 +1774,7 @@ export class PrismaReviewRepository extends ReviewRepository {
         status: "SUCCEEDED",
         subjectType: "review_item",
         subjectId: reviewItemId,
-        inputJson: { decision: request.decision, decisionBy: request.decisionBy, modifiedPayload: request.modifiedPayload },
+        inputJson: { actorId: boundary.actorId, decision: request.decision, decisionBy: request.decisionBy, modifiedPayload: request.modifiedPayload },
         outputJson: { reviewItemId, status: statusByDecision[request.decision] },
         startedAt: new Date(),
         completedAt: new Date(),
