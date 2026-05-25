@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { PrismaPg } from '@prisma/adapter-pg'
 
 import type { ApiEnvelope } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createFinalAgentEventStoreRuntime } from '../../../../backend/src/application/foundation/FinalAgentEventStoreFoundation'
 import { createFinalApiPersistenceRuntime, type PrismaPersistenceClient, type ReportRequestDto } from '../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import { createP0RuntimeConfig, P0AuthBoundaryError, requireP0AuthContext, type P0AuthContextDto } from '../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
+import { PrismaClient } from '../../../../backend/src/generated/prisma/client'
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from '../../../../contracts/types/businessFoundation.fixture'
 
 type FinalApiRuntime = ReturnType<typeof createFinalApiPersistenceRuntime>
@@ -79,9 +81,10 @@ function createFinalApiRuntime(): FinalApiRuntime {
   const shouldUsePrisma = adapter === 'prisma' || (adapter !== 'memory' && Boolean(process.env.DATABASE_URL))
   if (!shouldUsePrisma) return createFinalApiPersistenceRuntime({ adapter: 'memory' })
   try {
-    const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => PrismaPersistenceClient }
-    const { PrismaClient } = requireFromNode('@prisma/client')
-    return createFinalApiPersistenceRuntime({ adapter: 'prisma', prisma: new PrismaClient() })
+    return createFinalApiPersistenceRuntime({
+      adapter: 'prisma',
+      prisma: new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' }) }) as PrismaPersistenceClient,
+    })
   } catch {
     return createFinalApiPersistenceRuntime({ adapter: 'memory' })
   }

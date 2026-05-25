@@ -13,7 +13,14 @@ export async function GET(request: Request, context: RouteContext) {
   const after = parsePositiveInt(url.searchParams.get('after'), 0)
   try {
     const repository = createConversationRepository()
-    const listEvents = async (cursor: number) => repository ? repository.listEventsAfter(runId, cursor) : finalAgentRuntime.agentService.listEvents(runId, cursor)
+    const listEvents = async (cursor: number) => {
+      if (!repository) return finalAgentRuntime.agentService.listEvents(runId, cursor)
+      try {
+        return await repository.listEventsAfter(runId, cursor)
+      } catch {
+        return finalAgentRuntime.agentService.listEvents(runId, cursor)
+      }
+    }
     const items = await listEvents(after)
     const wantsStream = url.searchParams.get('stream') === '1' || request.headers.get('accept')?.includes('text/event-stream')
     if (wantsStream) {

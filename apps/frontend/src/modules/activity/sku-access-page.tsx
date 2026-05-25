@@ -1,11 +1,76 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Wrench, HelpCircle, XCircle, Search, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { DashboardSkuListItemDto, DashboardSkuReadinessDetailDto } from '../../../../contracts/types/dashboardSkuReadModels'
+import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
 export function SkuAccessPage() {
   const [drawerOpen, setDrawerOpen] = useState(true)
+  const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
+  const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedDetail, setSelectedDetail] = useState<DashboardSkuReadinessDetailDto | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
+      fetchActivityApi<PageDto<DashboardSkuListItemDto>>('/api/skus?pageSize=20&sortBy=updatedAt&sortOrder=desc'),
+    ])
+      .then(([nextSummary, nextSkuPage]) => {
+        if (cancelled) return
+        setSummary(nextSummary)
+        setSkuPage(nextSkuPage)
+        setSelectedId((current) => current ?? nextSkuPage.items[0]?.skuProfileId ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSummary(null)
+          setSkuPage(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedId) return
+    let cancelled = false
+    fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${selectedId}`)
+      .then((detail) => {
+        if (!cancelled) setSelectedDetail(detail)
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedDetail(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
+
+  const rows = skuPage?.items ?? []
+  const selectedRow = rows.find((item) => item.skuProfileId === selectedId) ?? rows[0]
+  const stats = useMemo(() => {
+    const total = summary?.total ?? rows.length
+    const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length
+    const blocked = summary?.blocked ?? rows.filter((item) => item.healthStatus === 'BLOCKED').length
+    const repairable = summary?.warning ?? rows.filter((item) => item.healthStatus === 'REPAIRABLE' || item.healthStatus === 'RISKY').length
+    const review = rows.filter((item) => item.nextAction.type === 'MANUAL_REVIEW').length
+    return {
+      total,
+      ready,
+      repairable,
+      review,
+      blocked,
+      readyPct: pct(ready, total),
+      repairablePct: pct(repairable, total),
+      reviewPct: pct(review, total),
+      blockedPct: pct(blocked, total),
+    }
+  }, [rows, summary])
 
   return (
     <div className={styles.layout}>
@@ -56,33 +121,33 @@ export function SkuAccessPage() {
               <CheckCircle2 size={16} className={styles.iconReady} />
               可直接报名
             </div>
-            <div className={styles.cardValue}>862 <span className={styles.cardPct}>68.6%</span></div>
+            <div className={styles.cardValue}>{stats.ready} <span className={styles.cardPct}>{stats.readyPct}</span></div>
           </div>
           <div className={styles.summaryCard}>
             <div className={styles.cardHeader}>
               <Wrench size={16} className={styles.iconRepair} />
               可修复
             </div>
-            <div className={styles.cardValue}>246 <span className={styles.cardPct}>19.5%</span></div>
+            <div className={styles.cardValue}>{stats.repairable} <span className={styles.cardPct}>{stats.repairablePct}</span></div>
           </div>
           <div className={styles.summaryCard}>
             <div className={styles.cardHeader}>
               <HelpCircle size={16} className={styles.iconReview} />
               待人工确认
             </div>
-            <div className={styles.cardValue}>142 <span className={styles.cardPct}>11.3%</span></div>
+            <div className={styles.cardValue}>{stats.review} <span className={styles.cardPct}>{stats.reviewPct}</span></div>
           </div>
           <div className={styles.summaryCard}>
             <div className={styles.cardHeader}>
               <XCircle size={16} className={styles.iconBlocked} />
               不建议报名
             </div>
-            <div className={styles.cardValue}>8 <span className={styles.cardPct}>0.6%</span></div>
+            <div className={styles.cardValue}>{stats.blocked} <span className={styles.cardPct}>{stats.blockedPct}</span></div>
           </div>
         </div>
 
         <div className={styles.tableToolbar}>
-          <div className={styles.tableToolbarLeft}>已选择 1 项</div>
+          <div className={styles.tableToolbarLeft}>已选择 {selectedRow ? 1 : 0} 项</div>
           <div className={styles.tableToolbarRight}>
             <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>批量生成 Review</button>
             <button className="secondaryButton" style={{ height: '32px', fontSize: '13px' }}>批量设置下一步 ∨</button>
@@ -106,102 +171,26 @@ export function SkuAccessPage() {
             </tr>
           </thead>
           <tbody>
-            <tr className={styles.rowActive}>
-              <td><input type="checkbox" checked readOnly /></td>
-              <td>G003</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>天猫精灵 智能音箱 X5 (深空灰)</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>3C 数码 &gt; 智能设备</td>
-              <td><span className={styles.tagReady}>通过</span></td>
-              <td>所有规则通过</td>
-              <td>可直接报名</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (5)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>G004</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>小米 67W 氮化镓充电器套装</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>3C 数码 &gt; 配件</td>
-              <td><span className={styles.tagRepair}>可修复</span></td>
-              <td>详情页图缺失；<br />包装图不合规</td>
-              <td>补全详情页图；<br />替换包装图</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (3)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>G006</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>JBL GO 4 便携蓝牙音箱</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>3C 数码 &gt; 音频设备</td>
-              <td><span className={styles.tagRepair}>可修复</span></td>
-              <td>标题格式不规范；<br />缺少3C证书</td>
-              <td>优化标题；<br />补充3C证书</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (4)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>D001</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>舒肤佳柠檬清香沐浴露 720ml</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>个护美妆 &gt; 沐浴护理</td>
-              <td><span className={styles.tagReview}>待确认</span></td>
-              <td>功效宣称需人工确认</td>
-              <td>人工确认</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (2)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>D002</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>百草味 每日坚果 750g</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>食品 &gt; 休闲零食</td>
-              <td><span className={styles.tagBlocked}>不建议</span></td>
-              <td>历史报名校验失败 (近30天低价风险)</td>
-              <td>不建议报名</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (5)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>G010</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>罗技 M331静音无线鼠标</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>3C 数码 &gt; 电脑配件</td>
-              <td><span className={styles.tagRepair}>可修复</span></td>
-              <td>主图不清晰；详情页图缺失</td>
-              <td>优化主图；<br />补全详情页图</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (2)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
-            <tr>
-              <td><input type="checkbox" /></td>
-              <td>H012</td>
-              <td className={styles.productCell}>
-                <span className={styles.productName}>全棉时代 纯棉柔巾 100抽*6包</span>
-              </td>
-              <td style={{ color: 'var(--muted)' }}>母婴 &gt; 婴童用品</td>
-              <td><span className={styles.tagReady}>通过</span></td>
-              <td>所有规则通过</td>
-              <td>可直接报名</td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>查看证据 (3)</a></td>
-              <td><a href="#" style={{ color: 'var(--primary)' }}>生成</a></td>
-            </tr>
+            {rows.map((item) => (
+              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true) }}>
+                <td><input type="checkbox" checked={selectedId === item.skuProfileId} readOnly /></td>
+                <td>{shortSku(item.displaySku)}</td>
+                <td className={styles.productCell}>
+                  <span className={styles.productName}>{item.productName}</span>
+                </td>
+                <td style={{ color: 'var(--muted)' }}>{item.category ?? '-'}</td>
+                <td>{renderHealthTag(item.healthStatus, styles)}</td>
+                <td>{item.eligibilityLabel === '未模拟' ? healthReason(item.healthStatus) : item.eligibilityLabel}</td>
+                <td>{item.nextAction.label}</td>
+                <td><a href={`/sku-health/${item.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看证据 ({item.evidenceCount})</a></td>
+                <td><a href="/review-approvals" style={{ color: 'var(--primary)' }}>生成</a></td>
+              </tr>
+            ))}
           </tbody>
         </table>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', fontSize: '13px', color: 'var(--muted)' }}>
-          <span>共 1,258 条</span>
+          <span>共 {stats.total.toLocaleString()} 条</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>20 条/页 ∨</span>
             <button className="iconButton" style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
@@ -218,10 +207,10 @@ export function SkuAccessPage() {
 
       </div>
 
-      {drawerOpen && (
+      {drawerOpen && selectedRow && (
         <div className={styles.sidePanel}>
           <div className={styles.drawerHeader}>
-            <div className={styles.drawerTitle}>G003</div>
+            <div className={styles.drawerTitle}>{shortSku(selectedRow.displaySku)}</div>
             <button className="iconButton" style={{ border: 'none' }} onClick={() => setDrawerOpen(false)}>
               <X size={18} color="var(--muted)" />
             </button>
@@ -231,9 +220,9 @@ export function SkuAccessPage() {
               <div className={styles.productImgPlaceholder}></div>
             </div>
             <div className={styles.productMeta}>
-              <div style={{ fontWeight: 600, fontSize: '15px' }}>天猫精灵 智能音箱 X5 (深空灰)</div>
+              <div style={{ fontWeight: 600, fontSize: '15px' }}>{selectedRow.productName}</div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                SPU: 5101234567 <Copy size={12} />
+                SKU: {selectedRow.displaySku} <Copy size={12} />
               </div>
             </div>
           </div>
@@ -249,17 +238,17 @@ export function SkuAccessPage() {
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>当前结论</span>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span className={styles.tagReady}>通过</span>
-                  <span style={{ fontWeight: 500 }}>可直接报名</span>
+                  {renderHealthTag(selectedRow.healthStatus, styles)}
+                  <span style={{ fontWeight: 500 }}>{selectedDetail?.statusSummary.conclusion ?? selectedRow.eligibilityLabel}</span>
                 </div>
               </div>
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>结论时间</span>
-                <span className={styles.drawerStatValue}>2025-05-09 10:41:23</span>
+                <span className={styles.drawerStatValue}>{new Date(selectedRow.updatedAt).toLocaleString('zh-CN')}</span>
               </div>
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>执行 Run</span>
-                <span className={styles.drawerStatValue}>#20250509-1041</span>
+                <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '当前健康诊断'}</span>
               </div>
               <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
                 <a href="#" style={{ color: 'var(--primary)' }}>查看规则</a>
@@ -268,21 +257,21 @@ export function SkuAccessPage() {
             </div>
 
             <div className={styles.drawerPanel}>
-              <div className={styles.drawerPanelTitle}>影响规则 <span style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: '12px', marginLeft: '8px' }}>(已通过 28 / 共 28 条)</span></div>
+              <div className={styles.drawerPanelTitle}>影响规则 <span style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: '12px', marginLeft: '8px' }}>(已通过 {selectedDetail?.evidenceOverview.dataCheckPassedCount ?? 0} / 共 {selectedDetail?.readinessChecklist.length ?? 0} 条)</span></div>
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>规则集</span>
-                <span className={styles.drawerStatValue}>v3.2.1</span>
+                <span className={styles.drawerStatValue}>{selectedDetail?.relatedRules[0]?.label ?? '暂无关联规则'}</span>
               </div>
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>关键规则项</span>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span>12 项</span>
-                  <span className={styles.tagReady}>均通过</span>
+                  <span>{selectedDetail?.readinessChecklist.length ?? 0} 项</span>
+                  {renderHealthTag(selectedRow.healthStatus, styles)}
                 </div>
               </div>
               <div className={styles.drawerStatRow}>
                 <span className={styles.drawerStatLabel}>异常规则</span>
-                <span className={styles.drawerStatValue}>0 条</span>
+                <span className={styles.drawerStatValue}>{selectedDetail?.latestDiagnosis?.issues.length ?? 0} 条</span>
               </div>
               <div style={{ fontSize: '13px', marginTop: '8px' }}>
                 <a href="#" style={{ color: 'var(--primary)' }}>查看规则详情</a>
@@ -291,53 +280,23 @@ export function SkuAccessPage() {
 
             <div className={styles.drawerPanel}>
               <div className={styles.drawerPanelTitle}>下一步建议</div>
-              <div style={{ color: 'var(--ready)', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>可直接报名</div>
-              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>建议在活动报名期内正常提交报名。</div>
+              <div style={{ color: 'var(--ready)', fontWeight: 600, fontSize: '14px', marginBottom: '8px' }}>{selectedDetail?.statusSummary.nextStep ?? selectedRow.nextAction.label}</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{selectedDetail?.latestDiagnosis?.nextActions.join('；') || selectedRow.nextAction.label}</div>
             </div>
 
             <div className={styles.drawerPanel}>
-              <div className={styles.drawerPanelTitle}>证据摘要 (5)</div>
+              <div className={styles.drawerPanelTitle}>证据摘要 ({selectedRow.evidenceCount})</div>
               <div className={styles.drawerEvidenceList}>
-                <div className={styles.drawerEvidenceItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> 主图</div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span>1 张</span>
-                    <span>合规</span>
-                    <a href="#" style={{ color: 'var(--primary)' }}>查看</a>
+                {(selectedDetail?.readinessChecklist ?? []).map((item) => (
+                  <div className={styles.drawerEvidenceItem} key={item.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> {item.label}</div>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                      <span>{item.evidenceRefs.length} 条</span>
+                      <span>{checklistLabel(item.status)}</span>
+                      <a href={`/sku-health/${selectedRow.skuProfileId}`} style={{ color: 'var(--primary)' }}>查看</a>
+                    </div>
                   </div>
-                </div>
-                <div className={styles.drawerEvidenceItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> 详情页图</div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span>6 张</span>
-                    <span>合规</span>
-                    <a href="#" style={{ color: 'var(--primary)' }}>查看</a>
-                  </div>
-                </div>
-                <div className={styles.drawerEvidenceItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> 3C 证书</div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span>1 份</span>
-                    <span>合规</span>
-                    <a href="#" style={{ color: 'var(--primary)' }}>查看</a>
-                  </div>
-                </div>
-                <div className={styles.drawerEvidenceItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> 包装图</div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span>2 张</span>
-                    <span>合规</span>
-                    <a href="#" style={{ color: 'var(--primary)' }}>查看</a>
-                  </div>
-                </div>
-                <div className={styles.drawerEvidenceItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle2 size={14} color="var(--ready)" /> 尺码信息</div>
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <span>—</span>
-                    <span>合规</span>
-                    <a href="#" style={{ color: 'var(--primary)' }}>查看</a>
-                  </div>
-                </div>
+                ))}
               </div>
               <div style={{ fontSize: '13px', marginTop: '16px' }}>
                 <a href="#" style={{ color: 'var(--primary)' }}>查看全部证据</a>
@@ -353,4 +312,33 @@ export function SkuAccessPage() {
       )}
     </div>
   )
+}
+
+function pct(value: number, total: number): string {
+  return total > 0 ? `${((value / total) * 100).toFixed(1)}%` : '0.0%'
+}
+
+function shortSku(value: string): string {
+  return value.split(':').at(-1) ?? value
+}
+
+function healthReason(status: DashboardSkuListItemDto['healthStatus']): string {
+  if (status === 'READY') return '所有规则通过'
+  if (status === 'BLOCKED') return '存在阻塞项'
+  if (status === 'RISKY') return '风险需复核'
+  return '存在可修复问题'
+}
+
+function checklistLabel(status: DashboardSkuReadinessDetailDto['readinessChecklist'][number]['status']): string {
+  if (status === 'PASSED') return '通过'
+  if (status === 'FAILED') return '失败'
+  if (status === 'MANUAL_REVIEW') return '待确认'
+  return '缺数据'
+}
+
+function renderHealthTag(status: DashboardSkuListItemDto['healthStatus'], styleMap: typeof styles) {
+  if (status === 'READY') return <span className={styleMap.tagReady}>通过</span>
+  if (status === 'BLOCKED') return <span className={styleMap.tagBlocked}>不建议</span>
+  if (status === 'RISKY') return <span className={styleMap.tagReview}>待确认</span>
+  return <span className={styleMap.tagRepair}>可修复</span>
 }

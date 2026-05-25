@@ -8,6 +8,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'SKU Ready Agent',
   description: 'SKU Ready Agent 主控台前端 UI 骨架',
+  icons: {
+    icon: '/icon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

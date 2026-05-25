@@ -28,7 +28,7 @@ export async function fetchActivityApi<T>(path: string, init?: RequestInit): Pro
     headers: {
       'content-type': 'application/json',
       'x-p0-actor-id': 'frontend_console',
-      'x-p0-tenant-id': 'demo_tenant',
+      'x-p0-tenant-id': 'dev_tenant',
       'x-p0-session-id': 'frontend_session',
       'x-p0-surface': 'frontend-console',
       ...(init?.headers ?? {}),
