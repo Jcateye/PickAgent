@@ -455,6 +455,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getSkuSummary', inputJson),
     }),
+    ingestSkus: tool({
+      description: '写入真实 SKU 采集数据并刷新 SKU 档案、快照、健康诊断和 workflow audit。需要 rows，每行包含 platform、storeId、externalSkuId，可选 connectorId/collectedAt。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('ingestSkus', inputJson),
+    }),
     checkDataFreshness: tool({
       description: '检查 SKU 采集数据是否仍在时效窗口内。需要 skuProfileId，可选 maxAgeHours。',
       inputSchema: objectSchema,

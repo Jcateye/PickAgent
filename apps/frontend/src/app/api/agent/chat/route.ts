@@ -5,7 +5,7 @@ import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAg
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
-import { defaultAgentToolNames, type EvidenceLinkDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto } from '../../../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
@@ -114,7 +114,7 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'subscribeReport'])
 const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
@@ -373,6 +373,12 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'getSkuSummary') {
       const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
       return succeeded(detail, detail.evidence, `读取 SKU：${detail.productName}`, { type: 'sku_profile', id: detail.skuProfileId })
+    }
+
+    if (toolName === 'ingestSkus') {
+      const request = ingestPayloadInput(input)
+      const result = await finalApiRuntime.ingestService.ingest(request, agentToolAuthContext())
+      return succeeded(result, result.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `写入 SKU 采集数据：${result.summaries.length} 条`, result.summaries[0] ? { type: 'sku_profile', id: result.summaries[0].skuProfileId } : { type: 'dashboard', id: 'sku-ingest' })
     }
 
     if (toolName === 'checkDataFreshness') {
@@ -798,6 +804,42 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
     activityId: optionalString(input.activityId),
     sortBy: optionalString(input.sortBy) as DashboardSkuListQuery['sortBy'],
     sortOrder: optionalString(input.sortOrder) as DashboardSkuListQuery['sortOrder'],
+  }
+}
+
+function ingestPayloadInput(input: Record<string, unknown>): IngestPayloadDto {
+  const rows = recordArray(input.rows).map((row, index) => ingestRowInput(row, index))
+  if (!rows.length) throw new Error('rows are required')
+  return {
+    connectorId: optionalString(input.connectorId),
+    collectedAt: optionalString(input.collectedAt) ?? new Date().toISOString(),
+    rows,
+  }
+}
+
+function ingestRowInput(input: Record<string, unknown>, index: number): IngestRowDto {
+  const platform = optionalString(input.platform)
+  const storeId = optionalString(input.storeId)
+  const externalSkuId = optionalString(input.externalSkuId ?? input.sku ?? input.skuId)
+  if (!platform || !storeId || !externalSkuId) throw new Error(`rows[${index}].platform, storeId, and externalSkuId are required`)
+  return {
+    platform,
+    storeId,
+    externalSkuId,
+    productName: optionalString(input.productName ?? input.title ?? input.name),
+    category: optionalString(input.category),
+    brand: optionalString(input.brand),
+    sourceUrl: optionalString(input.sourceUrl ?? input.url),
+    rowIndex: typeof input.rowIndex === 'number' && Number.isInteger(input.rowIndex) ? input.rowIndex : index,
+    sales30d: optionalNumber(input.sales30d),
+    positiveRate: optionalNumber(input.positiveRate),
+    stock: optionalNumber(input.stock),
+    originalPrice: optionalNumber(input.originalPrice),
+    lowestPrice30d: optionalNumber(input.lowestPrice30d),
+    campaignPrice: optionalNumber(input.campaignPrice),
+    joinedBrandDay: typeof input.joinedBrandDay === 'boolean' ? input.joinedBrandDay : undefined,
+    certificateStatus: optionalString(input.certificateStatus),
+    raw: isRecord(input.raw) ? input.raw : input,
   }
 }
 

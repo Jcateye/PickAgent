@@ -97,6 +97,36 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   assert.equal(detail?.status, 'DISABLED')
 })
 
+test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {
+  const externalSkuId = `agent_ingest_sku_${Date.now()}`
+  const execution = await executeFinalApiTool('ingestSkus', {
+    connectorId: 'agent_ingest_connector',
+    collectedAt: '2026-05-26T10:00:00.000Z',
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_store',
+        externalSkuId,
+        productName: 'Agent 写入测试 SKU',
+        category: '测试类目',
+        sales30d: 128,
+        positiveRate: 0.98,
+        stock: 66,
+        certificateStatus: 'VALID',
+      },
+    ],
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const summary = (execution.result as { summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> }).summaries[0]
+  assert.ok(summary?.skuProfileId)
+  assert.equal(summary.canonicalSkuKey, `tmall:agent_store:${externalSkuId}`)
+
+  const detail = await finalApiRuntime.ingestService.getSkuDetail(summary.skuProfileId)
+  assert.equal(detail?.productName, 'Agent 写入测试 SKU')
+  assert.equal(detail?.latestSnapshot?.stock, 66)
+})
+
 test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
