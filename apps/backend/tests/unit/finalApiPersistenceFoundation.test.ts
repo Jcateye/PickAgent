@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaReportRepository, PrismaReviewRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -477,6 +477,82 @@ test("rule library service exposes detail, versions, status updates and workflow
     () => runtime.ruleSetService.get(created.ruleSetId, tenantB),
     (error) => error instanceof P0AuthBoundaryError && error.code === "P0_TENANT_BOUNDARY_DENIED",
   );
+});
+
+test("disabled rule sets cannot be used for simulations", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const ingest = await runtime.ingestService.ingest(businessFoundationSeedFixture, tenantA);
+  const created = await runtime.ruleSetService.create(
+    {
+      name: "禁用规则集模拟保护",
+      platform: "tmall",
+      sourceText: "活动库存不得低于 50 件，好评率不少于 95%。",
+      source: "INTERNAL",
+      status: "ENABLED",
+    },
+    tenantA,
+  );
+  await runtime.ruleSetService.setStatus(created.ruleSetId, "DISABLED", tenantA);
+
+  await assert.rejects(
+    () => runtime.activityService.simulate(created.ruleSetId, { skuProfileIds: [ingest.summaries[0].skuProfileId] }, tenantA),
+    /Rule set is disabled:/,
+  );
+});
+
+test("prisma activity simulation rejects disabled rule set before writing run", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaActivityRepository({
+    activityRuleSet: {
+      findUnique: async () => ({
+        id: "rule_disabled",
+        name: "禁用规则",
+        platform: "tmall",
+        sourceText: "库存 >= 50",
+        rulesJson: [],
+        parseStatus: "parsed",
+        parseConfidence: 0.9,
+        parseMetadataJson: { status: "DISABLED" },
+      }),
+    },
+    activitySimulationRun: {
+      create: async () => {
+        writes.push("activitySimulationRun.create");
+        return {};
+      },
+    },
+    activitySimulationResult: {
+      create: async () => {
+        writes.push("activitySimulationResult.create");
+        return {};
+      },
+    },
+  } as never);
+  const service = new FinalActivityService(
+    repository,
+    {
+      detail: async () => ({
+        skuProfileId: "sku_1",
+        latestSnapshot: {
+          snapshotId: "snapshot_1",
+          skuProfileId: "sku_1",
+          collectedAt: new Date().toISOString(),
+          source: "unit-test",
+          stock: 10,
+          positiveRate: 0.9,
+          sales30d: 1,
+          certificateStatus: "valid",
+          raw: {},
+        },
+      }),
+    } as never,
+  );
+
+  await assert.rejects(
+    () => service.simulate("rule_disabled", { skuProfileIds: ["sku_1"] }, tenantA),
+    /Rule set is disabled: rule_disabled/,
+  );
+  assert.deepEqual(writes, []);
 });
 
 test("rule set source text updates reparse rules even when stale rules are submitted", async () => {

@@ -565,6 +565,12 @@ export class ActivityRepository {
     return this.store.ruleSets.get(activityRuleSetId) ?? null;
   }
 
+  getRuleSetStatus(boundary: P0AuthContextDto, activityRuleSetId: string): RuleSetStatusDto | Promise<RuleSetStatusDto> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(activityRuleSetId), activityRuleSetId);
+    if (!this.store.ruleSets.has(activityRuleSetId)) throw new Error(`Rule set not found: ${activityRuleSetId}`);
+    return this.store.ruleSetMetadata.get(activityRuleSetId)?.status ?? "DRAFT";
+  }
+
   saveSimulationRun(boundary: P0AuthContextDto, run: ActivitySimulationRunDto): ActivitySimulationRunDto | Promise<ActivitySimulationRunDto> {
     this.store.simulationRuns.set(run.simulationRunId, run);
     this.store.tenantByEntityId.set(run.simulationRunId, boundary.tenantId);
@@ -1523,6 +1529,12 @@ export class PrismaActivityRepository extends ActivityRepository {
     };
   }
 
+  async getRuleSetStatus(_boundary: P0AuthContextDto, activityRuleSetId: string): Promise<RuleSetStatusDto> {
+    const row = await this.prisma.activityRuleSet.findUnique({ where: { id: activityRuleSetId } });
+    if (!row) throw new Error(`Rule set not found: ${activityRuleSetId}`);
+    return ruleSetStatusFromMetadata(row.parseMetadataJson);
+  }
+
   async saveSimulationRun(_boundary: P0AuthContextDto, run: ActivitySimulationRunDto): Promise<ActivitySimulationRunDto> {
     await this.prisma.activitySimulationRun.create({
       data: {
@@ -2334,6 +2346,8 @@ export class FinalActivityService {
   async simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDto> {
     const ruleSet = await this.repository.getRuleSet(boundary, activityRuleSetId);
     if (!ruleSet || ruleSet.parseStatus === "FAILED") throw new Error("Valid rule set is required before simulation");
+    const ruleSetStatus = await this.repository.getRuleSetStatus(boundary, activityRuleSetId);
+    if (ruleSetStatus === "DISABLED") throw new Error(`Rule set is disabled: ${activityRuleSetId}`);
     const startedAt = new Date().toISOString();
     const results = await Promise.all(request.skuProfileIds.map(async (skuProfileId) => {
       const detail = await this.skuQueryRepository.detail(boundary, skuProfileId);
