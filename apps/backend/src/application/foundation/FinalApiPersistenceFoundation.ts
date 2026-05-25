@@ -826,6 +826,7 @@ export class ReviewRepository {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reviewItemId), reviewItemId);
     const current = this.store.reviews.get(reviewItemId);
     if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
+    if (current.status !== "OPEN") throw new Error(`Review item is not pending: ${reviewItemId}`);
     const updated = { ...current, ...patch };
     this.store.reviews.set(reviewItemId, updated);
     const audit: WorkflowAuditRecord = {
@@ -1849,6 +1850,9 @@ export class PrismaReviewRepository extends ReviewRepository {
   }
 
   async update(boundary: P0AuthContextDto, reviewItemId: string, patch: Partial<Pick<ReviewItemDto, "question" | "recommendation" | "riskLevel">>): Promise<ReviewItemDto> {
+    const current = await this.prisma.reviewItem.findUnique({ where: { id: reviewItemId } });
+    if (!current) throw new Error(`Review item not found: ${reviewItemId}`);
+    if (toReviewItemDto(current).status !== "OPEN") throw new Error(`Review item is not pending: ${reviewItemId}`);
     const updated = await this.prisma.reviewItem.update({
       where: { id: reviewItemId },
       data: {

@@ -296,6 +296,30 @@ test("review decisions cannot be overwritten after the item leaves pending state
   );
 });
 
+test("review recommendation cannot be edited after decision", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+  const [review] = await runtime.reviewService.create(
+    [
+      {
+        sourceType: "agent",
+        sourceId: "agent_review_update_closed",
+        question: "是否允许修改已审批建议？",
+        recommendation: "审批前建议",
+        riskLevel: "L1",
+        evidence: [],
+      },
+    ],
+    tenantA,
+  );
+  assert.ok(review);
+  await runtime.reviewService.decide(review.reviewItemId, { decision: "APPROVE", decisionBy: "ops@example.test" }, tenantA);
+
+  await assert.rejects(
+    () => runtime.reviewService.update(review.reviewItemId, { recommendation: "审批后不应修改" }, tenantA),
+    /Review item is not pending:/,
+  );
+});
+
 test("prisma report repository reads detail from latest version snapshot", async () => {
   const reportRow = {
     id: "report_1",
@@ -434,6 +458,39 @@ test("prisma review decision rejects closed item before writes", async () => {
   await assert.rejects(
     () => repository.decide(tenantA, "review_closed", { decision: "REJECT", decisionBy: "ops@example.test" }),
     /Review item is not pending: review_closed/,
+  );
+  assert.deepEqual(writes, []);
+});
+
+test("prisma review update rejects closed item before writes", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaReviewRepository({
+    reviewItem: {
+      findUnique: async () => ({
+        id: "review_closed_update",
+        reviewType: "agent",
+        status: "APPROVED",
+        question: "已批准项",
+        agentRecommendation: "不应修改",
+        riskLevel: "L1",
+        evidenceJson: [],
+      }),
+      update: async () => {
+        writes.push("reviewItem.update");
+        return {};
+      },
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun.create");
+        return {};
+      },
+    },
+  } as never);
+
+  await assert.rejects(
+    () => repository.update(tenantA, "review_closed_update", { recommendation: "审批后修改" }),
+    /Review item is not pending: review_closed_update/,
   );
   assert.deepEqual(writes, []);
 });
