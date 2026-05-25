@@ -3,7 +3,7 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
 import type { CreateConnectorSyncRunDto } from '../../../../../../contracts/types/connectorBackend'
-import type { EvidenceLinkDto, ReviewItemDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
+import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
@@ -111,8 +111,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'setSkuNextAction', 'listConnectors', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -392,6 +392,14 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
       return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器状态', summary: `连接器状态已更新为：${result.status}` }], `更新连接器状态：${result.status}`, { type: 'connector', id: connectorId })
     }
 
+    if (toolName === 'setRuleSetStatus') {
+      const ruleSetId = String(input.ruleSetId ?? '')
+      if (!ruleSetId) throw new Error('ruleSetId is required')
+      const status = normalizeRuleSetStatus(input.status)
+      const result = await finalApiRuntime.ruleSetService.setStatus(ruleSetId, status, agentToolAuthContext())
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集状态', summary: `规则集状态已更新为：${result.status}` }], `更新规则集状态：${result.status}`, { type: 'rule_set', id: ruleSetId })
+    }
+
     if (toolName === 'retryRun') {
       const runType = String(input.runType ?? input.type ?? '')
       const sourceId = String(input.sourceId ?? input.connectorId ?? input.missionId ?? '')
@@ -605,6 +613,11 @@ function normalizeNextAction(input: Record<string, unknown>): DashboardSkuListIt
     return { type, label, disabled: typeof nested.disabled === 'boolean' ? nested.disabled : undefined }
   }
   return { type: 'VIEW_DETAIL' as const, label, disabled: typeof nested.disabled === 'boolean' ? nested.disabled : undefined }
+}
+
+function normalizeRuleSetStatus(value: unknown): RuleSetStatusDto {
+  if (value === 'DRAFT' || value === 'DISABLED') return value
+  return 'ENABLED'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

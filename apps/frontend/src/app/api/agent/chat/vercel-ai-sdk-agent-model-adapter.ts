@@ -253,6 +253,7 @@ const PICKAGENT_AVAILABLE_TOOLS = [
   'listConnectors',
   'runConnectorSync',
   'setConnectorStatus',
+  'setRuleSetStatus',
   'retryRun',
   'listReports',
   'exportReport',
@@ -315,7 +316,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       runId: { type: 'string' },
       runType: { type: 'string', enum: ['connector_sync', 'agent_run'] },
       reportId: { type: 'string' },
-      status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'NEEDS_AUTH', 'FAILED', 'DISABLED'] },
+      status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'NEEDS_AUTH', 'FAILED', 'DISABLED', 'ENABLED', 'DRAFT'] },
       healthStatus: { type: 'string', enum: ['READY', 'REPAIRABLE', 'RISKY', 'BLOCKED'] },
       eligibilityStatus: { type: 'string', enum: ['DIRECT_READY', 'REPAIRABLE_READY', 'MANUAL_REVIEW', 'BLOCKED'] },
       minSales30d: { type: 'number' },
@@ -442,6 +443,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       description: '启用、停用或更新连接器状态。需要 connectorId 和 status=ACTIVE/DISABLED/INACTIVE/NEEDS_AUTH/FAILED。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('setConnectorStatus', inputJson),
+    }),
+    setRuleSetStatus: tool({
+      description: '启用、停用或恢复草稿规则集。需要 ruleSetId 和 status=ENABLED/DISABLED/DRAFT。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('setRuleSetStatus', inputJson),
     }),
     retryRun: tool({
       description: '为失败运行创建真实重试运行。连接器运行需要 runType=connector_sync 和 connectorId/sourceId；Agent 运行需要 runType=agent_run 和 missionId/sourceId；可选 runId 记录 retryOf。',
