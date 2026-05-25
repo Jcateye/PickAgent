@@ -7,10 +7,27 @@ import type { ReviewListItemDto } from '../../../../contracts/types/reviewReport
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './overview.module.css'
 
+interface RunConsoleItemDto {
+  runId: string
+  type: string
+  status: string
+  subject: string
+  startedAt?: string
+  completedAt?: string
+  summary: string
+  logs: Array<{ time?: string; tag: string; message: string; payload?: unknown }>
+}
+
+interface RunConsolePageDto {
+  items: RunConsoleItemDto[]
+  total: number
+}
+
 export function OverviewPage() {
   const [summary, setSummary] = useState<HealthSummaryDto | null>(null)
   const [skuPage, setSkuPage] = useState<PageDto<DashboardSkuListItemDto> | null>(null)
   const [reviewPage, setReviewPage] = useState<PageDto<ReviewListItemDto> | null>(null)
+  const [runPage, setRunPage] = useState<RunConsolePageDto | null>(null)
   const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>('ALL')
   const [page, setPage] = useState(1)
   const [message, setMessage] = useState<string | null>(null)
@@ -28,12 +45,14 @@ export function OverviewPage() {
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
       fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${params.toString()}`),
       fetchActivityApi<PageDto<ReviewListItemDto>>('/api/reviews?pageSize=20'),
+      fetchActivityApi<RunConsolePageDto>('/api/run-console'),
     ])
-      .then(([nextSummary, nextSkuPage, nextReviewPage]) => {
+      .then(([nextSummary, nextSkuPage, nextReviewPage, nextRunPage]) => {
         if (cancelled) return
         setSummary(nextSummary)
         setSkuPage(nextSkuPage)
         setReviewPage(nextReviewPage)
+        setRunPage(nextRunPage)
       })
       .catch(() => {
         if (!cancelled) setSummary(null)
@@ -58,6 +77,9 @@ export function OverviewPage() {
   }, [reviewPage?.total, summary])
 
   const apiRows = skuPage?.items ?? []
+  const runs = runPage?.items ?? []
+  const latestRun = runs[0] ?? null
+  const latestRunLogs = latestRun?.logs.slice(0, 5) ?? []
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
   const visiblePages = paginationWindow(page, totalPages)
 
@@ -72,7 +94,7 @@ export function OverviewPage() {
             <h1 className={styles.pageTitle}>执行天猫618选品规则检查</h1>
             <div className={styles.runningBadge}>
               <div className={styles.pulseDot}></div>
-              运行中
+              {latestRun ? statusLabel(latestRun.status) : '待运行'}
             </div>
           </div>
           <div style={{ fontSize: '13px', color: 'var(--fg)', marginBottom: '8px' }}>
@@ -107,7 +129,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceIcon}><Plug size={20} /></div>
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>插件任务</span>
-                    <span className={styles.evidenceData}>12/12 成功</span>
+                    <span className={styles.evidenceData}>{runs.filter((run) => isSucceeded(run.status)).length}/{runs.length} 成功</span>
                     <a href="/run-console" className={styles.evidenceLink}>查看 Run</a>
                   </div>
                 </div>
@@ -314,8 +336,8 @@ export function OverviewPage() {
 
         <div className={styles.consoleSection}>
           <div className={styles.consoleRunId}>
-            <span>最新 Run：#20250509-1041</span>
-            <span className={styles.consoleRunBadge}>运行中</span>
+            <span>最新 Run：{latestRun ? `#${shortId(latestRun.runId)}` : '暂无运行'}</span>
+            <span className={styles.consoleRunBadge}>{latestRun ? statusLabel(latestRun.status) : '-'}</span>
           </div>
           
           <div className={styles.stepListTitle}>执行步骤</div>
@@ -348,7 +370,7 @@ export function OverviewPage() {
               <span className={styles.vStepLabel}>3. 插件采集</span>
               <div className={styles.vStepStatus}>
                 <span className={`${styles.statusBadge} ${styles.completed}`}>已完成</span>
-                <span className={styles.vStepTime}>10:41</span>
+                <span className={styles.vStepTime}>{formatTime(latestRun?.startedAt ?? latestRun?.completedAt)}</span>
               </div>
             </div>
           </div>
@@ -390,47 +412,21 @@ export function OverviewPage() {
 
         <div className={styles.consoleSection}>
           <div className={styles.stepListTitle} style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}>
-            <span>工具运行状态 (12/12)</span>
+            <span>工具运行状态 ({runs.filter((run) => isSucceeded(run.status)).length}/{runs.length})</span>
             <ChevronDown size={14} />
           </div>
           
           <div className={styles.toolsList}>
-            <div className={styles.toolItem}>
-              <div className={styles.toolName}><FileText size={14} /> 商品数据采集</div>
-              <div className={styles.toolStatus}>
-                <span className={styles.toolSuccessText}>成功</span>
-                <span className={styles.toolTime}>10:35</span>
+            {runs.slice(0, 5).map((run) => (
+              <div className={styles.toolItem} key={run.runId}>
+                <div className={styles.toolName}>{runIcon(run.type)} {run.subject}</div>
+                <div className={styles.toolStatus}>
+                  <span className={isSucceeded(run.status) ? styles.toolSuccessText : undefined}>{statusLabel(run.status)}</span>
+                  <span className={styles.toolTime}>{formatTime(run.startedAt ?? run.completedAt)}</span>
+                </div>
               </div>
-            </div>
-            <div className={styles.toolItem}>
-              <div className={styles.toolName}><CheckCircle2 size={14} /> 库存与价格校验</div>
-              <div className={styles.toolStatus}>
-                <span className={styles.toolSuccessText}>成功</span>
-                <span className={styles.toolTime}>10:36</span>
-              </div>
-            </div>
-            <div className={styles.toolItem}>
-              <div className={styles.toolName}><FileCheck2 size={14} /> 资质校验</div>
-              <div className={styles.toolStatus}>
-                <span className={styles.toolSuccessText}>成功</span>
-                <span className={styles.toolTime}>10:37</span>
-              </div>
-            </div>
-            <div className={styles.toolItem}>
-              <div className={styles.toolName}><ShieldAlert size={14} /> 活动互斥校验</div>
-              <div className={styles.toolStatus}>
-                <span className={styles.toolSuccessText}>成功</span>
-                <span className={styles.toolTime}>10:38</span>
-              </div>
-            </div>
-            <div className={styles.toolItem}>
-              <div className={styles.toolName}><Database size={14} /> 历史报名校验</div>
-              <div className={styles.toolStatus}>
-                <span className={styles.toolSuccessText}>成功</span>
-                <span className={styles.toolTime}>10:39</span>
-              </div>
-            </div>
-            <div style={{ color: 'var(--muted)', fontSize: '13px' }}>...</div>
+            ))}
+            {!runs.length ? <div style={{ color: 'var(--muted)', fontSize: '13px' }}>暂无运行记录。</div> : null}
             <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看全部工具 Run</a>
           </div>
         </div>
@@ -441,13 +437,41 @@ export function OverviewPage() {
               <span>工具 Trace (已折叠)</span>
               <Lock size={14} color="var(--muted)" />
             </div>
-            <div className={styles.lockDesc}>包含请求/响应、原始字段与日志</div>
+            <div className={styles.lockDesc}>{latestRunLogs.length ? latestRunLogs.map((log) => `${log.tag}: ${log.message}`).join('；') : '包含请求/响应、原始字段与日志'}</div>
             <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看 Trace</a>
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function shortId(value: string): string {
+  return value.slice(0, 8)
+}
+
+function formatTime(value?: string): string {
+  if (!value) return '-'
+  return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+function isSucceeded(status: string): boolean {
+  return ['SUCCEEDED', 'SUCCESS', 'COMPLETED', 'DONE'].includes(status.toUpperCase())
+}
+
+function statusLabel(status: string): string {
+  if (isSucceeded(status)) return '成功'
+  if (['RUNNING', 'IN_PROGRESS', 'PROCESSING'].includes(status.toUpperCase())) return '运行中'
+  if (['FAILED', 'ERROR'].includes(status.toUpperCase())) return '失败'
+  return status
+}
+
+function runIcon(type: string) {
+  if (type === 'connector_sync') return <Database size={14} />
+  if (type === 'agent_run') return <CheckCircle2 size={14} />
+  if (type.includes('review')) return <FileCheck2 size={14} />
+  if (type.includes('activity')) return <ShieldAlert size={14} />
+  return <FileText size={14} />
 }
 
 function healthStatusLabel(status: DashboardSkuListItemDto['healthStatus']): string {
