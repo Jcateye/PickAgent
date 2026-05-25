@@ -2,20 +2,37 @@
 
 import React, { useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
-import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto } from '../../../../contracts/types/businessFoundation'
+import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto, SimulationResultDto } from '../../../../contracts/types/businessFoundation'
+import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import { fetchActivityApi } from './api-client'
 import styles from './rule-execution.module.css'
+
+interface ActivitySimulationRunDto {
+  simulationRunId: string
+  activityRuleSetId: string
+  status: 'SUCCEEDED'
+  scope: { skuProfileIds: string[] }
+  results: SimulationResultDto[]
+  startedAt: string
+  completedAt: string
+}
+
+interface DashboardSkuPageDto {
+  items: DashboardSkuListItemDto[]
+  total: number
+}
 
 export function RuleExecutionPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ruleSet, setRuleSet] = useState<ActivityRuleSetDto | null>(null)
+  const [simulationRun, setSimulationRun] = useState<ActivitySimulationRunDto | null>(null)
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
   async function runCheck() {
     setBusy(true)
     try {
-      const ruleSet = await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
+      const parsedRuleSet = await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
         method: 'POST',
         body: JSON.stringify({
           name: '天猫618规则执行路径',
@@ -23,8 +40,16 @@ export function RuleExecutionPage() {
           sourceText: '商品需同时满足以下条件：近30天销量 ≥ 100；好评率 ≥ 95%；库存 ≥ 500；活动价 ≤ 近30天最低价；同品牌同时间段仅可报名一个主玩法（品牌日互斥）。',
         }),
       })
-      setRuleSet(ruleSet)
-      setMessage(`运行检查已完成：${ruleSet.ruleSetId}，解析 ${ruleSet.rules.length} 条规则，置信度 ${ruleSet.confidence}`)
+      const skuPage = await fetchActivityApi<DashboardSkuPageDto>('/api/skus?page=1&pageSize=8')
+      const skuProfileIds = skuPage.items.map((item) => item.skuProfileId)
+      if (!skuProfileIds.length) throw new Error('没有可模拟的 SKU 数据')
+      const run = await fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${encodeURIComponent(parsedRuleSet.ruleSetId)}/simulations`, {
+        method: 'POST',
+        body: JSON.stringify({ skuProfileIds }),
+      })
+      setRuleSet(parsedRuleSet)
+      setSimulationRun(run)
+      setMessage(`运行检查已完成：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((item) => item.eligibility === 'BLOCKED').length} 个。`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
     } finally {
@@ -100,6 +125,9 @@ export function RuleExecutionPage() {
   }
 
   const structuredRules = ruleSet?.rules.length ? ruleSet.rules : defaultStructuredRules
+  const checklistItems = buildChecklistItems(structuredRules, simulationRun?.results ?? [])
+  const requirementSummary = summarizeRequirements(checklistItems)
+  const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
 
   return (
     <div className="pageStack">
@@ -110,10 +138,10 @@ export function RuleExecutionPage() {
             <span className="statusBadge statusBadge--ready" style={{ fontSize: '12px' }}>✓ 已解析</span>
           </div>
           <div style={{ display: 'flex', gap: '24px', color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>
-            <span>规则版本: v3.2.1</span>
+            <span>规则版本: {ruleSet?.ruleSetId ? ruleSet.ruleSetId.slice(0, 8) : '待运行'}</span>
             <span>创建人: 运营同学</span>
-            <span>创建时间: 2025-05-09 10:32</span>
-            <span>适用范围: 全量 SKU (1,258)</span>
+            <span>创建时间: {simulationRun ? new Date(simulationRun.startedAt).toLocaleString('zh-CN') : '待运行'}</span>
+            <span>适用范围: {simulationRun ? `已模拟 SKU (${simulationRun.results.length})` : '运行后读取真实 SKU'}</span>
           </div>
         </div>
         <div className={styles.headerActions}>
@@ -246,22 +274,22 @@ export function RuleExecutionPage() {
           
           <div className="panel">
             <div className={styles.sectionHeader} style={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: '15px', fontWeight: 600 }}>数据需求 (共 8 项)</div>
+              <div style={{ fontSize: '15px', fontWeight: 600 }}>数据需求 (共 {checklistItems.length} 项)</div>
               <a href="/data-sources" style={{ fontSize: '13px', color: 'var(--primary)' }}>查看全部</a>
             </div>
             <div className={styles.sectionBody}>
               <div className={styles.dataRequirementGrid}>
                 <div className={`${styles.reqBox} ${styles.ready}`}>
                   <div className={styles.reqTitle}>已就绪</div>
-                  <div className={styles.reqValue} style={{ color: 'var(--ready)' }}>4</div>
+                  <div className={styles.reqValue} style={{ color: 'var(--ready)' }}>{requirementSummary.ready}</div>
                 </div>
                 <div className={`${styles.reqBox} ${styles.missing}`}>
                   <div className={styles.reqTitle}>缺少</div>
-                  <div className={styles.reqValue} style={{ color: 'var(--blocked)' }}>2</div>
+                  <div className={styles.reqValue} style={{ color: 'var(--blocked)' }}>{requirementSummary.missing}</div>
                 </div>
                 <div className={`${styles.reqBox} ${styles.external}`}>
                   <div className={styles.reqTitle}>外部依赖</div>
-                  <div className={styles.reqValue} style={{ color: 'var(--primary)' }}>2</div>
+                  <div className={styles.reqValue} style={{ color: 'var(--primary)' }}>{requirementSummary.external}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
@@ -269,70 +297,35 @@ export function RuleExecutionPage() {
                 <span>来源就绪度</span>
               </div>
               <div className={styles.reqList}>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.ready}`}></span>近30天实付销量</span>
-                  <span className={styles.tagReady}>已就绪</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.ready}`}></span>近30天好评率</span>
-                  <span className={styles.tagReady}>已就绪</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.missing}`}></span>可售库存</span>
-                  <span className={styles.tagMissing}>缺少数据</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.ready}`}></span>近30天最低价</span>
-                  <span className={styles.tagReady}>已就绪</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.ready}`}></span>活动价</span>
-                  <span className={styles.tagReady}>已就绪</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.external}`}></span>同品牌活动报名记录</span>
-                  <span className={styles.tagExternal}>外部依赖</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.external}`}></span>商品SPU品牌</span>
-                  <span className={styles.tagExternal}>外部依赖</span>
-                </div>
-                <div className={styles.reqListItem}>
-                  <span><span className={`${styles.reqDot} ${styles.ready}`}></span>活动时间范围</span>
-                  <span className={styles.tagReady}>已就绪</span>
-                </div>
+                {checklistItems.map((item) => (
+                  <div className={styles.reqListItem} key={item.id}>
+                    <span><span className={`${styles.reqDot} ${item.status === 'missing' ? styles.missing : item.status === 'pending' ? styles.external : styles.ready}`}></span>{item.requiredData}</span>
+                    {renderChecklistStatus(item.status, styles)}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           <div className="panel">
             <div className={styles.sectionHeader} style={{ padding: '16px 20px' }}>
-              <div style={{ fontSize: '15px', fontWeight: 600 }}>不确定项 (2)</div>
+              <div style={{ fontSize: '15px', fontWeight: 600 }}>不确定项 ({uncertainItems.length})</div>
               <a href="/review-approvals" style={{ fontSize: '13px', color: 'var(--primary)' }}>查看全部</a>
             </div>
             <div className={styles.sectionBody}>
-              <div className={styles.warningBox}>
-                <AlertTriangle size={16} className={styles.warningIcon} />
-                <div className={styles.warningContent}>
-                  <div className={styles.warningTitle}>
-                    <span>活动价 ≤ 近30天最低价</span>
-                    <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'normal' }}>置信度: 0.82</span>
+              {uncertainItems.length ? uncertainItems.map((item) => (
+                <div className={styles.warningBox} key={item.id}>
+                  <AlertTriangle size={16} className={styles.warningIcon} />
+                  <div className={styles.warningContent}>
+                    <div className={styles.warningTitle}>
+                      <span>{item.label}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'normal' }}>影响 SKU: {item.failedCount}</span>
+                    </div>
+                    <div className={styles.warningDesc}>{item.requiredData} 需要人工确认或补齐来源映射</div>
+                    <a href="/review-approvals" style={{ fontSize: '12px', color: 'var(--primary)', alignSelf: 'flex-start' }}>查看</a>
                   </div>
-                  <div className={styles.warningDesc}>最低价统计口径存在多版本差异</div>
-                  <a href="/review-approvals" style={{ fontSize: '12px', color: 'var(--primary)', alignSelf: 'flex-start' }}>查看</a>
                 </div>
-              </div>
-              <div className={styles.warningBox}>
-                <AlertTriangle size={16} className={styles.warningIcon} />
-                <div className={styles.warningContent}>
-                  <div className={styles.warningTitle}>
-                    <span>品牌日互斥</span>
-                    <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 'normal' }}>置信度: 0.78</span>
-                  </div>
-                  <div className={styles.warningDesc}>品牌日口径存在歧义 (是自然日还是活动日)</div>
-                  <a href="/review-approvals" style={{ fontSize: '12px', color: 'var(--primary)', alignSelf: 'flex-start' }}>查看</a>
-                </div>
-              </div>
+              )) : <div style={{ color: 'var(--muted)', fontSize: '13px' }}>运行检查后展示需要 Review 的规则项。</div>}
             </div>
           </div>
 
@@ -373,13 +366,69 @@ const defaultStructuredRules: CanonicalRuleDto[] = [
   { id: 'R618-005', type: 'boolean_block', field: 'joinedBrandDay', operator: 'eq', value: false, message: '品牌日互斥', severity: 'warning' },
 ]
 
-const checklistItems = [
-  { id: 'sales30d', label: '近30天销量 ≥ 100', requiredData: '近30天实付销量', source: '生意参谋-商品分析', method: '数值比较 (≥100)', status: 'ready', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
-  { id: 'positive_rate', label: '好评率 ≥ 95%', requiredData: '近30天好评率', source: '生意参谋-商品评价', method: '数值比较 (≥95%)', status: 'ready', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
-  { id: 'stock', label: '库存 ≥ 500', requiredData: '可售库存', source: '天猫库存中心', method: '数值比较 (≥500)', status: 'missing', owner: '数据同学', actionHref: '/data-sources', actionLabel: '补数' },
-  { id: 'price', label: '活动价 ≤ 近30天最低价', requiredData: '近30天最低价、活动价', source: '价格中心', method: '数值比较 (≤最低价)', status: 'pending', owner: '运营同学', actionHref: '/review-approvals', actionLabel: '确认' },
-  { id: 'brand_conflict', label: '品牌日互斥', requiredData: '同品牌活动报名记录', source: '活动中心-报名记录', method: '互斥校验 (唯一性)', status: 'pending', owner: '运营同学', actionHref: '/sku-access', actionLabel: '查看' },
-] as const
+type ChecklistStatus = 'ready' | 'missing' | 'pending'
+
+interface ChecklistItem {
+  id: string
+  label: string
+  requiredData: string
+  source: string
+  method: string
+  status: ChecklistStatus
+  owner: string
+  actionHref: string
+  actionLabel: string
+  failedCount: number
+}
+
+function buildChecklistItems(rules: CanonicalRuleDto[], results: SimulationResultDto[]): ChecklistItem[] {
+  return rules.map((rule) => {
+    const failedCount = results.filter((result) => result.failedRules.some((failedRule) => failedRule.id === rule.id || failedRule.field === rule.field)).length
+    const status: ChecklistStatus = failedCount === 0 && results.length > 0 ? 'ready' : rule.type === 'manual_review' || rule.type === 'field_compare' || rule.type === 'boolean_block' ? 'pending' : 'missing'
+    return {
+      id: rule.field ?? rule.compareField ?? rule.id,
+      label: rule.message,
+      requiredData: requiredDataLabel(rule),
+      source: sourceLabel(rule),
+      method: ruleCondition(rule),
+      status,
+      owner: status === 'missing' ? '数据同学' : '运营同学',
+      actionHref: status === 'missing' ? '/data-sources' : status === 'pending' ? '/review-approvals' : '/sku-access',
+      actionLabel: status === 'missing' ? '补数' : status === 'pending' ? '确认' : '查看',
+      failedCount,
+    }
+  })
+}
+
+function summarizeRequirements(items: ChecklistItem[]) {
+  return {
+    ready: items.filter((item) => item.status === 'ready').length,
+    missing: items.filter((item) => item.status === 'missing').length,
+    external: items.filter((item) => item.status === 'pending').length,
+  }
+}
+
+function requiredDataLabel(rule: CanonicalRuleDto): string {
+  if (rule.compareField) return `${fieldLabel(rule.field)}、${fieldLabel(rule.compareField)}`
+  return fieldLabel(rule.field ?? rule.id)
+}
+
+function sourceLabel(rule: CanonicalRuleDto): string {
+  if (rule.field === 'stock') return '库存中心'
+  if (rule.field === 'campaignPrice' || rule.compareField === 'lowestPrice30d') return '价格中心'
+  if (rule.type === 'boolean_block') return '活动中心-报名记录'
+  return 'SKU 当前投影'
+}
+
+function fieldLabel(field?: string): string {
+  if (field === 'sales30d') return '近30天实付销量'
+  if (field === 'positiveRate') return '近30天好评率'
+  if (field === 'stock') return '可售库存'
+  if (field === 'campaignPrice') return '活动价'
+  if (field === 'lowestPrice30d') return '近30天最低价'
+  if (field === 'joinedBrandDay') return '同品牌活动报名记录'
+  return field ?? '规则字段'
+}
 
 function ruleCondition(rule: CanonicalRuleDto): string {
   if (rule.compareField) return `${operatorLabel(rule.operator)} ${rule.compareField}`
@@ -408,7 +457,7 @@ function confidenceLabel(confidence: number): string {
   return `${confidence >= 0.9 ? '高' : '中'} ${confidence.toFixed(2)}`
 }
 
-function renderChecklistStatus(status: typeof checklistItems[number]['status'], styleMap: typeof styles) {
+function renderChecklistStatus(status: ChecklistStatus, styleMap: typeof styles) {
   if (status === 'ready') return <span className={styleMap.tagReady}>✓ 已完成</span>
   if (status === 'missing') return <span className={styleMap.tagMissing}>✗ 缺少数据</span>
   return <span className={styleMap.tagExternal} style={{ color: '#d4a017', background: 'rgba(212,160,23,0.1)' }}>/ 待确认</span>
