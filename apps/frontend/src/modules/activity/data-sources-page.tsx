@@ -9,6 +9,7 @@ import styles from './data-sources.module.css'
 type ConnectorFormState =
   | { mode: 'create'; code: string; name: string; kind: ConnectorKind; platform: string; status: ConnectorStatus; configText: string }
   | { mode: 'edit'; connectorId: string; name: string; platform: string; status: ConnectorStatus; configText: string }
+type ConnectorPanelTab = 'overview' | 'config' | 'permissions'
 
 export function DataSourcesPage() {
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
@@ -16,6 +17,7 @@ export function DataSourcesPage() {
   const [detail, setDetail] = useState<ConnectorDetailDto | null>(null)
   const [runs, setRuns] = useState<ConnectorRunSummaryDto[]>([])
   const [connectorForm, setConnectorForm] = useState<ConnectorFormState | null>(null)
+  const [panelTab, setPanelTab] = useState<ConnectorPanelTab>('overview')
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -331,63 +333,105 @@ export function DataSourcesPage() {
                 <span className={`${styles.statusTag} ${detail.status === 'ACTIVE' ? styles.statusActive : styles.statusPaused}`} style={{ marginLeft: 'auto', fontWeight: 400 }}><div className={styles.dot} style={{ background: detail.status === 'ACTIVE' ? '#16a34a' : '#64748b', marginRight: 0 }}></div> {detail.status}</span>
               </div>
               <div className={styles.panelTabs}>
-                <div className={`${styles.panelTab} ${styles.active}`}>概览</div>
-                <div className={styles.panelTab}>配置</div>
-                <div className={styles.panelTab}>权限</div>
+                <button className={`${styles.panelTab} ${panelTab === 'overview' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('overview')}>概览</button>
+                <button className={`${styles.panelTab} ${panelTab === 'config' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('config')}>配置</button>
+                <button className={`${styles.panelTab} ${panelTab === 'permissions' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('permissions')}>权限</button>
               </div>
             </div>
             <button className="iconButton" type="button" onClick={() => setSelectedConnector(null)}><X size={18} color="var(--muted)" /></button>
           </div>
 
           <div className={styles.panelBody}>
-            <div className={styles.blockTitle}>
-              当前配置
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="secondaryButton" type="button" onClick={() => void editConnectorConfig()} disabled={busy === 'edit-connector'} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
-                <button className="secondaryButton" type="button" onClick={() => void toggleConnectorStatus(detail)} disabled={busy === `status:${detail.connectorId}`} style={{ fontSize: '12px', padding: '4px 8px' }}>{detail.status === 'DISABLED' ? '启用' : '停用'}</button>
-              </div>
-            </div>
-            <div className={styles.configList}>
-              <div className={styles.configRow}><div className={styles.configLabel}>连接器编码</div><div className={styles.configValue}>{detail.code}</div></div>
-              <div className={styles.configRow}><div className={styles.configLabel}>类型</div><div className={styles.configValue}>{detail.kind}</div></div>
-              <div className={styles.configRow}><div className={styles.configLabel}>平台</div><div className={styles.configValue}>{detail.platform ?? '-'}</div></div>
-              <div className={styles.configRow}><div className={styles.configLabel}>配置摘要</div><div className={styles.configValue}>{detail.configSummary}</div></div>
-              <div className={styles.configRow}><div className={styles.configLabel}>权限</div><div className={styles.configValue}>{detail.permissionSummary}</div></div>
-            </div>
-
-            <div className={styles.blockTitle}>权限摘要</div>
-            <div className={styles.authCards}>
-              <div className={styles.authCard}><div className={styles.authVal}>{detail.permissions.filter((item) => item.granted).length} 个</div><div className={styles.authLabel}>已授权</div></div>
-              <div className={styles.authCard}><div className={styles.authVal}>{detail.permissions.length} 个</div><div className={styles.authLabel}>权限项</div></div>
-              <div className={styles.authCard}><div className={styles.authVal}>本团队</div><div className={styles.authLabel}>数据可见范围</div></div>
-            </div>
-
-            <div className={styles.blockTitle}>
-              最近运行
-              <button type="button" className="secondaryButton" onClick={() => void createRun(detail.connectorId)} disabled={detail.status === 'DISABLED' || busy === detail.connectorId} style={{ fontSize: '12px', padding: '4px 8px' }}>新建运行</button>
-            </div>
-            <div className={styles.recentRunsSmall}>
-              {runs.slice(0, 3).map((run) => (
-                <div className={styles.runItem} key={run.connectorRunId}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className={run.status === 'FAILED' ? styles.dotRed : styles.dotGreen}></span> {run.connectorRunId}</div>
-                  <div className={styles.success}>{run.status}</div>
-                  <div style={{ color: 'var(--muted)' }}>{run.startedAt ? new Date(run.startedAt).toLocaleTimeString('zh-CN') : '-'}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className={styles.blockTitle}>运行告警</div>
-            <div className={styles.alertBox}>
-              <div className={styles.alertIcon}><CheckCircle2 size={16} /></div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '2px' }}>{runs.some((run) => run.warnings.length) ? '存在运行告警' : '暂无告警'}</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{runs.flatMap((run) => run.warnings).join('；') || '最近运行无告警'}</div>
-              </div>
-            </div>
+            {panelTab === 'overview' ? <ConnectorOverviewPanel detail={detail} runs={runs} createRun={createRun} busy={busy} /> : null}
+            {panelTab === 'config' ? <ConnectorConfigPanel detail={detail} editConnectorConfig={editConnectorConfig} toggleConnectorStatus={toggleConnectorStatus} busy={busy} /> : null}
+            {panelTab === 'permissions' ? <ConnectorPermissionPanel detail={detail} /> : null}
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+function ConnectorOverviewPanel({ detail, runs, createRun, busy }: {
+  detail: ConnectorDetailDto
+  runs: ConnectorRunSummaryDto[]
+  createRun: (connectorId: string) => Promise<void>
+  busy: string | null
+}) {
+  return (
+    <>
+      <div className={styles.blockTitle}>
+        最近运行
+        <button type="button" className="secondaryButton" onClick={() => void createRun(detail.connectorId)} disabled={detail.status === 'DISABLED' || busy === detail.connectorId} style={{ fontSize: '12px', padding: '4px 8px' }}>新建运行</button>
+      </div>
+      <div className={styles.recentRunsSmall}>
+        {runs.slice(0, 5).map((run) => (
+          <div className={styles.runItem} key={run.connectorRunId}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className={run.status === 'FAILED' ? styles.dotRed : styles.dotGreen}></span> {run.connectorRunId}</div>
+            <div className={styles.success}>{run.status}</div>
+            <div style={{ color: 'var(--muted)' }}>{run.startedAt ? new Date(run.startedAt).toLocaleTimeString('zh-CN') : '-'}</div>
+          </div>
+        ))}
+        {!runs.length ? <div className={styles.emptyState}>暂无采集运行。</div> : null}
+      </div>
+
+      <div className={styles.blockTitle}>运行告警</div>
+      <div className={styles.alertBox}>
+        <div className={styles.alertIcon}><CheckCircle2 size={16} /></div>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '2px' }}>{runs.some((run) => run.warnings.length) ? '存在运行告警' : '暂无告警'}</div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{runs.flatMap((run) => run.warnings).join('；') || '最近运行无告警'}</div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function ConnectorConfigPanel({ detail, editConnectorConfig, toggleConnectorStatus, busy }: {
+  detail: ConnectorDetailDto
+  editConnectorConfig: () => Promise<void>
+  toggleConnectorStatus: (target: ConnectorDetailDto) => Promise<void>
+  busy: string | null
+}) {
+  return (
+    <>
+      <div className={styles.blockTitle}>
+        当前配置
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="secondaryButton" type="button" onClick={() => void editConnectorConfig()} disabled={busy === 'edit-connector'} style={{ fontSize: '12px', padding: '4px 8px' }}>编辑配置</button>
+          <button className="secondaryButton" type="button" onClick={() => void toggleConnectorStatus(detail)} disabled={busy === `status:${detail.connectorId}`} style={{ fontSize: '12px', padding: '4px 8px' }}>{detail.status === 'DISABLED' ? '启用' : '停用'}</button>
+        </div>
+      </div>
+      <div className={styles.configList}>
+        <div className={styles.configRow}><div className={styles.configLabel}>连接器编码</div><div className={styles.configValue}>{detail.code}</div></div>
+        <div className={styles.configRow}><div className={styles.configLabel}>类型</div><div className={styles.configValue}>{detail.kind}</div></div>
+        <div className={styles.configRow}><div className={styles.configLabel}>平台</div><div className={styles.configValue}>{detail.platform ?? '-'}</div></div>
+        <div className={styles.configRow}><div className={styles.configLabel}>配置摘要</div><div className={styles.configValue}>{detail.configSummary}</div></div>
+        <div className={styles.configRow}><div className={styles.configLabel}>权限</div><div className={styles.configValue}>{detail.permissionSummary}</div></div>
+      </div>
+      <pre className={styles.rawJson}>{JSON.stringify(detail.config, null, 2)}</pre>
+    </>
+  )
+}
+
+function ConnectorPermissionPanel({ detail }: { detail: ConnectorDetailDto }) {
+  return (
+    <>
+      <div className={styles.blockTitle}>权限摘要</div>
+      <div className={styles.authCards}>
+        <div className={styles.authCard}><div className={styles.authVal}>{detail.permissions.filter((item) => item.granted).length} 个</div><div className={styles.authLabel}>已授权</div></div>
+        <div className={styles.authCard}><div className={styles.authVal}>{detail.permissions.length} 个</div><div className={styles.authLabel}>权限项</div></div>
+        <div className={styles.authCard}><div className={styles.authVal}>本团队</div><div className={styles.authLabel}>数据可见范围</div></div>
+      </div>
+      <div className={styles.permissionList}>
+        {detail.permissions.map((permission) => (
+          <div className={styles.permissionItem} key={permission.key}>
+            <span>{permission.label}</span>
+            <span className={permission.granted ? styles.permissionGranted : styles.permissionMissing}>{permission.granted ? '已授权' : '未授权'}</span>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 

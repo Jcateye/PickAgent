@@ -9,6 +9,7 @@ import styles from './rule-library.module.css'
 type RuleFormState =
   | { mode: 'create'; name: string; sourceText: string; status: RuleSetStatusDto }
   | { mode: 'edit'; ruleSetId: string; name: string; sourceText: string; status: RuleSetStatusDto }
+type RulePanelTab = 'summary' | 'json'
 
 export function RuleLibraryPage() {
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
@@ -17,6 +18,7 @@ export function RuleLibraryPage() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ENABLED' | 'DRAFT'>('ALL')
+  const [panelTab, setPanelTab] = useState<RulePanelTab>('json')
   const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -246,32 +248,97 @@ export function RuleLibraryPage() {
         </div>
 
         <div className={styles.panelTabs}>
-          <div className={styles.panelTab}>规则概况</div>
-          <div className={`${styles.panelTab} ${styles.active}`}>JSON 定义</div>
+          <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('summary')}>规则概况</button>
+          <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('json')}>JSON 定义</button>
         </div>
 
-        <div className={styles.editorContainer}>
-          <div className={styles.codeArea}>
-            {dslText.split('\n').map((line, index) => (
-              <div className={styles.codeLine} key={`${index}:${line}`}>
-                <span className={styles.lineNumber}>{index + 1}</span>
-                <span className={styles.codeContent}>{line}</span>
-              </div>
-            ))}
-          </div>
+        {panelTab === 'summary' ? <RuleSummaryPanel selectedRule={selectedRule} /> : <RuleJsonPanel dslText={dslText} selectedRule={selectedRule} />}
+      </div>
+    </div>
+  )
+}
 
-          <div className={styles.outlineSidebar}>
-            <div className={styles.outlineHeader}>结构大纲</div>
-            <div className={styles.outlineBody}>
-              <div className={styles.outlineNode}><Braces size={14} color="#ce9178" /> rule_set</div>
-              <div className={styles.outlineNode}><Braces size={14} color="#ce9178" /> metadata</div>
-              <div className={styles.outlineNode}><ChevronDown size={14} color="var(--muted)" /><Braces size={14} color="#ce9178" /> rules <span style={{ color: 'var(--muted)' }}>[{selectedRule?.dslJson.length ?? 0}]</span></div>
-              <div className={styles.outlineIndent}>
-                {(selectedRule?.dslJson ?? []).slice(0, 8).map((rule) => (
-                  <div className={styles.outlineNode} key={rule.id}><Braces size={14} color="#ce9178" /> {rule.id} ({rule.message})</div>
-                ))}
-              </div>
+function RuleSummaryPanel({ selectedRule }: { selectedRule: RuleSetDetailDto | null }) {
+  if (!selectedRule) return <div className={styles.summaryPanel}><div className={styles.emptyState}>请选择规则集。</div></div>
+  return (
+    <div className={styles.summaryPanel}>
+      <div className={styles.summaryGrid}>
+        <SummaryCard label="规则数" value={selectedRule.summary.ruleCount} />
+        <SummaryCard label="校验模式" value={selectedRule.summary.validationMode} />
+        <SummaryCard label="失败处理" value={selectedRule.summary.failureHandling} />
+        <SummaryCard label="优先级" value={selectedRule.summary.priority} />
+      </div>
+
+      <section className={styles.summarySection}>
+        <div className={styles.summaryTitle}>作用范围</div>
+        <div className={styles.summaryText}>{selectedRule.summary.scopeText}</div>
+      </section>
+
+      <section className={styles.summarySection}>
+        <div className={styles.summaryTitle}>影响字段</div>
+        <div className={styles.detailList}>
+          {selectedRule.affectedFields.length ? selectedRule.affectedFields.map((field) => (
+            <div className={styles.detailCard} key={field.field}>
+              <div className={styles.detailCardTitle}>{field.label} <span className={styles.detailMeta}>{field.field}</span></div>
+              <div className={styles.summaryText}>{field.required ? '必填字段' : '可选字段'} · 数据源 {field.dataSources.map((source) => source.label).join(' / ') || '-'}</div>
             </div>
+          )) : <div className={styles.emptyState}>当前规则集没有返回影响字段。</div>}
+        </div>
+      </section>
+
+      <section className={styles.summarySection}>
+        <div className={styles.summaryTitle}>人工复核项</div>
+        <div className={styles.detailList}>
+          {selectedRule.manualReviewItems.length ? selectedRule.manualReviewItems.map((item) => (
+            <div className={styles.detailCard} key={item.reasonCode}>
+              <div className={styles.detailCardTitle}>{item.reasonCode}</div>
+              <div className={styles.summaryText}>{item.question}{typeof item.confidence === 'number' ? ` · 置信度 ${item.confidence}` : ''}</div>
+            </div>
+          )) : <div className={styles.emptyState}>当前规则集没有人工复核项。</div>}
+        </div>
+      </section>
+
+      <section className={styles.summarySection}>
+        <div className={styles.summaryTitle}>关联运行</div>
+        <div className={styles.detailList}>
+          {selectedRule.relatedRuns.length ? selectedRule.relatedRuns.map((run) => (
+            <div className={styles.detailCard} key={run.entityId}>
+              <div className={styles.detailCardTitle}>{run.label}</div>
+              <div className={styles.detailMeta}>{run.entityType} / {run.entityId}</div>
+            </div>
+          )) : <div className={styles.emptyState}>当前规则集没有关联运行。</div>}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  return <div className={styles.summaryCard}><div className={styles.summaryCardLabel}>{label}</div><div className={styles.summaryCardValue}>{value}</div></div>
+}
+
+function RuleJsonPanel({ dslText, selectedRule }: { dslText: string; selectedRule: RuleSetDetailDto | null }) {
+  return (
+    <div className={styles.editorContainer}>
+      <div className={styles.codeArea}>
+        {dslText.split('\n').map((line, index) => (
+          <div className={styles.codeLine} key={`${index}:${line}`}>
+            <span className={styles.lineNumber}>{index + 1}</span>
+            <span className={styles.codeContent}>{line}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.outlineSidebar}>
+        <div className={styles.outlineHeader}>结构大纲</div>
+        <div className={styles.outlineBody}>
+          <div className={styles.outlineNode}><Braces size={14} color="#ce9178" /> rule_set</div>
+          <div className={styles.outlineNode}><Braces size={14} color="#ce9178" /> metadata</div>
+          <div className={styles.outlineNode}><ChevronDown size={14} color="var(--muted)" /><Braces size={14} color="#ce9178" /> rules <span style={{ color: 'var(--muted)' }}>[{selectedRule?.dslJson.length ?? 0}]</span></div>
+          <div className={styles.outlineIndent}>
+            {(selectedRule?.dslJson ?? []).slice(0, 8).map((rule) => (
+              <div className={styles.outlineNode} key={rule.id}><Braces size={14} color="#ce9178" /> {rule.id} ({rule.message})</div>
+            ))}
           </div>
         </div>
       </div>

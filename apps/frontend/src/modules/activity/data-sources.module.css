@@ -266,6 +266,8 @@
   cursor: pointer;
   padding-bottom: 8px;
   position: relative;
+  border: 0;
+  background: transparent;
 }
 
 .panelTab.active {
@@ -380,4 +382,48 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.rawJson {
+  margin: 0 0 24px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.emptyState {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.permissionList {
+  display: grid;
+  gap: 10px;
+}
+
+.permissionItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.permissionGranted {
+  color: #16a34a;
+}
+
+.permissionMissing {
+  color: #dc2626;
 }
