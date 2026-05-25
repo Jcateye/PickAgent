@@ -754,9 +754,10 @@ export class WorkspaceSettingsRepository {
     return this.store.workspaceSettings ?? defaultWorkspaceSettings();
   }
 
-  updateWorkspace(_boundary: P0AuthContextDto, input: Partial<WorkspaceSettingsDto>): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
+  updateWorkspace(boundary: P0AuthContextDto, input: Partial<WorkspaceSettingsDto>): WorkspaceSettingsDto | Promise<WorkspaceSettingsDto> {
     const updated = normalizeWorkspaceSettings({ ...(this.store.workspaceSettings ?? defaultWorkspaceSettings()), ...input });
     this.store.workspaceSettings = updated;
+    this.store.toolPolicy = toToolPolicy(updated, boundary.actorId);
     return updated;
   }
 
@@ -766,7 +767,10 @@ export class WorkspaceSettingsRepository {
 
   updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): ToolPolicyDto | Promise<ToolPolicyDto> {
     const currentWorkspace = this.store.workspaceSettings ?? defaultWorkspaceSettings();
-    const workspace = normalizeWorkspaceSettings({ ...currentWorkspace, allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools });
+    const patch: Partial<WorkspaceSettingsDto> = {};
+    if (input.allowedAgentTools !== undefined) patch.allowedAgentTools = input.allowedAgentTools;
+    if (input.deniedRuntimeTools !== undefined) patch.deniedRuntimeTools = input.deniedRuntimeTools;
+    const workspace = normalizeWorkspaceSettings({ ...currentWorkspace, ...patch });
     this.store.workspaceSettings = workspace;
     this.store.toolPolicy = toToolPolicy(workspace, boundary.actorId);
     return this.store.toolPolicy;
@@ -1790,7 +1794,11 @@ export class PrismaWorkspaceSettingsRepository extends WorkspaceSettingsReposito
   }
 
   async updateToolPolicy(boundary: P0AuthContextDto, input: Partial<ToolPolicyDto>): Promise<ToolPolicyDto> {
-    const workspace = normalizeWorkspaceSettings({ ...defaultWorkspaceSettings(), allowedAgentTools: input.allowedAgentTools, deniedRuntimeTools: input.deniedRuntimeTools });
+    const current = await this.getWorkspace(boundary);
+    const patch: Partial<WorkspaceSettingsDto> = {};
+    if (input.allowedAgentTools !== undefined) patch.allowedAgentTools = input.allowedAgentTools;
+    if (input.deniedRuntimeTools !== undefined) patch.deniedRuntimeTools = input.deniedRuntimeTools;
+    const workspace = normalizeWorkspaceSettings({ ...current, ...patch });
     await this.upsert("agent", "tool_policy", { allowedAgentTools: workspace.allowedAgentTools, deniedRuntimeTools: workspace.deniedRuntimeTools, policyVersion: toolPolicyVersion }, boundary.actorId);
     return toToolPolicy(workspace, boundary.actorId);
   }

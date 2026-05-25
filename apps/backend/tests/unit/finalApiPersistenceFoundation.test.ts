@@ -933,6 +933,22 @@ test("workspace settings and tool policy read back memory updates", async () => 
   assert.ok(policy.deniedRuntimeTools.includes("bash"));
 });
 
+test("workspace settings and tool policy preserve partial update readbacks", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+
+  await runtime.workspaceSettingsService.updateToolPolicy({ allowedAgentTools: ["getSkuSummary", "ingestSkus"], deniedRuntimeTools: ["customDenied"] }, tenantA);
+  await runtime.workspaceSettingsService.updateWorkspace({ dataFreshnessThresholdHours: 10 }, tenantA);
+
+  const policyAfterWorkspaceUpdate = await runtime.workspaceSettingsService.getToolPolicy(tenantA);
+  assert.deepEqual(policyAfterWorkspaceUpdate.allowedAgentTools, ["getSkuSummary", "ingestSkus"]);
+  assert.ok(policyAfterWorkspaceUpdate.deniedRuntimeTools.includes("customDenied"));
+
+  await runtime.workspaceSettingsService.updateToolPolicy({ deniedRuntimeTools: ["customDenied", "anotherDenied"] }, tenantA);
+  const policyAfterPartialUpdate = await runtime.workspaceSettingsService.getToolPolicy(tenantA);
+  assert.deepEqual(policyAfterPartialUpdate.allowedAgentTools, ["getSkuSummary", "ingestSkus"]);
+  assert.ok(policyAfterPartialUpdate.deniedRuntimeTools.includes("anotherDenied"));
+});
+
 test("connector sync run normalizes fractional quality scores for persistence", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const connector = await runtime.connectorService.create(
