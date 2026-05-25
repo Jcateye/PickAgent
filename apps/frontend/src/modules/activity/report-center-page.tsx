@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, RefreshCw } from 'lucide-react'
-import type { ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto } from '../../../../contracts/types/reviewReportCenter'
+import type { ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto, ReportVersionDto } from '../../../../contracts/types/reviewReportCenter'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './report-center.module.css'
 
@@ -11,7 +11,9 @@ type ExportFormat = 'PDF' | 'EXCEL' | 'PPT'
 export function ReportCenterPage() {
   const [reports, setReports] = useState<ReportListItemDto[]>([])
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const [detail, setDetail] = useState<ReportDetailDto | null>(null)
+  const [versions, setVersions] = useState<ReportVersionDto[]>([])
   const [format, setFormat] = useState<ExportFormat>('PDF')
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -22,7 +24,7 @@ export function ReportCenterPage() {
     setReports(list)
     const nextId = preferredId ?? selectedReportId ?? list[0]?.reportId ?? null
     setSelectedReportId(nextId)
-    if (nextId) setDetail(await fetchActivityApi<ReportDetailDto>(`/api/reports/${nextId}`))
+    if (nextId) await loadReportDetail(nextId)
   }
 
   useEffect(() => {
@@ -31,10 +33,39 @@ export function ReportCenterPage() {
 
   useEffect(() => {
     if (!selectedReportId) return
-    fetchActivityApi<ReportDetailDto>(`/api/reports/${selectedReportId}`)
-      .then(setDetail)
+    loadReportDetail(selectedReportId)
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '报告详情加载失败'))
   }, [selectedReportId])
+
+  async function loadReportDetail(reportId: string, preferredVersionId?: string | null) {
+    const [nextDetail, versionPage] = await Promise.all([
+      fetchActivityApi<ReportDetailDto>(`/api/reports/${reportId}`),
+      fetchActivityApi<PageDto<ReportVersionDto>>(`/api/reports/${reportId}/versions`),
+    ])
+    const nextVersions = versionPage.items
+    const nextVersion = nextVersions.find((item) => item.versionId === preferredVersionId) ?? nextVersions[0] ?? null
+    setVersions(nextVersions)
+    setSelectedVersionId(nextVersion?.versionId ?? null)
+    setDetail(nextVersion ?? nextDetail)
+  }
+
+  function switchVersion(versionId: string) {
+    const version = versions.find((item) => item.versionId === versionId)
+    if (!version) return
+    setSelectedVersionId(versionId)
+    setDetail(version)
+    setMessage(`已切换报告版本：${version.version}`)
+  }
+
+  function cycleVersion() {
+    if (!versions.length) {
+      setMessage('当前报告暂无可切换版本')
+      return
+    }
+    const currentIndex = Math.max(0, versions.findIndex((item) => item.versionId === selectedVersionId))
+    const next = versions[(currentIndex + 1) % versions.length]
+    if (next) switchVersion(next.versionId)
+  }
 
   const selectedSummary = reports.find((report) => report.reportId === selectedReportId)
   const totalSku = detail?.summary.totalSku ?? 0
@@ -219,7 +250,15 @@ export function ReportCenterPage() {
           <div className={styles.widgetCard}>
             <div className={styles.widgetTitle}>报告版本</div>
             <div className={styles.versionSelect}><div><div style={{ fontWeight: 500 }}>{detail?.version ?? '-'}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{detail?.generatedAt ? new Date(detail.generatedAt).toLocaleString('zh-CN') : '-'}</div></div><ChevronDown size={14} color="var(--muted)" /></div>
-            <button className="secondaryButton" type="button" onClick={() => setMessage(`当前报告版本：${detail?.version ?? '-'}`)} style={{ width: '100%' }}>切换版本</button>
+            <div style={{ display: 'grid', gap: '8px', marginBottom: '12px' }}>
+              {versions.map((version) => (
+                <button className="secondaryButton" type="button" key={version.versionId} onClick={() => switchVersion(version.versionId)} disabled={version.versionId === selectedVersionId} style={{ width: '100%', justifyContent: 'space-between' }}>
+                  <span>{version.version}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: '12px' }}>{new Date(version.generatedAt).toLocaleString('zh-CN')}</span>
+                </button>
+              ))}
+            </div>
+            <button className="secondaryButton" type="button" onClick={cycleVersion} disabled={versions.length <= 1} style={{ width: '100%' }}>切换版本</button>
           </div>
 
           <div className={styles.widgetCard}>
