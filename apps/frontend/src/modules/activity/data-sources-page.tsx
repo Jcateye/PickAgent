@@ -19,11 +19,11 @@ type BrowserScanIngestResponse = {
 
 export function DataSourcesPage() {
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
-  const [selectedConnector, setSelectedConnector] = useState<string | null>(null)
+  const [selectedConnector, setSelectedConnector] = useState<string | null>(() => getInitialConnectorId())
   const [detail, setDetail] = useState<ConnectorDetailDto | null>(null)
   const [runs, setRuns] = useState<ConnectorRunSummaryDto[]>([])
   const [connectorForm, setConnectorForm] = useState<ConnectorFormState | null>(null)
-  const [panelTab, setPanelTab] = useState<ConnectorPanelTab>('overview')
+  const [panelTab, setPanelTab] = useState<ConnectorPanelTab>(() => getInitialConnectorPanelTab())
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -42,6 +42,7 @@ export function DataSourcesPage() {
     if (!selectedConnector) {
       setDetail(null)
       setRuns([])
+      syncConnectorUrl(null, panelTab)
       return
     }
     let cancelled = false
@@ -53,6 +54,7 @@ export function DataSourcesPage() {
         if (cancelled) return
         setDetail(nextDetail)
         setRuns(nextRuns.items)
+        syncConnectorUrl(nextDetail.connectorId, panelTab)
       })
       .catch((error: unknown) => {
         if (!cancelled) setMessage(error instanceof Error ? error.message : '连接器详情加载失败')
@@ -278,7 +280,7 @@ export function DataSourcesPage() {
 
         <div className={styles.connectorList}>
           {connectors.map((connector) => (
-            <div className={`${styles.connectorCard} ${selectedConnector === connector.connectorId ? styles.selected : ''}`} key={connector.connectorId} onClick={() => setSelectedConnector(connector.connectorId)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') setSelectedConnector(connector.connectorId) }}>
+            <div className={`${styles.connectorCard} ${selectedConnector === connector.connectorId ? styles.selected : ''}`} key={connector.connectorId} onClick={() => { setSelectedConnector(connector.connectorId); syncConnectorUrl(connector.connectorId, panelTab) }} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter') { setSelectedConnector(connector.connectorId); syncConnectorUrl(connector.connectorId, panelTab) } }}>
               <div className={styles.connectorInfo}>
                 <div className={`${styles.connectorIcon} ${connectorIconClass(connector.kind)}`}>{connectorIcon(connector.kind)}</div>
                 <div>
@@ -307,7 +309,7 @@ export function DataSourcesPage() {
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTitle}>最近采集运行</div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <select className="secondaryButton" style={{ appearance: 'none', width: '120px' }} value={selectedConnector ?? ''} onChange={(event) => setSelectedConnector(event.target.value || null)}>
+            <select className="secondaryButton" style={{ appearance: 'none', width: '120px' }} value={selectedConnector ?? ''} onChange={(event) => { const nextId = event.target.value || null; setSelectedConnector(nextId); syncConnectorUrl(nextId, panelTab) }}>
               <option value="">全部数据源</option>
               {connectors.map((connector) => <option value={connector.connectorId} key={connector.connectorId}>{connector.name}</option>)}
             </select>
@@ -353,12 +355,12 @@ export function DataSourcesPage() {
                 <span className={`${styles.statusTag} ${detail.status === 'ACTIVE' ? styles.statusActive : styles.statusPaused}`} style={{ marginLeft: 'auto', fontWeight: 400 }}><div className={styles.dot} style={{ background: detail.status === 'ACTIVE' ? '#16a34a' : '#64748b', marginRight: 0 }}></div> {detail.status}</span>
               </div>
               <div className={styles.panelTabs}>
-                <button className={`${styles.panelTab} ${panelTab === 'overview' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('overview')}>概览</button>
-                <button className={`${styles.panelTab} ${panelTab === 'config' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('config')}>配置</button>
-                <button className={`${styles.panelTab} ${panelTab === 'permissions' ? styles.active : ''}`} type="button" onClick={() => setPanelTab('permissions')}>权限</button>
+                <button className={`${styles.panelTab} ${panelTab === 'overview' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('overview'); syncConnectorUrl(detail.connectorId, 'overview') }}>概览</button>
+                <button className={`${styles.panelTab} ${panelTab === 'config' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('config'); syncConnectorUrl(detail.connectorId, 'config') }}>配置</button>
+                <button className={`${styles.panelTab} ${panelTab === 'permissions' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('permissions'); syncConnectorUrl(detail.connectorId, 'permissions') }}>权限</button>
               </div>
             </div>
-            <button className="iconButton" type="button" onClick={() => setSelectedConnector(null)}><X size={18} color="var(--muted)" /></button>
+            <button className="iconButton" type="button" onClick={() => { setSelectedConnector(null); syncConnectorUrl(null, panelTab) }}><X size={18} color="var(--muted)" /></button>
           </div>
 
           <div className={styles.panelBody}>
@@ -527,6 +529,29 @@ function ConnectorPermissionPanel({ detail }: { detail: ConnectorDetailDto }) {
       </div>
     </>
   )
+}
+
+function getInitialConnectorId(): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get('connectorId')
+}
+
+function getInitialConnectorPanelTab(): ConnectorPanelTab {
+  if (typeof window === 'undefined') return 'overview'
+  const value = new URLSearchParams(window.location.search).get('panelTab')
+  return value === 'config' || value === 'permissions' ? value : 'overview'
+}
+
+function syncConnectorUrl(connectorId: string | null, panelTab: ConnectorPanelTab) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (connectorId) params.set('connectorId', connectorId)
+  if (panelTab !== 'overview') params.set('panelTab', panelTab)
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
 
 function connectorIcon(kind?: string) {
