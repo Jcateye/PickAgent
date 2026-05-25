@@ -390,6 +390,9 @@ test('agent chat reads connector run and activity simulation run details', async
   })
   assert.equal(connectorRun.status, 'SUCCEEDED')
   const connectorRunId = (connectorRun.result as { connectorRunId: string }).connectorRunId
+  const connectorRuns = await executeFinalApiTool('listConnectorRuns', { connectorId, pageSize: 5 })
+  assert.equal(connectorRuns.status, 'SUCCEEDED')
+  assert.ok((connectorRuns.result as { items: Array<{ connectorRunId: string }> }).items.some((item) => item.connectorRunId === connectorRunId))
   const connectorRunDetail = await executeFinalApiTool('getConnectorRunDetail', { connectorRunId })
   assert.equal(connectorRunDetail.status, 'SUCCEEDED')
   assert.equal((connectorRunDetail.result as { connectorRunId: string; rowCount: number }).connectorRunId, connectorRunId)

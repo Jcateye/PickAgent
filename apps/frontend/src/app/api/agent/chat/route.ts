@@ -583,6 +583,13 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器详情', summary: `${result.name} / ${result.kind} / ${result.status}` }], `读取连接器详情：${result.name}`, { type: 'connector', id: connectorId })
     }
 
+    if (toolName === 'listConnectorRuns') {
+      const connectorId = String(input.connectorId ?? '')
+      if (!connectorId) throw new Error('connectorId is required')
+      const result = await finalApiRuntime.connectorService.listRuns(connectorId, numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
+      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.connectorRunId, label: '连接器运行', summary: `${item.status} / ${item.rowCount} 行 / 质量 ${item.qualityScore ?? '-'}` })), `读取连接器运行列表：${result.total} 条`, result.items[0] ? { type: 'workflow_run', id: result.items[0].workflowRunRef?.entityId ?? result.items[0].connectorRunId } : { type: 'connector', id: connectorId })
+    }
+
     if (toolName === 'getConnectorRunDetail') {
       const connectorRunId = String(input.connectorRunId ?? input.runId ?? '')
       if (!connectorRunId) throw new Error('connectorRunId is required')

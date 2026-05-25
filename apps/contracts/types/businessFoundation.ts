@@ -270,6 +270,7 @@ export const defaultAgentToolNames = [
   "setSkuNextAction",
   "listConnectors",
   "getConnectorDetail",
+  "listConnectorRuns",
   "getConnectorRunDetail",
   "createConnector",
   "updateConnector",

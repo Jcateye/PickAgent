@@ -578,6 +578,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getConnectorDetail', inputJson),
     }),
+    listConnectorRuns: tool({
+      description: '读取指定 connectorId 的真实连接器运行历史。支持 page/pageSize，返回 connectorRunId、status、rowCount、qualityScore、warnings 和 workflowRunRef。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('listConnectorRuns', inputJson),
+    }),
     getConnectorRunDetail: tool({
       description: '读取单个连接器运行详情。需要 connectorRunId 或 runId，返回采集行数、质量分、warnings、summary 和关联 connector。',
       inputSchema: objectSchema,
