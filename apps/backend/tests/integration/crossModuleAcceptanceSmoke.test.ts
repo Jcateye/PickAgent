@@ -89,6 +89,7 @@ test("cross-module acceptance chain connects doudian ingest, health, activity, r
       "diagnoseSkuHealth",
       "createReviewItems",
       "explainDecisionWithEvidence",
+      "generateReport",
       "generateReportPreview",
     ],
   );

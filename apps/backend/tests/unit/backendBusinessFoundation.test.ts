@@ -89,6 +89,7 @@ test("backend business foundation supports ingest, projection, simulation, revie
       "diagnoseSkuHealth",
       "createReviewItems",
       "explainDecisionWithEvidence",
+      "generateReport",
       "generateReportPreview",
     ],
   );
@@ -105,6 +106,7 @@ test("backend business foundation supports ingest, projection, simulation, revie
     }).status,
     "SUCCEEDED",
   );
+  assert.equal(runtime.agentToolRegistry.execute("generateReport", { type: "ACTIVITY", skuProfileIds: [ingestResult.summaries[0]?.skuProfileId], simulationResultIds: [simulation[0]?.simulationResultId] }).status, "SUCCEEDED");
 
   const agentRun = runtime.fakeAgentLoopAdapter.startMission({
     objective: "复核第一个 SKU 的活动准入风险",

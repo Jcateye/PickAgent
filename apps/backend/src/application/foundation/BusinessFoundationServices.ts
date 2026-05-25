@@ -575,6 +575,7 @@ export class AgentToolRegistry {
     { name: "diagnoseSkuHealth", description: "返回 SKU 最新健康诊断", inputSchemaName: "SkuIdInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.skuDetail },
     { name: "createReviewItems", description: "创建结构化人工 Review 项", inputSchemaName: "ReviewCreateInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.reviewItem },
     { name: "explainDecisionWithEvidence", description: "基于健康诊断和模拟结果输出决策解释", inputSchemaName: "DecisionExplanationInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.decisionExplanation },
+    { name: "generateReport", description: "生成健康或活动报告预览", inputSchemaName: "ReportPreviewInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.reportPreview },
     { name: "generateReportPreview", description: "生成健康或活动报告预览", inputSchemaName: "ReportPreviewInputZodSchema", outputSchemaName: BusinessFoundationSchemaNames.reportPreview },
   ];
 
@@ -624,14 +625,14 @@ export class AgentToolRegistry {
     if (toolName === "explainDecisionWithEvidence") {
       return this.skuQueryService.explainDecisionWithEvidence(input as { skuProfileId: string; simulationResultId?: string; question?: string });
     }
-    if (toolName === "generateReportPreview") return this.reportService.generatePreview(input as { type: "HEALTH" | "ACTIVITY"; skuProfileIds: string[]; simulationResultIds?: string[] });
+    if (toolName === "generateReport" || toolName === "generateReportPreview") return this.reportService.generatePreview(input as { type: "HEALTH" | "ACTIVITY"; skuProfileIds: string[]; simulationResultIds?: string[] });
     throw new Error(`Unknown agent tool: ${toolName}`);
   }
 }
 
 function linkedEntityFor(toolName: AgentToolName, result: unknown): { type: string; id: string } | undefined {
   if (toolName === "parseActivityRules") return { type: "activity_rule_set", id: (result as ActivityRuleSetDto).ruleSetId };
-  if (toolName === "generateReportPreview") return { type: "report", id: (result as ReportPreviewDto).reportId };
+  if (toolName === "generateReport" || toolName === "generateReportPreview") return { type: "report", id: (result as ReportPreviewDto).reportId };
   return undefined;
 }
 
