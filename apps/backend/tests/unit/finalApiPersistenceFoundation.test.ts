@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { businessFoundationActivityRuleText, businessFoundationSeedFixture } from "../../../contracts/types/businessFoundation.fixture";
-import { createFinalApiPersistenceRuntime, FinalActivityService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaDashboardSkuReadModelRepository, PrismaReportRepository, PrismaReviewRepository, PrismaRuleSetRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
+import { createFinalApiPersistenceRuntime, FinalActivityService, FinalReportService, PrismaActivityRepository, PrismaConnectorRepositoryV2, PrismaDashboardSkuReadModelRepository, PrismaReportRepository, PrismaReviewRepository, PrismaRuleSetRepository, WorkflowAuditQueryService } from "../../src/application/foundation/FinalApiPersistenceFoundation";
 import { P0AuthBoundaryError, type P0AuthContextDto } from "../../src/application/foundation/P0AuthBoundaryRuntimeConfig";
 
 const tenantA: P0AuthContextDto = {
@@ -377,6 +377,36 @@ test("prisma report repository reads detail from latest version snapshot", async
   assert.equal(list[0]?.summary.totalSku, 3);
   assert.equal(detail?.version, "v1");
   assert.equal(detail?.summary.totalSku, 3);
+});
+
+test("report export and subscription reject missing reports before writes", async () => {
+  const writes: string[] = [];
+  const repository = new PrismaReportRepository({
+    report: {
+      findUnique: async () => null,
+      update: async () => {
+        writes.push("report.update");
+        return {};
+      },
+    },
+    workflowRun: {
+      create: async () => {
+        writes.push("workflowRun.create");
+        return {};
+      },
+    },
+  } as never);
+  const service = new FinalReportService(repository, {} as never);
+
+  await assert.rejects(
+    () => service.export("missing_report", { format: "PDF" }, tenantA),
+    /Report not found: missing_report/,
+  );
+  await assert.rejects(
+    () => service.saveSubscription("missing_report", { frequency: "WEEKLY", recipients: ["ops@example.test"] }, tenantA),
+    /Report not found: missing_report/,
+  );
+  assert.deepEqual(writes, []);
 });
 
 test("prisma review repository records create audit history", async () => {

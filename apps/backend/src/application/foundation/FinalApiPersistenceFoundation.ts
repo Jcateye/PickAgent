@@ -2573,11 +2573,19 @@ export class FinalReportService {
   }
 
   async export(reportId: string, request: ReportExportRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportExportJobDto> {
+    await this.requireReport(reportId, boundary);
     return this.repository.createExport(boundary, reportId, request);
   }
 
   async saveSubscription(reportId: string, request: ReportSubscriptionRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ReportSubscriptionDto> {
+    await this.requireReport(reportId, boundary);
     return this.repository.saveSubscription(boundary, reportId, request);
+  }
+
+  private async requireReport(reportId: string, boundary: P0AuthContextDto): Promise<ReportDetailDto> {
+    const detail = await this.repository.getById(boundary, reportId);
+    if (!detail) throw new Error(`Report not found: ${reportId}`);
+    return detail;
   }
 }
 
