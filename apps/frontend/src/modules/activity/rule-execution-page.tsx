@@ -111,7 +111,17 @@ export function RuleExecutionPage() {
           })),
         }),
       })
-      setMessage(`${action === 'assign' ? '批量指派' : '批量标记复核'}已生成 Review：${created.map((item) => item.reviewItemId).join(', ')}`)
+      if (action === 'mark') {
+        await Promise.all(created.map((item) => fetchActivityApi(`/api/reviews/${item.reviewItemId}/decision`, {
+          method: 'POST',
+          body: JSON.stringify({
+            decision: 'APPROVE',
+            decisionBy: 'rule_execution_page',
+            decisionComment: '批量确认检查项已完成：来自规则执行页',
+          }),
+        })))
+      }
+      setMessage(`${action === 'assign' ? '批量指派已生成待审批 Review' : '批量确认已生成并批准 Review'}：${created.map((item) => item.reviewItemId).join(', ')}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '批量操作失败')
     } finally {

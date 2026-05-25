@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
+import { GET as listReviews, POST as createReviews } from '../src/app/api/reviews/route'
 import { PATCH as patchReview } from '../src/app/api/reviews/[reviewItemId]/route'
 import { POST as decideReview } from '../src/app/api/reviews/[reviewItemId]/decision/route'
 
@@ -67,4 +68,44 @@ test('review routes return conflict when closed review is edited or decided agai
   const secondDecisionEnvelope = await secondDecisionResponse.json()
   assert.equal(secondDecisionResponse.status, 409)
   assert.equal(secondDecisionEnvelope.code, 'REVIEW.CONFLICT')
+})
+
+test('review route creates then approves item that appears in approved workbench tab', async () => {
+  const sourceId = `review_route_approved_${Date.now()}`
+  const createResponse = await createReviews(
+    new Request('http://localhost/api/reviews', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        items: [
+          {
+            sourceType: 'agent',
+            sourceId,
+            question: '批量确认检查项已完成？',
+            recommendation: '规则执行页批量确认后应进入已批准列表。',
+            riskLevel: 'L1',
+            evidence: [],
+          },
+        ],
+      }),
+    }),
+  )
+  const createEnvelope = await createResponse.json()
+  assert.equal(createResponse.status, 200)
+  const reviewItemId = createEnvelope.data[0].reviewItemId
+
+  const decisionResponse = await decideReview(
+    new Request(`http://localhost/api/reviews/${reviewItemId}/decision`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ decision: 'APPROVE', decisionBy: boundary.actorId, decisionComment: '路由测试批准' }),
+    }),
+    { params: Promise.resolve({ reviewItemId }) },
+  )
+  assert.equal(decisionResponse.status, 200)
+
+  const approvedResponse = await listReviews(new Request('http://localhost/api/reviews?tab=APPROVED&pageSize=50', { headers: authHeaders }))
+  const approvedEnvelope = await approvedResponse.json()
+  assert.equal(approvedResponse.status, 200)
+  assert.ok(approvedEnvelope.data.items.some((item: { reviewItemId: string; status: string }) => item.reviewItemId === reviewItemId && item.status === 'APPROVED'))
 })

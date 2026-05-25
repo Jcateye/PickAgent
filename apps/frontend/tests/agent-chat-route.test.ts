@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
 import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
-import { toRecoveredTurn } from '../src/app/api/agent/sessions/[sessionKey]/messages/route'
+import { toRecoveredTurn } from '../src/app/api/agent/sessions/recovered-turn'
 import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
