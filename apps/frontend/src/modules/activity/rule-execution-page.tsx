@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
 import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto, SimulationResultDto } from '../../../../contracts/types/businessFoundation'
 import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
@@ -32,6 +32,35 @@ export function RuleExecutionPage() {
   const [simulationRun, setSimulationRun] = useState<ActivitySimulationRunDto | null>(null)
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
+  useEffect(() => {
+    const ruleSetId = getInitialRuleExecutionParam('ruleSetId')
+    const simulationRunId = getInitialRuleExecutionParam('simulationRunId')
+    if (!ruleSetId || !simulationRunId) return
+    let cancelled = false
+    setBusy(true)
+    Promise.all([
+      fetchActivityApi<RuleSetDetailDto>(`/api/rule-sets/${ruleSetId}`),
+      fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${ruleSetId}/simulations/${simulationRunId}`),
+    ])
+      .then(([detail, run]) => {
+        if (cancelled) return
+        setRuleSet(ruleSetDetailToActivityRuleSet(detail))
+        setRuleName(detail.name)
+        setSourceText(detail.sourceText)
+        setSimulationRun(run)
+        setMessage(`已恢复运行检查：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU。`)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : '恢复规则执行结果失败')
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   async function runCheck() {
     setBusy(true)
     try {
@@ -52,6 +81,7 @@ export function RuleExecutionPage() {
       })
       setRuleSet(parsedRuleSet)
       setSimulationRun(run)
+      syncRuleExecutionUrl(parsedRuleSet.ruleSetId, run.simulationRunId)
       setMessage(`运行检查已完成：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((item) => item.eligibility === 'BLOCKED').length} 个。`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
@@ -462,6 +492,32 @@ function DecisionFlowPreview({ statusSummary, hasSimulation }: { statusSummary: 
       </div>
     </div>
   )
+}
+
+function getInitialRuleExecutionParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function syncRuleExecutionUrl(ruleSetId: string, simulationRunId: string) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams({ ruleSetId, simulationRunId })
+  const nextUrl = `${window.location.pathname}?${params.toString()}`
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
+}
+
+function ruleSetDetailToActivityRuleSet(detail: RuleSetDetailDto): ActivityRuleSetDto {
+  return {
+    ruleSetId: detail.ruleSetId,
+    name: detail.name,
+    sourceText: detail.sourceText,
+    rules: detail.dslJson,
+    parseStatus: 'PARSED',
+    confidence: 1,
+    errors: [],
+  }
 }
 
 function FlowNode({ label, tone, color }: { label: string; tone?: 'ready' | 'pending' | 'blocked' | 'muted'; color?: string }) {

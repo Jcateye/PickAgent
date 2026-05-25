@@ -4,9 +4,11 @@ import test from 'node:test'
 import { DELETE as deleteRuleSet, GET as getRuleSet, PATCH as updateRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/route'
 import { POST as disableRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/disable/route'
 import { POST as enableRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/enable/route'
+import { GET as getRuleSetSimulationRun } from '../src/app/api/rule-sets/[ruleSetId]/simulations/[simulationRunId]/route'
 import { POST as simulateRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/simulations/route'
 import { GET as listRuleSetVersions, POST as createRuleSetVersion } from '../src/app/api/rule-sets/[ruleSetId]/versions/route'
 import { POST as createRuleSet } from '../src/app/api/rule-sets/route'
+import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
   'content-type': 'application/json',
@@ -103,4 +105,71 @@ test('rule set simulation route rejects missing sku and disabled rules with stab
   const disabledEnvelope = await disabledResponse.json()
   assert.equal(disabledResponse.status, 409)
   assert.equal(disabledEnvelope.code, 'RULE.CONFLICT')
+})
+
+test('rule set simulation run route reads back persisted simulation by rule set', async () => {
+  const externalSkuId = `rule_set_route_simulation_${Date.now()}`
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T12:00:00.000Z',
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'rule_set_route_store',
+        externalSkuId,
+        productName: '规则模拟读回 SKU',
+        stock: 50,
+        sales30d: 200,
+        positiveRate: 0.98,
+        raw: { externalSkuId },
+      },
+    ],
+  }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'rule_set_route_ingest_request',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+
+  const createdResponse = await createRuleSet(
+    new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Route Simulation Read Rule', sourceText: '库存不得低于 20 件。', platform: 'tmall', status: 'ENABLED' }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const ruleSetId = createdEnvelope.data.ruleSetId
+
+  const simulationResponse = await simulateRuleSet(
+    new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ skuProfileIds: [skuProfileId] }),
+    }),
+    { params: Promise.resolve({ ruleSetId }) },
+  )
+  const simulationEnvelope = await simulationResponse.json()
+  assert.equal(simulationResponse.status, 200)
+  const simulationRunId = simulationEnvelope.data.simulationRunId
+
+  const getResponse = await getRuleSetSimulationRun(
+    new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations/${simulationRunId}`, { headers: authHeaders }),
+    { params: Promise.resolve({ ruleSetId, simulationRunId }) },
+  )
+  const getEnvelope = await getResponse.json()
+  assert.equal(getResponse.status, 200)
+  assert.equal(getEnvelope.data.simulationRunId, simulationRunId)
+  assert.equal(getEnvelope.data.activityRuleSetId, ruleSetId)
+  assert.deepEqual(getEnvelope.data.scope.skuProfileIds, [skuProfileId])
+
+  const wrongRuleResponse = await getRuleSetSimulationRun(
+    new Request(`http://localhost/api/rule-sets/wrong_rule_set/simulations/${simulationRunId}`, { headers: authHeaders }),
+    { params: Promise.resolve({ ruleSetId: 'wrong_rule_set', simulationRunId }) },
+  )
+  const wrongRuleEnvelope = await wrongRuleResponse.json()
+  assert.equal(wrongRuleResponse.status, 404)
+  assert.equal(wrongRuleEnvelope.code, 'ACTIVITY_SIMULATION.NOT_FOUND')
 })

@@ -2442,6 +2442,12 @@ export class FinalActivityService {
     return this.toSimulationDetail(activityId, run, await this.buildExecutionPlan(activity, boundary));
   }
 
+  async simulationRunForRuleSet(ruleSetId: string, simulationRunId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDto | null> {
+    const run = await this.repository.getSimulationRun(boundary, simulationRunId);
+    if (!run || run.activityRuleSetId !== ruleSetId) return null;
+    return run;
+  }
+
   async listRecentSimulationRuns(boundary: P0AuthContextDto = explicitDevBoundary, limit = 20): Promise<ActivitySimulationRunDto[]> {
     return this.repository.listRecentSimulationRuns(boundary, limit);
   }
