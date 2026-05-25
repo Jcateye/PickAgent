@@ -949,6 +949,18 @@ test("workspace settings and tool policy preserve partial update readbacks", asy
   assert.ok(policyAfterPartialUpdate.deniedRuntimeTools.includes("anotherDenied"));
 });
 
+test("workspace settings users support status updates with audit readback", async () => {
+  const runtime = createFinalApiPersistenceRuntime();
+
+  const updated = await runtime.workspaceSettingsService.updateUserStatus("qa_reviewer", "DISABLED", tenantA);
+  const users = await runtime.workspaceSettingsService.listUsers(tenantA);
+
+  assert.equal(updated.status, "DISABLED");
+  assert.equal(users.find((user) => user.userId === "qa_reviewer")?.status, "DISABLED");
+  assert.ok(Array.from(runtime.store.workflowAudits.values()).some((audit) => audit.workflowType === "settings_user_status_update" && audit.subjectId === "qa_reviewer"));
+  await assert.rejects(() => runtime.workspaceSettingsService.updateUserStatus("missing_user", "ACTIVE", tenantA), /Settings user not found/);
+});
+
 test("connector sync run normalizes fractional quality scores for persistence", async () => {
   const runtime = createFinalApiPersistenceRuntime();
   const connector = await runtime.connectorService.create(

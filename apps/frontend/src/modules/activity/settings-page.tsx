@@ -66,6 +66,23 @@ export function SettingsPage() {
     }
   }
 
+  async function toggleUser(user: SettingsUserDto) {
+    const nextStatus = user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+    setBusy(`user:${user.userId}`)
+    try {
+      const updated = await fetchActivityApi<SettingsUserDto>(`/api/settings/users/${user.userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      setUsers((current) => current.map((item) => (item.userId === updated.userId ? updated : item)))
+      setMessage(`已${updated.status === 'ACTIVE' ? '启用' : '停用'}审批角色：${updated.name}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '审批角色更新失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="pageStack">
       <div className="pageHeader">
@@ -109,7 +126,10 @@ export function SettingsPage() {
                   <div style={{ fontWeight: 600, fontSize: '14px' }}>{user.name}</div>
                   <div style={{ color: 'var(--muted)', fontSize: '12px' }}>{user.teamName} / {user.role}</div>
                 </div>
-                <span className="statusBadge statusBadge--ready">{user.status}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="statusBadge statusBadge--ready">{user.status}</span>
+                  <button className="secondaryButton" type="button" onClick={() => void toggleUser(user)} disabled={busy === `user:${user.userId}`} style={{ height: '28px', padding: '0 10px', fontSize: '12px' }}>{user.status === 'ACTIVE' ? '停用' : '启用'}</button>
+                </div>
               </div>
             ))}
           </div>

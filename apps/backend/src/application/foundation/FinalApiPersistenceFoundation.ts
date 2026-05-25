@@ -779,6 +779,15 @@ export class WorkspaceSettingsRepository {
   listUsers(_boundary: P0AuthContextDto): SettingsUserDto[] | Promise<SettingsUserDto[]> {
     return this.store.settingsUsers ?? defaultSettingsUsers();
   }
+
+  updateUserStatus(_boundary: P0AuthContextDto, userId: string, status: SettingsUserDto["status"]): SettingsUserDto | Promise<SettingsUserDto> {
+    const users = this.store.settingsUsers ?? defaultSettingsUsers();
+    const user = users.find((item) => item.userId === userId);
+    if (!user) throw new Error(`Settings user not found: ${userId}`);
+    const updated = { ...user, status };
+    this.store.settingsUsers = users.map((item) => (item.userId === userId ? updated : item));
+    return updated;
+  }
 }
 
 export class ReviewRepository {
@@ -1803,6 +1812,21 @@ export class PrismaWorkspaceSettingsRepository extends WorkspaceSettingsReposito
     return toToolPolicy(workspace, boundary.actorId);
   }
 
+  async listUsers(_boundary: P0AuthContextDto): Promise<SettingsUserDto[]> {
+    const row = (await this.prisma.workspaceSetting.findMany({ where: { namespace: "review", settingKey: "users" }, take: 1 }))[0];
+    const users = asArray(asRecord(row?.settingJson).users).filter(isRecord).map(toSettingsUser);
+    return users.length ? users : defaultSettingsUsers();
+  }
+
+  async updateUserStatus(boundary: P0AuthContextDto, userId: string, status: SettingsUserDto["status"]): Promise<SettingsUserDto> {
+    const users = await this.listUsers(boundary);
+    const user = users.find((item) => item.userId === userId);
+    if (!user) throw new Error(`Settings user not found: ${userId}`);
+    const updated = { ...user, status };
+    await this.upsert("review", "users", { users: users.map((item) => (item.userId === userId ? updated : item)) }, boundary.actorId);
+    return updated;
+  }
+
   private async upsert(namespace: string, settingKey: string, settingJson: Record<string, unknown>, actorId: string): Promise<void> {
     await this.prisma.workspaceSetting.upsert({
       where: { namespace_settingKey: { namespace, settingKey } },
@@ -2792,6 +2816,20 @@ export class WorkspaceSettingsService {
   listUsers(boundary: P0AuthContextDto = explicitDevBoundary): Promise<SettingsUserDto[]> {
     return Promise.resolve(this.repository.listUsers(boundary));
   }
+
+  async updateUserStatus(userId: string, status: SettingsUserDto["status"], boundary: P0AuthContextDto = explicitDevBoundary): Promise<SettingsUserDto> {
+    return this.tx.transaction(async (tx) => {
+      const user = await this.repository.updateUserStatus(boundary, userId, status);
+      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+        workflowType: "settings_user_status_update",
+        subjectType: "settings_user",
+        subjectId: userId,
+        input: { userId, status, actorId: boundary.actorId },
+        output: { userId, status: user.status },
+      });
+      return user;
+    });
+  }
 }
 
 const toolPolicyVersion = "p1";
@@ -2910,6 +2948,17 @@ function defaultSettingsUsers(): SettingsUserDto[] {
     { userId: "qa_reviewer", name: "质检复核", role: "qa_team", teamName: "质检团队", status: "ACTIVE" },
     { userId: "compliance_owner", name: "合规审批", role: "compliance_team", teamName: "合规团队", status: "ACTIVE" },
   ];
+}
+
+function toSettingsUser(value: Record<string, unknown>): SettingsUserDto {
+  const status = value.status === "DISABLED" ? "DISABLED" : "ACTIVE";
+  return {
+    userId: String(value.userId ?? ""),
+    name: String(value.name ?? ""),
+    role: String(value.role ?? ""),
+    teamName: String(value.teamName ?? ""),
+    status,
+  };
 }
 
 function toRuleSetDto(row: Record<string, unknown>): ActivityRuleSetDto {
