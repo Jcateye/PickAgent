@@ -5,7 +5,7 @@ import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAg
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
-import { defaultAgentToolNames, type EvidenceLinkDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type EvidenceLinkDto, type ReviewItemDto, type RuleSetStatusDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { createLocalPrismaConversationClient } from './local-prisma-client'
@@ -128,9 +128,7 @@ function createPersistentToolExecutor(repository: AgentConversationRepository) {
     const toolName = input.toolName === 'reportPreview' ? 'generateReport' : input.toolName === 'generateReportPreview' ? 'generateReport' : input.toolName
     const safeInput = scrubSensitive(input.inputJson) as Record<string, unknown>
     const policy = await finalApiRuntime.workspaceSettingsService.getToolPolicy(agentToolAuthContext())
-    const allowedTools = new Set(policy.allowedAgentTools.map(normalizePolicyToolName))
-    const deniedTools = new Set(policy.deniedRuntimeTools.map(normalizePolicyToolName))
-    const isDeniedBySettings = deniedTools.has(toolName) || (allowedTools.size > 0 && !allowedTools.has(toolName))
+    const isDeniedBySettings = isAgentToolDeniedBySettings(toolName, policy)
     if (!registeredAgentTools.has(toolName) || containsSensitive(input.inputJson) || isDeniedBySettings) {
       const reason = containsSensitive(input.inputJson) ? 'sensitive_input_denied' : !registeredAgentTools.has(toolName) ? 'unregistered_tool_denied' : 'tool_policy_denied'
       const toolCall = await repository.createToolCall({
@@ -193,6 +191,13 @@ interface FinalApiToolExecution {
   evidence: EvidenceLinkDto[]
   linkedEntity?: { type: string; id: string }
   trace: Array<{ summary: string }>
+}
+
+export function isAgentToolDeniedBySettings(toolName: string, policy: Pick<ToolPolicyDto, 'allowedAgentTools' | 'deniedRuntimeTools'>): boolean {
+  const normalizedToolName = normalizePolicyToolName(toolName)
+  const allowedTools = new Set(policy.allowedAgentTools.map(normalizePolicyToolName))
+  const deniedTools = new Set(policy.deniedRuntimeTools.map(normalizePolicyToolName))
+  return deniedTools.has(normalizedToolName) || !allowedTools.has(normalizedToolName)
 }
 
 export async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {

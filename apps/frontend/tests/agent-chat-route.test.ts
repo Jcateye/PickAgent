@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { executeFinalApiTool, POST } from '../src/app/api/agent/chat/route'
+import { executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
@@ -72,4 +72,10 @@ test('agent chat tools write backend workflow audits with agent auth context', a
   assert.ok(parseAudit)
   assert.equal(parseAudit.input.actorId, 'agent_demo')
   assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
+})
+
+test('agent chat tool policy treats an empty allowlist as deny all', () => {
+  assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: [], deniedRuntimeTools: [] }), true)
+  assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: [] }), false)
+  assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: ['getSkuSummary'] }), true)
 })
