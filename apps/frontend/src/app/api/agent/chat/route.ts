@@ -2,6 +2,7 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
+import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import type { EvidenceLinkDto, ReviewItemDto, RuleSetStatusDto, SkuDetailDto, SkuSummaryDto } from '../../../../../../contracts/types/businessFoundation'
@@ -112,8 +113,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
   }
 }
 
-const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
-const writeAgentTools = new Set(['createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
+const registeredAgentTools = new Set(['getDashboardContext', 'searchSkus', 'listRuleSets', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'listActivities', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'getSkuSummary', 'parseActivityRules', 'checkDataFreshness', 'diagnoseSkuHealth', 'simulateActivityReadiness', 'explainDecisionWithEvidence', 'generateReport', 'generateReportPreview', 'createReviewItems', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'exportReport', 'subscribeReport'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -249,6 +250,35 @@ async function executeFinalApiTool(toolName: string, input: Record<string, unkno
     if (toolName === 'listRuleSets') {
       const result = await finalApiRuntime.ruleSetService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
       return succeeded(result, [{ type: 'rule', entityId: 'rule-sets', label: '规则集列表', summary: `读取 ${result.items.length} 个规则集` }], `读取规则集：${result.items.length} 个`, result.items[0] ? { type: 'rule_set', id: result.items[0].ruleSetId } : { type: 'dashboard', id: 'rule-sets' })
+    }
+
+    if (toolName === 'getRuleSetDetail') {
+      const ruleSetId = String(input.ruleSetId ?? '')
+      if (!ruleSetId) throw new Error('ruleSetId is required')
+      const result = await finalApiRuntime.ruleSetService.get(ruleSetId, agentToolAuthContext())
+      if (!result) throw new Error(`Rule set not found: ${ruleSetId}`)
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status} / ${result.summary.ruleCount} 条规则` }], `读取规则集详情：${result.name}`, { type: 'rule_set', id: ruleSetId })
+    }
+
+    if (toolName === 'createRuleSet') {
+      const request = createRuleSetInput(input)
+      const result = await finalApiRuntime.ruleSetService.create(request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `${result.status} / ${result.summary.ruleCount} 条规则` }], `创建规则集：${result.name}`, { type: 'rule_set', id: result.ruleSetId })
+    }
+
+    if (toolName === 'updateRuleSet') {
+      const ruleSetId = String(input.ruleSetId ?? '')
+      if (!ruleSetId) throw new Error('ruleSetId is required')
+      const request = updateRuleSetInput(input)
+      const result = await finalApiRuntime.ruleSetService.update(ruleSetId, request, agentToolAuthContext())
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status}` }], `更新规则集：${result.name}`, { type: 'rule_set', id: ruleSetId })
+    }
+
+    if (toolName === 'createRuleSetVersion') {
+      const ruleSetId = String(input.ruleSetId ?? '')
+      if (!ruleSetId) throw new Error('ruleSetId is required')
+      const result = await finalApiRuntime.ruleSetService.createVersion(ruleSetId, agentToolAuthContext())
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集版本', summary: `创建版本：${result.version}` }], `创建规则集版本：${result.version}`, { type: 'rule_set', id: ruleSetId })
     }
 
     if (toolName === 'listActivities') {
@@ -651,6 +681,32 @@ function activityUpdateInput(input: Record<string, unknown>): UpdateActivityRequ
     startAt: nullableString(input.startAt),
     endAt: nullableString(input.endAt),
   }
+}
+
+function createRuleSetInput(input: Record<string, unknown>): CreateRuleSetInputDto {
+  const name = optionalString(input.name)
+  const sourceText = optionalString(input.sourceText)
+  if (!name || !sourceText) throw new Error('name and sourceText are required')
+  return {
+    name,
+    sourceText,
+    platform: optionalString(input.platform),
+    type: input.type === 'ACTIVITY_RULE' ? 'ACTIVITY_RULE' : undefined,
+    source: input.source === 'PLATFORM' ? 'PLATFORM' : 'INTERNAL',
+    status: normalizeRuleSetStatus(input.status),
+  }
+}
+
+function updateRuleSetInput(input: Record<string, unknown>): UpdateRuleSetInputDto {
+  const patch: UpdateRuleSetInputDto = {}
+  const name = optionalString(input.name)
+  const sourceText = optionalString(input.sourceText)
+  const platform = optionalString(input.platform)
+  if (name) patch.name = name
+  if (sourceText) patch.sourceText = sourceText
+  if (platform) patch.platform = platform
+  if (Object.keys(patch).length === 0) throw new Error('name, sourceText, or platform is required')
+  return patch
 }
 
 function reviewPatchInput(input: Record<string, unknown>): Partial<Pick<ReviewItemDto, 'question' | 'recommendation' | 'riskLevel'>> {

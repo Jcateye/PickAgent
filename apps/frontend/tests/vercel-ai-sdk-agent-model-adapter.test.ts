@@ -177,6 +177,10 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       await input.tools?.runConnectorSync?.execute?.({ connectorId: 'connector_1', rowCount: 12, qualityScore: 98 })
       await input.tools?.setConnectorStatus?.execute?.({ connectorId: 'connector_1', status: 'DISABLED' })
       await input.tools?.setRuleSetStatus?.execute?.({ ruleSetId: 'rule_1', status: 'DISABLED' })
+      await input.tools?.getRuleSetDetail?.execute?.({ ruleSetId: 'rule_1' })
+      await input.tools?.createRuleSet?.execute?.({ name: 'Agent 规则集', sourceText: '库存 >= 20', platform: 'tmall', status: 'DRAFT' })
+      await input.tools?.updateRuleSet?.execute?.({ ruleSetId: 'rule_1', name: 'Agent 更新规则集', sourceText: '库存 >= 30' })
+      await input.tools?.createRuleSetVersion?.execute?.({ ruleSetId: 'rule_1' })
       await input.tools?.createActivity?.execute?.({ name: '618 大促', platform: 'tmall', productScopeText: '全量 SKU' })
       await input.tools?.updateActivity?.execute?.({ activityId: 'activity_1', status: 'RUNNING' })
       await input.tools?.getActivityExecutionPlan?.execute?.({ activityId: 'activity_1' })
@@ -225,7 +229,7 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
   })
 
   assert.equal(result.content, '已执行系统工具')
-  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['listConnectors', 'getConnectorDetail', 'createConnector', 'updateConnector', 'detectBrowserPage', 'previewBrowserScan', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'getRuleSetDetail', 'createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'getActivityExecutionPlan', 'startActivityRun', 'retryRun', 'getReviewDetail', 'updateReviewItem', 'decideReviewItem', 'generateReport', 'listReports', 'getReportDetail', 'listReportVersions', 'getReportVersion', 'compareReports', 'exportReport', 'subscribeReport', 'setSkuNextAction'])
   assert.deepEqual(executedTools.at(-1)?.inputJson, { skuProfileId: 'sku_1', nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } })
 })
 
