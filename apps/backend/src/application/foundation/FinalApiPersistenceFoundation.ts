@@ -894,6 +894,14 @@ export class ReportRepository {
     return (this.store.reportVersions.get(reportId) ?? []).find((item) => item.versionId === versionId) ?? null;
   }
 
+  getExportStatus(boundary: P0AuthContextDto, reportId: string): ReportListItemDto["exportStatus"] | Promise<ReportListItemDto["exportStatus"]> {
+    assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
+    const exports = Array.from(this.store.reportExports.values())
+      .filter((job) => job.reportId === reportId)
+      .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
+    return exports[0]?.status ?? "NONE";
+  }
+
   createExport(boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): ReportExportJobDto | Promise<ReportExportJobDto> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
     const key = request.idempotencyKey ? `${reportId}:${request.idempotencyKey}` : "";
@@ -1850,6 +1858,14 @@ export class PrismaReportRepository extends ReportRepository {
     return toReportVersionFromRow(row);
   }
 
+  async getExportStatus(_boundary: P0AuthContextDto, reportId: string): Promise<ReportListItemDto["exportStatus"]> {
+    if (!this.prisma.report) return "NONE";
+    const row = await this.prisma.report.findUnique({ where: { id: reportId } });
+    const status = String((row as Record<string, unknown> | null)?.exportStatus ?? "NONE");
+    if (status === "PENDING" || status === "READY" || status === "FAILED") return status;
+    return "NONE";
+  }
+
   async createExport(_boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
@@ -2232,15 +2248,16 @@ export class FinalReportService {
   }
 
   async list(boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<ReportListItemDto>> {
-    const items = (await this.repository.list(boundary)).map((detail) => ({
+    const details = await this.repository.list(boundary);
+    const items = await Promise.all(details.map(async (detail) => ({
       reportId: detail.reportId,
       title: detail.title,
       version: detail.version,
       status: detail.status,
       generatedAt: detail.generatedAt,
       sourceRun: detail.sourceRun,
-      exportStatus: "NONE" as const,
-    }));
+      exportStatus: await this.repository.getExportStatus(boundary, detail.reportId),
+    })));
     return { items, page: 1, pageSize: items.length || 20, total: items.length };
   }
 
