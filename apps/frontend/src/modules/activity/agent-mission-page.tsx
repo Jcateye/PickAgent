@@ -6,18 +6,13 @@ import { AgentAssistantThread } from '@/modules/agent-copilot/agent-assistant-th
 import { useAgentRunEvents } from '@/modules/agent-copilot/use-agent-run-events'
 import { StatusBadge } from '@/shared/ui/status-badge'
 
+import { fetchActivityApi } from './api-client'
 import styles from './agent-mission.module.css'
 
 type MissionStatus = 'DRAFT' | 'ACTIVE' | 'PLANNING' | 'RUNNING' | 'WAITING_FOR_DATA' | 'WAITING_FOR_REVIEW' | 'PAUSED' | 'COMPLETED' | 'FAILED' | 'CANCELED'
 type RunStatus = 'IDLE' | 'QUEUED' | 'PREPARING_CONTEXT' | 'RUNNING' | 'STREAMING' | 'CALLING_TOOL' | 'PAUSED' | 'TIMEOUT' | 'FAILED' | 'DONE' | 'CANCELED' | 'WAITING_REVIEW' | 'SUCCEEDED'
 type ToolStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'BLOCKED_BY_POLICY' | 'REVIEW_REQUIRED' | 'WAITING_FOR_APPROVAL'
 type GateStatus = 'NOT_REQUIRED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | 'CANCELED'
-
-interface ApiEnvelope<T> {
-  code: string
-  data: T
-  message?: string
-}
 
 interface MissionListResponse {
   items: MissionListItem[]
@@ -626,23 +621,15 @@ function agentMissionHref(missionId: string, runId?: string | null): string {
 }
 
 async function apiGet<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' })
-  if (!response.ok) throw new Error(`${url} failed: ${response.status}`)
-  const envelope = (await response.json()) as ApiEnvelope<T>
-  if (envelope.code !== 'OK') throw new Error(envelope.message ?? `${url} failed`)
-  return envelope.data
+  return fetchActivityApi<T>(url, { headers: { Accept: 'application/json' } })
 }
 
 async function apiPost<T>(url: string, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(url, {
+  return fetchActivityApi<T>(url, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: { Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!response.ok) throw new Error(`${url} failed: ${response.status}`)
-  const envelope = (await response.json()) as ApiEnvelope<T>
-  if (envelope.code !== 'OK') throw new Error(envelope.message ?? `${url} failed`)
-  return envelope.data
 }
 
 function progressForRunStatus(status: RunStatus, eventCount: number): number {
