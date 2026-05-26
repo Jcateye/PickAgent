@@ -371,6 +371,23 @@ h4 {
   color: var(--fg);
 }
 
+.topbarSearchSubmit {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.topbarSearchSubmit:hover {
+  color: var(--fg);
+}
+
 .topbarFilters,
 .topbarActions,
 .pageHeaderActions,
@@ -395,9 +412,39 @@ h4 {
 .filterPill {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   height: 40px;
   padding: 0 12px;
   color: var(--muted);
+  font-size: 13px;
+}
+
+.filterPill select,
+.filterPill input {
+  width: 78px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+}
+
+.filterPill input {
+  min-width: 0;
+}
+
+.filterPillLink {
+  color: var(--fg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.topbarEvidenceStatus {
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 10px 12px;
   font-size: 13px;
 }
 

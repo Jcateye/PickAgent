@@ -4,17 +4,45 @@ import Link from 'next/link'
 import { FileSearch, RefreshCw, Search, X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { useMemo } from 'react'
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 
+import { fetchActivityApi } from '@/modules/activity/api-client'
 import { appMenus } from '@/shared/config/app-pages'
+
+interface HealthSummaryDto {
+  total: number
+  ready: number
+  warning: number
+  blocked: number
+}
+
+interface RunConsolePageDto {
+  items: Array<{
+    runId: string
+    type: string
+    status: string
+    subject: string
+  }>
+  total: number
+}
+
+interface TopbarLiveContext {
+  health: HealthSummaryDto | null
+  latestRun: RunConsolePageDto['items'][number] | null
+  error: string | null
+}
 
 export function Topbar() {
   const pathname = usePathname() ?? '/'
   const router = useRouter()
   const [query, setQuery] = useState('')
+  const [platform, setPlatform] = useState('tmall')
+  const [storeId, setStoreId] = useState('')
+  const [category, setCategory] = useState('')
   const [evidenceOpen, setEvidenceOpen] = useState(false)
+  const [liveContext, setLiveContext] = useState<TopbarLiveContext>({ health: null, latestRun: null, error: null })
   
   let currentTitle = '主控台'
   for (const menu of appMenus) {
@@ -31,32 +59,65 @@ export function Topbar() {
     }
   }
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmed = query.trim()
-    if (!trimmed) return
-    router.push(`/sku-access?q=${encodeURIComponent(trimmed)}`)
-  }
+  useEffect(() => {
+    let disposed = false
+    async function loadLiveContext() {
+      try {
+        const [health, runs] = await Promise.all([
+          fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
+          fetchActivityApi<RunConsolePageDto>('/api/run-console?pageSize=1'),
+        ])
+        if (!disposed) setLiveContext({ health, latestRun: runs.items[0] ?? null, error: null })
+      } catch (error) {
+        if (!disposed) setLiveContext({ health: null, latestRun: null, error: error instanceof Error ? error.message : '证据链实时上下文加载失败' })
+      }
+    }
+    void loadLiveContext()
+    return () => {
+      disposed = true
+    }
+  }, [pathname])
 
-  const evidenceLinks = useMemo(() => evidenceLinksForPath(pathname), [pathname])
+  const evidenceLinks = useMemo(() => evidenceLinksForPath(pathname, liveContext), [liveContext, pathname])
+  const latestRunHref = liveContext.latestRun ? `/run-console?runId=${liveContext.latestRun.runId}` : '/run-console'
 
   return (
     <header className="topbar">
-      <form className="topbarSearchArea" onSubmit={submitSearch}>
+      <form className="topbarSearchArea" action="/sku-access" method="get">
         <div className="searchBox">
-          <Search size={16} aria-hidden />
+          <button className="topbarSearchSubmit" type="submit" aria-label="执行全局搜索">
+            <Search size={16} aria-hidden />
+          </button>
           <input
             value={query}
+            id="topbar-global-query"
+            name="q"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="搜索 SKU / 商品 / 活动 / Mission"
             aria-label="全局搜索"
           />
         </div>
         <div className="topbarFilters">
-          <span className="filterPill">Platform</span>
-          <span className="filterPill">Store</span>
-          <span className="filterPill">Category</span>
-          <span className="filterPill">Latest Run</span>
+          <label className="filterPill">
+            Platform
+            <select id="topbar-global-platform" name="platform" value={platform} onChange={(event) => setPlatform(event.target.value)} aria-label="全局搜索平台">
+              <option value="">全部</option>
+              <option value="tmall">天猫</option>
+              <option value="douyin">抖店</option>
+              <option value="jd">京东</option>
+            </select>
+          </label>
+          <label className="filterPill">
+            Store
+            <input id="topbar-global-store" name="storeId" value={storeId} onChange={(event) => setStoreId(event.target.value)} aria-label="全局搜索店铺" />
+          </label>
+          <label className="filterPill">
+            Category
+            <input id="topbar-global-category" name="category" value={category} onChange={(event) => setCategory(event.target.value)} aria-label="全局搜索类目" />
+          </label>
+          <Link className="filterPill filterPillLink" href={latestRunHref}>
+            Latest Run{liveContext.latestRun ? ` #${liveContext.latestRun.runId.slice(0, 8)}` : ''}
+          </Link>
         </div>
       </form>
       <div className="topbarActions">
@@ -82,6 +143,7 @@ export function Topbar() {
               </button>
             </div>
             <div className="topbarEvidenceBody">
+              {liveContext.error ? <div className="topbarEvidenceStatus">{liveContext.error}</div> : null}
               {evidenceLinks.map((item) => (
                 <Link className="topbarEvidenceLink" href={item.href} key={item.href} onClick={() => setEvidenceOpen(false)}>
                   <span>{item.label}</span>
@@ -97,10 +159,20 @@ export function Topbar() {
   )
 }
 
-function evidenceLinksForPath(pathname: string) {
+function evidenceLinksForPath(pathname: string, liveContext: TopbarLiveContext) {
   const common = [
-    { label: '运行证据', title: '运行日志', description: '查看连接器同步、Agent run 和 workflow audit。', href: '/run-console' },
-    { label: '人工证据', title: 'Review 工作台', description: '查看待审批项、决策记录和证据引用。', href: '/review-approvals' },
+    {
+      label: '运行证据',
+      title: liveContext.latestRun ? `最近 Run #${liveContext.latestRun.runId.slice(0, 8)}` : '运行日志',
+      description: liveContext.latestRun ? `${liveContext.latestRun.status} · ${liveContext.latestRun.type} · ${liveContext.latestRun.subject}` : '查看连接器同步、Agent run 和 workflow audit。',
+      href: liveContext.latestRun ? `/run-console?runId=${liveContext.latestRun.runId}` : '/run-console',
+    },
+    {
+      label: '人工证据',
+      title: 'Review 工作台',
+      description: liveContext.health ? `当前 SKU ${liveContext.health.total} 个，阻塞 ${liveContext.health.blocked} 个，预警 ${liveContext.health.warning} 个。` : '查看待审批项、决策记录和证据引用。',
+      href: '/review-approvals',
+    },
   ]
   if (pathname.startsWith('/sku-access') || pathname.startsWith('/sku-health')) {
     return [

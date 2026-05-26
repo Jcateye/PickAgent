@@ -83,7 +83,6 @@ export function ReportCenterPage() {
     setSelectedVersionId(nextVersion?.versionId ?? null)
     setDetail(nextVersion ?? nextDetail)
     hydratedSelectionRef.current = { reportId, versionId: nextVersion?.versionId ?? null }
-    syncReportUrl(reportId, nextVersion?.versionId ?? null, activeTab)
     setSubscriptionFrequency(nextDetail.subscription?.frequency ?? 'OFF')
     setSubscriptionRecipients(nextDetail.subscription?.recipients.join('\n') ?? '')
     setActiveTab((current) => (nextDetail.tabs.includes(current) ? current : nextDetail.tabs[0] ?? 'SUMMARY'))

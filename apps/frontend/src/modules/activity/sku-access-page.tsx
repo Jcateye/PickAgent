@@ -58,6 +58,8 @@ export function SkuAccessPage() {
   const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>(() => getInitialHealthStatus())
   const [sourceKind, setSourceKind] = useState(() => getInitialSkuParam('sourceKind') ?? 'ALL')
   const [category, setCategory] = useState(() => getInitialSkuParam('category') ?? 'ALL')
+  const [platform, setPlatform] = useState(() => getInitialSkuParam('platform') ?? 'ALL')
+  const [storeId, setStoreId] = useState(() => getInitialSkuParam('storeId') ?? '')
   const [activityId] = useState(() => getInitialSkuParam('activityId'))
   const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>(() => getInitialDrawerTab())
   const [nextActionType, setNextActionType] = useState<SkuNextAction['type']>('MANUAL_REVIEW')
@@ -76,6 +78,8 @@ export function SkuAccessPage() {
     if (healthStatus !== 'ALL') params.set('healthStatus', healthStatus)
     if (sourceKind !== 'ALL') params.set('sourceKind', sourceKind)
     if (category !== 'ALL') params.set('category', category)
+    if (platform !== 'ALL') params.set('platform', platform)
+    if (storeId.trim()) params.set('storeId', storeId.trim())
     if (query.trim()) params.set('q', query.trim())
     Promise.all([
       fetchActivityApi<HealthSummaryDto>('/api/health/summary'),
@@ -97,11 +101,11 @@ export function SkuAccessPage() {
     return () => {
       cancelled = true
     }
-  }, [page, healthStatus, sourceKind, category, query])
+  }, [page, healthStatus, sourceKind, category, platform, storeId, query])
 
   useEffect(() => {
-    syncSkuUrl({ skuProfileId: selectedId, page, healthStatus, sourceKind, category, query, drawerTab, activityId })
-  }, [selectedId, page, healthStatus, sourceKind, category, query, drawerTab, activityId])
+    syncSkuUrl({ skuProfileId: selectedId, page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, activityId })
+  }, [selectedId, page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, activityId])
 
   useEffect(() => {
     if (!selectedId) return
@@ -134,9 +138,9 @@ export function SkuAccessPage() {
       entityId: selectedRow?.skuProfileId ?? selectedId ?? 'sku-access',
       label: selectedRow?.displaySku ?? selectedRow?.productName ?? 'SKU 准入工作台',
     },
-    visibleFilters: { page, healthStatus, sourceKind, category, query, drawerTab, selectedIds, activityId },
+    visibleFilters: { page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, selectedIds, activityId },
     visibleColumns: ['displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction'],
-  }), [activityId, category, drawerTab, healthStatus, page, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind])
+  }), [activityId, category, drawerTab, healthStatus, page, platform, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind, storeId])
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
     const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length
@@ -346,6 +350,8 @@ export function SkuAccessPage() {
             healthStatus: healthStatus === 'ALL' ? undefined : healthStatus,
             sourceKind: sourceKind === 'ALL' ? undefined : sourceKind,
             category: category === 'ALL' ? undefined : category,
+            platform: platform === 'ALL' ? undefined : platform,
+            storeId: storeId.trim() || undefined,
           },
         }),
       })
@@ -387,6 +393,19 @@ export function SkuAccessPage() {
 
         <div className={styles.filterBar}>
           <div className={styles.filterItem}>
+            平台
+            <select className={styles.filterSelect} value={platform} onChange={(event) => { setPlatform(event.target.value); setPage(1) }}>
+              <option value="ALL">全部</option>
+              <option value="tmall">天猫</option>
+              <option value="douyin">抖店</option>
+              <option value="jd">京东</option>
+            </select>
+          </div>
+          <div className={styles.filterItem}>
+            店铺
+            <input className={styles.filterSelect} value={storeId} onChange={(event) => { setStoreId(event.target.value); setPage(1) }} placeholder="storeId" />
+          </div>
+          <div className={styles.filterItem}>
             数据源
             <select className={styles.filterSelect} value={sourceKind} onChange={(event) => { setSourceKind(event.target.value); setPage(1) }}>
               <option value="ALL">全部</option>
@@ -415,7 +434,7 @@ export function SkuAccessPage() {
             <Search size={16} color="var(--muted)" />
             <input type="text" placeholder="搜索 SKU / 商品名 / SPU" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
           </div>
-          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setHealthStatus('ALL'); setSourceKind('ALL'); setCategory('ALL'); setPage(1) }} style={{ height: '32px' }}>重置</button>
+          <button className="secondaryButton" type="button" onClick={() => { setQuery(''); setHealthStatus('ALL'); setSourceKind('ALL'); setCategory('ALL'); setPlatform('ALL'); setStoreId(''); setPage(1) }} style={{ height: '32px' }}>重置</button>
         </div>
 
         <div className={styles.summaryCards}>
@@ -478,7 +497,7 @@ export function SkuAccessPage() {
           </thead>
           <tbody>
             {rows.map((item) => (
-              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true); syncSkuUrl({ skuProfileId: item.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab, activityId }) }}>
+              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true); syncSkuUrl({ skuProfileId: item.skuProfileId, page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, activityId }) }}>
                 <td><input type="checkbox" checked={selectedIds.includes(item.skuProfileId)} onChange={(event) => { event.stopPropagation(); toggleRowSelection(item.skuProfileId) }} onClick={(event) => event.stopPropagation()} /></td>
                 <td>{shortSku(item.displaySku)}</td>
                 <td className={styles.productCell}>
@@ -532,7 +551,7 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.drawerTabs}>
             {skuDrawerTabs.map((tab) => (
-              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDrawerTab(tab.value); syncSkuUrl({ skuProfileId: selectedRow.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab: tab.value, activityId }) }}>
+              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDrawerTab(tab.value); syncSkuUrl({ skuProfileId: selectedRow.skuProfileId, page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab: tab.value, activityId }) }}>
                 {tab.label}{tab.value === 'evidence' ? ` (${selectedRow.evidenceCount})` : ''}
               </button>
             ))}
@@ -787,6 +806,8 @@ function syncSkuUrl(state: {
   healthStatus: DashboardSkuListItemDto['healthStatus'] | 'ALL'
   sourceKind: string
   category: string
+  platform: string
+  storeId: string
   query: string
   drawerTab: SkuDrawerTab
   activityId?: string | null
@@ -798,6 +819,8 @@ function syncSkuUrl(state: {
   if (state.healthStatus !== 'ALL') params.set('healthStatus', state.healthStatus)
   if (state.sourceKind !== 'ALL') params.set('sourceKind', state.sourceKind)
   if (state.category !== 'ALL') params.set('category', state.category)
+  if (state.platform !== 'ALL') params.set('platform', state.platform)
+  if (state.storeId.trim()) params.set('storeId', state.storeId.trim())
   if (state.query.trim()) params.set('q', state.query.trim())
   if (state.drawerTab !== 'overview') params.set('drawerTab', state.drawerTab)
   if (state.activityId) params.set('activityId', state.activityId)
