@@ -1,4 +1,4 @@
-import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../../../_final-api-runtime'
 import { P0AuthBoundaryError } from '../../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 interface RouteContext {
@@ -12,7 +12,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (!version) return fail('REPORT.NOT_FOUND', 'Report version not found', 404, { reportId, versionId })
     return ok(version)
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     return fail('REPORT.NOT_FOUND', error instanceof Error ? error.message : 'Report version not found', 404, { reportId, versionId })
   }
 }

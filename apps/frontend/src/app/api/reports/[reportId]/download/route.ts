@@ -1,6 +1,6 @@
 import type { ReportDetailDto, ReportExportRequestDto } from '../../../../../../../contracts/types/reviewReportCenter'
 import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
-import { authContextFromRequest, fail, finalApiRuntime } from '../../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime } from '../../../_final-api-runtime'
 
 interface RouteContext {
   params: Promise<{ reportId: string }>
@@ -18,7 +18,7 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     detail = await finalApiRuntime.reportService.getDetail(reportId, authContextFromRequest(request))
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     throw error
   }
   if (!detail) return fail('REPORT.NOT_FOUND', 'Report not found', 404, { reportId, exportJobId })

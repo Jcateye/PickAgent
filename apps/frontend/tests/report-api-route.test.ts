@@ -149,6 +149,43 @@ test('report list and create routes return stable auth and tenant boundary envel
   assert.equal(crossTenantCreateEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })
 
+test('report child routes return stable auth envelopes when P0 context is missing', async () => {
+  const reportId = 'missing_auth_report'
+  const versionId = 'missing_auth_version'
+
+  const responses = await Promise.all([
+    getReportDetail(new Request(`http://localhost/api/reports/${reportId}`), { params: Promise.resolve({ reportId }) }),
+    exportReport(new Request(`http://localhost/api/reports/${reportId}/export`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ format: 'PDF' }),
+    }), { params: Promise.resolve({ reportId }) }),
+    downloadReportExport(new Request(`http://localhost/api/reports/${reportId}/download?exportJobId=missing_auth_export&format=PDF`), {
+      params: Promise.resolve({ reportId }),
+    }),
+    subscribeReport(new Request(`http://localhost/api/reports/${reportId}/subscriptions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ frequency: 'WEEKLY', recipients: ['ops@example.test'] }),
+    }), { params: Promise.resolve({ reportId }) }),
+    listReportVersions(new Request(`http://localhost/api/reports/${reportId}/versions`), { params: Promise.resolve({ reportId }) }),
+    getReportVersion(new Request(`http://localhost/api/reports/${reportId}/versions/${versionId}`), {
+      params: Promise.resolve({ reportId, versionId }),
+    }),
+    compareReports(new Request('http://localhost/api/reports/compare', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ baseReportId: reportId, targetReportId: 'missing_auth_target_report' }),
+    })),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
+
 test('report write routes reject invalid export and subscription values before persistence', async () => {
   await finalReportSnapshotRequest
   const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
