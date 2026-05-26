@@ -1,5 +1,6 @@
 import { authContextFromRequest, fail, finalApiRuntime, ok, parsePositiveInt } from '../_final-api-runtime'
 
+import { P0AuthBoundaryError } from '../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import type { ReviewItemDto } from '../../../../../contracts/types/businessFoundation'
 import type { ReviewListQueryDto } from '../../../../../contracts/types/reviewReportCenter'
 
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
   try {
     return ok(await finalApiRuntime.reviewService.create(payload.items, authContextFromRequest(request)))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Review item creation failed', 400)
   }
 }
