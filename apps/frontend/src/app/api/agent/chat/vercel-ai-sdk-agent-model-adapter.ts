@@ -659,12 +659,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getReviewDetail', inputJson),
     }),
     updateReviewItem: tool({
-      description: '更新真实 Review 项的 question/recommendation/riskLevel。需要 reviewItemId，并至少提供 question、recommendation 或 riskLevel。适合用户要求修改 Review 建议但尚未审批时使用。',
+      description: '更新真实 Review 项的 question/recommendation/riskLevel。需要 reviewItemId，并至少提供 question、recommendation 或 riskLevel；在 Review 页面可使用 workbench context 的 recommendationDraft 作为 recommendation。适合用户要求修改 Review 建议但尚未审批时使用。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateReviewItem', inputJson),
     }),
     decideReviewItem: tool({
-      description: '对真实 Review 项执行审批决策。需要 reviewItemId 和 decision=APPROVE/REJECT/REQUEST_CHANGES，可选 decisionComment/modifiedPayload。只能在用户明确要求批准、驳回或要求修改时使用。',
+      description: '对真实 Review 项执行审批决策。需要 reviewItemId 和 decision=APPROVE/REJECT/REQUEST_CHANGES，可选 decisionComment/modifiedPayload；在 Review 页面可使用 workbench context 的 decisionCommentDraft 作为 decisionComment。只能在用户明确要求批准、驳回或要求修改时使用。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('decideReviewItem', inputJson),
     }),

@@ -167,9 +167,19 @@ export function ReviewApprovalsPage() {
       entityId: selectedReview?.reviewItemId ?? selectedItem ?? 'review-approvals',
       label: selectedReview?.title ?? selectedReview?.summary ?? 'Review 审批工作台',
     },
-    visibleFilters: { activeTab, typeFilter, riskFilter, query, page, detailTab },
+    visibleFilters: {
+      activeTab,
+      typeFilter,
+      riskFilter,
+      query,
+      page,
+      detailTab,
+      selectedStatus: selectedReview?.status,
+      decisionCommentDraft: remark,
+      recommendationDraft: draftRecommendation,
+    },
     visibleColumns: ['priority', 'type', 'recommendation', 'status', 'riskLevel', 'owner'],
-  }), [activeTab, detailTab, page, query, riskFilter, selectedItem, selectedReview?.reviewItemId, selectedReview?.summary, selectedReview?.title, typeFilter])
+  }), [activeTab, detailTab, draftRecommendation, page, query, remark, riskFilter, selectedItem, selectedReview?.reviewItemId, selectedReview?.status, selectedReview?.summary, selectedReview?.title, typeFilter])
 
   return (
     <>
