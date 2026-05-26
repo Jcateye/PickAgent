@@ -649,7 +649,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('listReviews', inputJson),
     }),
     createReviewItems: tool({
-      description: '创建真实人工 Review 项。支持单条 skuProfileId/sourceId，也支持 items 数组批量创建；可选 question/recommendation/riskLevel/sourceType/evidence。用于规则歧义、模拟失败项、数据冲突或人工复核；在 SKU 准入页可使用 workbench context 的 selectedIds 复现批量生成 Review。',
+      description: '创建真实人工 Review 项。支持单条 skuProfileId/sourceId，也支持 items 数组批量创建；可选 question/recommendation/riskLevel/sourceType/evidence。用于规则歧义、模拟失败项、数据冲突或人工复核；在 SKU 准入页可使用 workbench context 的 selectedIds 复现批量生成 Review，在规则执行页可使用 selectedChecklistItems 复现批量指派检查项。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createReviewItems', inputJson),
     }),

@@ -238,6 +238,18 @@ export function RuleExecutionPage() {
   const requirementSummary = summarizeRequirements(checklistItems)
   const statusSummary = summarizeChecklistStatus(checklistItems)
   const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
+  const selectedChecklistItems = checklistItems
+    .filter((item) => selectedChecks.includes(item.id))
+    .map((item) => ({
+      id: item.id,
+      label: item.label,
+      requiredData: item.requiredData,
+      source: item.source,
+      method: item.method,
+      status: item.status,
+      owner: item.owner,
+      failedCount: item.failedCount,
+    }))
   const ruleSourceTitle = formatRuleSourceTitle(ruleSet?.name ?? ruleName, ruleSet?.platform ?? platform)
   const createdByLabel = ruleSet ? '规则解析 API' : '当前编辑草稿'
   const agentContext = useMemo<WorkbenchContext>(() => ({
@@ -249,6 +261,7 @@ export function RuleExecutionPage() {
     visibleFilters: {
       platform,
       selectedChecks,
+      selectedChecklistItems,
       hasSimulationRun: Boolean(simulationRun),
       ruleSetId: ruleSet?.ruleSetId,
       activityId,
@@ -260,7 +273,7 @@ export function RuleExecutionPage() {
       },
     },
     visibleColumns: ['checkItem', 'status', 'owner', 'requiredData', 'method'],
-  }), [activityId, candidateSkuProfileIds.length, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun, sourceText])
+  }), [activityId, candidateSkuProfileIds.length, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, selectedChecklistItems, simulationRun, sourceText])
 
   return (
     <>
