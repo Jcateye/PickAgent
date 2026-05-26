@@ -67,6 +67,7 @@ export function authContextFromRequest(request: Request): P0AuthContextDto {
 
 export function authFail(error: unknown) {
   if (error instanceof P0AuthBoundaryError) {
+    if (error.code === 'P0_TENANT_BOUNDARY_DENIED') return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
     return fail('COMMON.VALIDATION_ERROR', error.message, 401, error.audit)
   }
   return fail('COMMON.VALIDATION_ERROR', 'Auth boundary failed', 401)

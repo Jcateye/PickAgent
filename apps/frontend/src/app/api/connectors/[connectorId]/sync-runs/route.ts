@@ -1,4 +1,5 @@
 import { authContextFromRequest, authFail, fail, finalApiRuntime, ok, parsePositiveInt } from '../../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 interface RouteContext {
   params: Promise<{ connectorId: string }>
@@ -28,6 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
     return ok(await finalApiRuntime.connectorService.createSyncRun(connectorId, payload, boundary))
   } catch (error) {
     const { connectorId } = await context.params
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isConnectorNotFound(error)) return connectorNotFound(connectorId)
     if (isConnectorDisabled(error)) return fail('CONNECTOR.CONFLICT', error instanceof Error ? error.message : 'Connector is disabled', 409, { connectorId })
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector sync run failed', 400)

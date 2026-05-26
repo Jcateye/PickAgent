@@ -1,4 +1,5 @@
 import { authContextFromRequest, authFail, fail, finalApiRuntime, ok, parsePositiveInt } from '../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 export async function GET(request: Request) {
   try {
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     if (!payload) return fail('COMMON.VALIDATION_ERROR', 'Invalid JSON payload', 400)
     return ok(await finalApiRuntime.connectorService.create(payload, boundary))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector creation failed', 400)
   }
 }

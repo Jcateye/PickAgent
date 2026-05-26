@@ -1,4 +1,5 @@
 import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 interface RouteContext {
   params: Promise<{ connectorId: string }>
@@ -24,6 +25,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!payload) return fail('COMMON.VALIDATION_ERROR', 'Invalid JSON payload', 400)
     return ok(await finalApiRuntime.connectorService.update(connectorId, payload, boundary))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isConnectorNotFound(error)) return connectorNotFound(await connectorIdFromContext(context))
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector update failed', 400)
   }
@@ -35,6 +37,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const { connectorId } = await context.params
     return ok(await finalApiRuntime.connectorService.update(connectorId, { status: 'DISABLED' }, boundary))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isConnectorNotFound(error)) return connectorNotFound(await connectorIdFromContext(context))
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector disable failed', 400)
   }

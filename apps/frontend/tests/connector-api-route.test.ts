@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { POST as createConnector } from '../src/app/api/connectors/route'
-import { DELETE as disableConnector, PATCH as updateConnector } from '../src/app/api/connectors/[connectorId]/route'
+import { GET as getConnector, DELETE as disableConnector, PATCH as updateConnector } from '../src/app/api/connectors/[connectorId]/route'
 import { GET as listConnectorRuns, POST as createConnectorRun } from '../src/app/api/connectors/[connectorId]/sync-runs/route'
+import { GET as getConnectorRun } from '../src/app/api/connector-runs/[connectorRunId]/route'
 import { POST as ingestBrowserScan } from '../src/app/api/connectors/browser/scan-ingest/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
@@ -14,6 +15,15 @@ const authHeaders = {
   'x-p0-session-id': 'connector_route_session',
   'x-p0-surface': 'route-test',
   'x-request-id': 'connector_route_request',
+}
+
+const otherTenantHeaders = {
+  'content-type': 'application/json',
+  'x-p0-actor-id': 'connector_route_other_tenant',
+  'x-p0-tenant-id': 'other_tenant',
+  'x-p0-session-id': 'connector_route_other_session',
+  'x-p0-surface': 'route-test',
+  'x-request-id': 'connector_route_other_request',
 }
 
 test('connector write and run routes return not found for missing connector', async () => {
@@ -121,6 +131,69 @@ test('connector write routes return workflow run ids for audit navigation', asyn
   const disableEnvelope = await disableResponse.json()
   assert.equal(disableResponse.status, 200)
   assert.match(disableEnvelope.data.workflowRunId, /^workflow_/)
+})
+
+test('connector routes reject cross-tenant connector and run access with P0 code', async () => {
+  const createdResponse = await createConnector(
+    new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: `tenant_boundary_connector_${Date.now()}`,
+        name: 'Tenant Boundary Connector',
+        kind: 'platform_api',
+        platform: 'tmall',
+        status: 'ACTIVE',
+      }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const connectorId = createdEnvelope.data.connectorId
+
+  const createdRunResponse = await createConnectorRun(
+    new Request(`http://localhost/api/connectors/${connectorId}/sync-runs`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ rowCount: 10 }),
+    }),
+    { params: Promise.resolve({ connectorId }) },
+  )
+  const createdRunEnvelope = await createdRunResponse.json()
+  assert.equal(createdRunResponse.status, 200)
+  const connectorRunId = createdRunEnvelope.data.connectorRunId
+
+  const boundaryChecks = [
+    () => getConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ connectorId }) }),
+    () =>
+      updateConnector(
+        new Request(`http://localhost/api/connectors/${connectorId}`, {
+          method: 'PATCH',
+          headers: otherTenantHeaders,
+          body: JSON.stringify({ name: 'Cross Tenant Rename' }),
+        }),
+        { params: Promise.resolve({ connectorId }) },
+      ),
+    () => disableConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { method: 'DELETE', headers: otherTenantHeaders }), { params: Promise.resolve({ connectorId }) }),
+    () => listConnectorRuns(new Request(`http://localhost/api/connectors/${connectorId}/sync-runs`, { headers: otherTenantHeaders }), { params: Promise.resolve({ connectorId }) }),
+    () =>
+      createConnectorRun(
+        new Request(`http://localhost/api/connectors/${connectorId}/sync-runs`, {
+          method: 'POST',
+          headers: otherTenantHeaders,
+          body: JSON.stringify({ rowCount: 10 }),
+        }),
+        { params: Promise.resolve({ connectorId }) },
+      ),
+    () => getConnectorRun(new Request(`http://localhost/api/connector-runs/${connectorRunId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ connectorRunId }) }),
+  ]
+
+  for (const requestBoundaryCheck of boundaryChecks) {
+    const response = await requestBoundaryCheck()
+    const envelope = await response.json()
+    assert.equal(response.status, 403)
+    assert.equal(envelope.code, 'P0.TENANT_BOUNDARY_DENIED')
+  }
 })
 
 test('browser scan ingest route writes SKU data and connector run atomically', async () => {
