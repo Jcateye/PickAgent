@@ -522,7 +522,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const detail = await getRequiredSkuDetail(String(input.skuProfileId ?? ''))
       const maxAgeHours = numberOr(input.maxAgeHours, 24)
       const collectedAt = detail.latestSnapshot?.collectedAt ?? null
-      const ageHours = collectedAt ? Math.max(0, Math.round(((Date.now() - new Date(collectedAt).getTime()) / 36_000) / 10)) : null
+      const ageHours = collectedAt ? Math.max(0, Math.round((Date.now() - new Date(collectedAt).getTime()) / 3_600_000)) : null
       const isFresh = ageHours !== null && ageHours <= maxAgeHours
       const result = {
         skuProfileId: detail.skuProfileId,

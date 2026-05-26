@@ -795,6 +795,34 @@ test('agent chat ingestSkus tool writes SKU projections that can be read back', 
   assert.equal(detail?.latestSnapshot?.stock, 66)
 })
 
+test('agent chat checkDataFreshness calculates age in real hours', async () => {
+  const externalSkuId = `agent_freshness_sku_${Date.now()}`
+  const collectedAt = new Date(Date.now() - 2 * 3_600_000).toISOString()
+  const ingested = await executeFinalApiTool('ingestSkus', {
+    collectedAt,
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_freshness_store',
+        externalSkuId,
+        productName: 'Agent 新鲜度测试 SKU',
+        stock: 30,
+        sales30d: 90,
+        positiveRate: 0.96,
+      },
+    ],
+  })
+  assert.equal(ingested.status, 'SUCCEEDED')
+  const skuProfileId = (ingested.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0].skuProfileId
+
+  const freshness = await executeFinalApiTool('checkDataFreshness', { skuProfileId, maxAgeHours: 3 })
+  assert.equal(freshness.status, 'SUCCEEDED')
+  const result = freshness.result as { ageHours: number | null; isFresh: boolean; maxAgeHours: number }
+  assert.equal(result.maxAgeHours, 3)
+  assert.ok(result.ageHours !== null && result.ageHours >= 1 && result.ageHours <= 3)
+  assert.equal(result.isFresh, true)
+})
+
 test('agent chat ingestBrowserScan tool writes browser scan rows to SKU projections', async () => {
   const externalSkuId = `agent_browser_scan_${Date.now()}`
   const execution = await executeFinalApiTool('ingestBrowserScan', {
