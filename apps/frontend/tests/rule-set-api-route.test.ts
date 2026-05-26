@@ -153,6 +153,7 @@ test('rule set simulation run route reads back persisted simulation by rule set'
   )
   const simulationEnvelope = await simulationResponse.json()
   assert.equal(simulationResponse.status, 200)
+  assert.match(simulationEnvelope.data.workflowRunId, /^workflow_/)
   const simulationRunId = simulationEnvelope.data.simulationRunId
 
   const getResponse = await getRuleSetSimulationRun(
@@ -163,7 +164,19 @@ test('rule set simulation run route reads back persisted simulation by rule set'
   assert.equal(getResponse.status, 200)
   assert.equal(getEnvelope.data.simulationRunId, simulationRunId)
   assert.equal(getEnvelope.data.activityRuleSetId, ruleSetId)
+  assert.equal(getEnvelope.data.workflowRunId, simulationEnvelope.data.workflowRunId)
   assert.deepEqual(getEnvelope.data.scope.skuProfileIds, [skuProfileId])
+
+  const audits = await finalApiRuntime.workflowAuditService.list({
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'rule_set_route_simulation_audit',
+  }, 20)
+  const audit = audits.find((item) => item.workflowRunId === simulationEnvelope.data.workflowRunId)
+  assert.equal(audit?.workflowType, 'activity_simulation')
+  assert.equal(audit?.output.simulationRunId, simulationRunId)
 
   const wrongRuleResponse = await getRuleSetSimulationRun(
     new Request(`http://localhost/api/rule-sets/wrong_rule_set/simulations/${simulationRunId}`, { headers: authHeaders }),

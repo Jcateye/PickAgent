@@ -18,6 +18,7 @@ interface ActivitySimulationRunDto {
   results: SimulationResultDto[]
   startedAt: string
   completedAt: string
+  workflowRunId?: string
 }
 
 interface DashboardSkuPageDto {
@@ -119,7 +120,7 @@ export function RuleExecutionPage() {
       setSimulationRun(run)
       syncRuleExecutionUrl(parsedRuleSet.ruleSetId, run.simulationRunId)
       setMessage(`运行检查已完成：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((item) => item.eligibility === 'BLOCKED').length} 个。`)
-      setActionLink({ href: runConsoleHref(run.simulationRunId), label: '查看模拟 Run' })
+      setActionLink({ href: runConsoleHref(run.workflowRunId ?? run.simulationRunId), label: '查看模拟 Run' })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
     } finally {
@@ -254,7 +255,7 @@ export function RuleExecutionPage() {
           <button className="primaryButton" type="button" onClick={() => void runCheck()} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Play size={16} /> 运行检查
           </button>
-          <a className="secondaryButton" href={simulationRun ? runConsoleHref(simulationRun.simulationRunId) : '/run-console'} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <a className="secondaryButton" href={simulationRun ? runConsoleHref(simulationRun.workflowRunId ?? simulationRun.simulationRunId) : '/run-console'} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <FileText size={16} /> 查看 Run
           </a>
           <button className="iconButton" type="button" onClick={() => void saveRuleSetToLibrary()} disabled={busy} title="保存到规则库">

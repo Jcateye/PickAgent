@@ -127,6 +127,7 @@ export interface ActivitySimulationRunDto {
   results: SimulationResultDto[];
   startedAt: string;
   completedAt: string;
+  workflowRunId?: string;
 }
 
 export interface ReviewDecisionRequestDto {
@@ -605,6 +606,7 @@ export class ActivityRepository {
   saveSimulationRun(boundary: P0AuthContextDto, run: ActivitySimulationRunDto): ActivitySimulationRunDto | Promise<ActivitySimulationRunDto> {
     this.store.simulationRuns.set(run.simulationRunId, run);
     this.store.tenantByEntityId.set(run.simulationRunId, boundary.tenantId);
+    if (run.workflowRunId) this.store.tenantByEntityId.set(run.workflowRunId, boundary.tenantId);
     for (const result of run.results) {
       this.store.simulationResults.set(result.simulationResultId, result);
       this.store.tenantByEntityId.set(result.simulationResultId, boundary.tenantId);
@@ -1652,7 +1654,7 @@ export class PrismaActivityRepository extends ActivityRepository {
         activityRuleSetId: run.activityRuleSetId,
         scopeJson: run.scope,
         status: run.status.toLowerCase(),
-        summaryJson: { resultCount: run.results.length },
+        summaryJson: { resultCount: run.results.length, workflowRunId: run.workflowRunId },
         startedAt: new Date(run.startedAt),
         completedAt: new Date(run.completedAt),
       },
@@ -1705,6 +1707,7 @@ export class PrismaActivityRepository extends ActivityRepository {
       results,
       startedAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? row.createdAt ?? ""),
       completedAt: row.completedAt instanceof Date ? row.completedAt.toISOString() : String(row.completedAt ?? row.updatedAt ?? ""),
+      workflowRunId: typeof (row.summaryJson as Record<string, unknown> | null | undefined)?.workflowRunId === "string" ? String((row.summaryJson as Record<string, unknown>).workflowRunId) : undefined,
     };
   }
 
@@ -2571,7 +2574,7 @@ export class FinalActivityService {
         originalEligibility: request.whatIf ? original.eligibility : undefined,
       } satisfies SimulationResultDto;
     });
-    return this.repository.saveSimulationRun(boundary, {
+    const simulationRun: ActivitySimulationRunDto = {
       simulationRunId: nextUuid(),
       activityRuleSetId,
       status: "SUCCEEDED",
@@ -2579,7 +2582,19 @@ export class FinalActivityService {
       results,
       startedAt,
       completedAt: new Date().toISOString(),
+    };
+    const workflowRunRef = await this.repository.recordWorkflowAudit(boundary, "activity_simulation", activityRuleSetId, {
+      actorId: boundary.actorId,
+      skuProfileIds: request.skuProfileIds,
+      whatIf: request.whatIf,
+    }, {
+      simulationRunId: simulationRun.simulationRunId,
+      ruleSetId: activityRuleSetId,
+      resultCount: results.length,
+      blockedCount: results.filter((result) => result.eligibility === "BLOCKED").length,
+      manualReviewCount: results.filter((result) => result.eligibility === "MANUAL_REVIEW").length,
     });
+    return this.repository.saveSimulationRun(boundary, { ...simulationRun, workflowRunId: workflowRunRef.entityId });
   }
 
   private async buildExecutionPlan(activity: ActivityDto, boundary: P0AuthContextDto): Promise<ActivityExecutionPlanDto> {
