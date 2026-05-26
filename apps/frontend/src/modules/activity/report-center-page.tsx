@@ -172,10 +172,16 @@ export function ReportCenterPage() {
     if (selectedVersionId) params.set('versionId', selectedVersionId)
     if (activeTab !== 'SUMMARY') params.set('tab', activeTab)
     const link = `${window.location.origin}/report-center?${params.toString()}`
-    await navigator.clipboard.writeText(link)
-    setMessage(`已复制报告链接：${detail.reportId}${selectedVersionId ? ` / ${selectedVersionId}` : ''}`)
-    setActionLink(null)
-    setSecondaryActionLink(null)
+    try {
+      await copyText(link)
+      setMessage(`已复制报告链接：${detail.reportId}${selectedVersionId ? ` / ${selectedVersionId}` : ''}`)
+      setActionLink(null)
+      setSecondaryActionLink(null)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '复制报告链接失败')
+      setActionLink({ href: link, label: '打开报告链接' })
+      setSecondaryActionLink(null)
+    }
   }
 
   async function compareReports() {
@@ -618,6 +624,24 @@ function parseRecipients(value: string): string[] {
     .split(/[,\n;]/)
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!copied) throw new Error('浏览器拒绝复制报告链接，请使用下方链接打开')
 }
 
 function ratioToPercent(value: number): number {
