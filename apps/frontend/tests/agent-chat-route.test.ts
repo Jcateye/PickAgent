@@ -799,6 +799,14 @@ test('agent chat listReviews tool reads pending review queues', async () => {
   assert.ok(result.items.some((item) => item.reviewItemId === reviewItemId && item.status === 'PENDING' && item.riskLevel === 'HIGH'))
   assert.equal(listed.linkedEntity?.type, 'review_item')
   assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
+
+  const listedByOpen = await executeFinalApiTool('listReviews', {
+    status: 'OPEN',
+    q: '人工确认 Agent 列表测试项',
+  })
+  assert.equal(listedByOpen.status, 'SUCCEEDED')
+  const openResult = listedByOpen.result as { items: Array<{ reviewItemId: string; status: string }> }
+  assert.ok(openResult.items.some((item) => item.reviewItemId === reviewItemId && item.status === 'PENDING'))
 })
 
 test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {

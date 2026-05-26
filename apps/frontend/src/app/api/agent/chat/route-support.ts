@@ -627,13 +627,14 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     }
 
     if (toolName === 'listReviews') {
+      const reviewStatus = normalizeReviewWorkbenchStatus(input.tab ?? input.status)
       const query: ReviewListQueryDto = {
         page: numberOr(input.page, 1),
         pageSize: numberOr(input.pageSize, 20),
-        tab: optionalString(input.tab ?? input.status) as ReviewListQueryDto['tab'],
+        tab: reviewStatus,
         type: optionalString(input.reviewType ?? input.type) as ReviewListQueryDto['type'],
         riskLevel: optionalString(input.reviewRiskLevel) as ReviewListQueryDto['riskLevel'],
-        status: optionalString(input.status),
+        status: reviewStatus,
         assigneeRole: optionalString(input.assigneeRole),
         dueFrom: optionalString(input.dueFrom),
         dueTo: optionalString(input.dueTo),
@@ -1760,6 +1761,13 @@ function normalizeRuleSetListStatus(value: unknown): RuleSetStatusDto | 'ALL' | 
 function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['decision'] {
   if (value === 'REJECT' || value === 'REQUEST_CHANGES') return value
   return 'APPROVE'
+}
+
+function normalizeReviewWorkbenchStatus(value: unknown): ReviewListQueryDto['tab'] | undefined {
+  if (value === 'OPEN' || value === 'PENDING') return 'PENDING'
+  if (value === 'CHANGES_REQUESTED' || value === 'MODIFIED') return 'MODIFIED'
+  if (value === 'APPROVED' || value === 'REJECTED' || value === 'DRAFT') return value
+  return undefined
 }
 
 function reviewEvidenceToAgentEvidence(ref: { entityId: string; label: string; evidenceText?: string; field?: string; sourceId: string }): EvidenceLinkDto {
