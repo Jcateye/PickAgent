@@ -282,3 +282,43 @@ test('browser scan ingest route writes SKU data and connector run atomically', a
   assert.equal(detail?.productName, '浏览器扫描写入 SKU')
   assert.equal(detail?.latestSnapshot?.stock, 42)
 })
+
+test('browser scan ingest validates connector before writing SKU data', async () => {
+  const createdResponse = await createConnector(
+    new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: `disabled_browser_ingest_${Date.now()}`,
+        name: 'Disabled Browser Ingest Connector',
+        kind: 'browser_extension',
+        platform: 'tmall',
+        status: 'DISABLED',
+      }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const connectorId = createdEnvelope.data.connectorId
+  const externalSkuId = `disabled_browser_scan_sku_${Date.now()}`
+  const beforeProjectionIds = new Set(finalApiRuntime.store.projections.keys())
+
+  const response = await ingestBrowserScan(
+    new Request('http://localhost/api/connectors/browser/scan-ingest', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        connectorId,
+        url: 'https://tmall.example.test/sku-list',
+        storeId: 'browser_store',
+        rows: [{ sku: externalSkuId, title: '停用连接器不应写入 SKU', stock: 42, sales: 188, positiveRate: 0.97 }],
+      }),
+    }),
+  )
+  const envelope = await response.json()
+
+  assert.equal(response.status, 409)
+  assert.equal(envelope.code, 'CONNECTOR.CONFLICT')
+  assert.deepEqual(Array.from(finalApiRuntime.store.projections.keys()), Array.from(beforeProjectionIds))
+  assert.equal(Array.from(finalApiRuntime.store.projections.values()).some((item) => item.canonicalSkuKey === `tmall:browser_store:${externalSkuId}`), false)
+})

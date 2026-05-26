@@ -13,6 +13,11 @@ export async function POST(request: Request) {
     if (!preview.ingestReady) {
       return fail('COMMON.VALIDATION_ERROR', 'Browser scan is not ingest ready', 400, { warnings: preview.warnings, fieldMappings: preview.fieldMappings })
     }
+    if (payload.connectorId) {
+      const connector = await finalApiRuntime.connectorService.get(String(payload.connectorId), boundary)
+      if (!connector) return fail('CONNECTOR.NOT_FOUND', `Connector not found: ${String(payload.connectorId)}`, 404)
+      if (connector.status === 'DISABLED') return fail('CONNECTOR.CONFLICT', `Connector is disabled: ${String(payload.connectorId)}`, 409)
+    }
 
     const ingestPayload = browserScanIngestPayload(payload, preview.detected.platform)
     const ingest = await finalApiRuntime.ingestService.ingest(ingestPayload, boundary)
