@@ -532,7 +532,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         skuProfileIds,
         simulationResultIds: stringArray(input.simulationResultIds),
       }, agentToolAuthContext())
-      return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, { type: 'report', id: result.reportId })
+      const reportEntity = { type: 'report', id: result.reportId }
+      const workflowEntity = workflowLinkedEntity(result, reportEntity)
+      return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, reportEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'listReviews') {

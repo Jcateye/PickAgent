@@ -611,7 +611,12 @@ test('agent chat audited report and review write tools link to run console', asy
 
   const generated = await executeFinalApiTool('generateReport', { type: 'HEALTH', skuProfileIds: [skuProfileId] })
   assert.equal(generated.status, 'SUCCEEDED')
-  const reportId = (generated.result as { reportId: string }).reportId
+  const generatedResult = generated.result as { reportId: string; workflowRunId?: string }
+  const reportId = generatedResult.reportId
+  assert.equal(generated.linkedEntity?.type, 'report')
+  assert.ok(generatedResult.workflowRunId)
+  assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
+  assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === generatedResult.workflowRunId))
 
   const exported = await executeFinalApiTool('exportReport', { reportId, format: 'PDF' })
   assert.equal(exported.status, 'SUCCEEDED')
