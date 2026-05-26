@@ -644,7 +644,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'createConnector') {
       const request = createConnectorInput(input)
       const result = await finalApiRuntime.connectorService.create(request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorId, label: '创建连接器', summary: `${result.name} / ${result.kind} / ${result.status}` }], `创建连接器：${result.name}`, { type: 'connector', id: result.connectorId })
+      const connectorEntity = { type: 'connector', id: result.connectorId }
+      const workflowEntity = workflowLinkedEntity(result, connectorEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorId, label: '创建连接器', summary: `${result.name} / ${result.kind} / ${result.status}` }], `创建连接器：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'updateConnector') {
@@ -652,7 +654,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!connectorId) throw new Error('connectorId is required')
       const request = updateConnectorInput(input)
       const result = await finalApiRuntime.connectorService.update(connectorId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '更新连接器', summary: `${result.name} / ${result.status}` }], `更新连接器：${result.name}`, { type: 'connector', id: connectorId })
+      const connectorEntity = { type: 'connector', id: connectorId }
+      const workflowEntity = workflowLinkedEntity(result, connectorEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '更新连接器', summary: `${result.name} / ${result.status}` }], `更新连接器：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'detectBrowserPage') {
@@ -712,7 +716,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         status,
         config: isRecord(input.config) ? input.config : undefined,
       }, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器状态', summary: `连接器状态已更新为：${result.status}` }], `更新连接器状态：${result.status}`, { type: 'connector', id: connectorId })
+      const connectorEntity = { type: 'connector', id: connectorId }
+      const workflowEntity = workflowLinkedEntity(result, connectorEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器状态', summary: `连接器状态已更新为：${result.status}` }], `更新连接器状态：${result.status}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'setRuleSetStatus') {

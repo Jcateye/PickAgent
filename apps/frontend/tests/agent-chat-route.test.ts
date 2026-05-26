@@ -47,10 +47,41 @@ test('agent chat connector linked entities restore data source details', async (
     config: { source: 'agent-chat-test' },
   })
   assert.equal(created.status, 'SUCCEEDED')
-  assert.equal(created.linkedEntity?.type, 'connector')
-  const connectorId = (created.result as { connectorId: string }).connectorId
-  assert.equal(created.linkedEntity.id, connectorId)
-  assert.equal(linkedEntityHref(created.linkedEntity.type, created.linkedEntity.id), `/data-sources?connectorId=${connectorId}`)
+  const createdResult = created.result as { connectorId: string; workflowRunId?: string }
+  const connectorId = createdResult.connectorId
+  assert.ok(createdResult.workflowRunId)
+  assert.equal(created.linkedEntity?.type, 'workflow_run')
+  assert.equal(created.linkedEntity.id, createdResult.workflowRunId)
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === createdResult.workflowRunId))
+  assert.equal(linkedEntityHref('connector', connectorId), `/data-sources?connectorId=${connectorId}`)
+
+  const updated = await executeFinalApiTool('updateConnector', {
+    connectorId,
+    name: 'Agent 连接器深链验证已更新',
+    status: 'NEEDS_AUTH',
+  })
+  assert.equal(updated.status, 'SUCCEEDED')
+  const updatedResult = updated.result as { connectorId: string; status: string; workflowRunId?: string }
+  assert.equal(updatedResult.status, 'NEEDS_AUTH')
+  assert.ok(updatedResult.workflowRunId)
+  assert.equal(updated.linkedEntity?.type, 'workflow_run')
+  assert.equal(updated.linkedEntity.id, updatedResult.workflowRunId)
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === updatedResult.workflowRunId))
+
+  const disabled = await executeFinalApiTool('setConnectorStatus', {
+    connectorId,
+    status: 'DISABLED',
+  })
+  assert.equal(disabled.status, 'SUCCEEDED')
+  const disabledResult = disabled.result as { connectorId: string; status: string; workflowRunId?: string }
+  assert.equal(disabledResult.status, 'DISABLED')
+  assert.ok(disabledResult.workflowRunId)
+  assert.equal(disabled.linkedEntity?.type, 'workflow_run')
+  assert.equal(disabled.linkedEntity.id, disabledResult.workflowRunId)
+  assert.ok(disabled.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(disabled.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === disabledResult.workflowRunId))
 })
 
 test('agent chat activity simulation links back to restorable rule execution results', async () => {
