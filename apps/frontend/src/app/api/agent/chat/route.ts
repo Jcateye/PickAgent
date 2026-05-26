@@ -374,7 +374,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'createRuleSet') {
       const request = createRuleSetInput(input)
       const result = await finalApiRuntime.ruleSetService.create(request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `${result.status} / ${result.summary.ruleCount} 条规则` }], `创建规则集：${result.name}`, { type: 'rule_set', id: result.ruleSetId })
+      return succeeded(result, [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `${result.status} / ${result.summary.ruleCount} 条规则` }], `创建规则集：${result.name}`, workflowLinkedEntity(result, { type: 'rule_set', id: result.ruleSetId }))
     }
 
     if (toolName === 'updateRuleSet') {
@@ -382,14 +382,14 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const request = updateRuleSetInput(input)
       const result = await finalApiRuntime.ruleSetService.update(ruleSetId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status}` }], `更新规则集：${result.name}`, { type: 'rule_set', id: ruleSetId })
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status}` }], `更新规则集：${result.name}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
     }
 
     if (toolName === 'createRuleSetVersion') {
       const ruleSetId = String(input.ruleSetId ?? '')
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const result = await finalApiRuntime.ruleSetService.createVersion(ruleSetId, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集版本', summary: `创建版本：${result.version}` }], `创建规则集版本：${result.version}`, { type: 'rule_set', id: ruleSetId })
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集版本', summary: `创建版本：${result.version}` }], `创建规则集版本：${result.version}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
     }
 
     if (toolName === 'listActivities') {
@@ -568,7 +568,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
       if (!reviewItemId) throw new Error('reviewItemId is required')
       const result = await finalApiRuntime.reviewService.update(reviewItemId, reviewPatchInput(input), agentToolAuthContext())
-      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `更新 Review：${result.reviewItemId}`, { type: 'review_item', id: result.reviewItemId })
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `更新 Review：${result.reviewItemId}`, workflowLinkedEntity(latestReviewWorkflow(result), { type: 'review_item', id: result.reviewItemId }))
     }
 
     if (toolName === 'decideReviewItem') {
@@ -581,7 +581,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         modifiedPayload: isRecord(input.modifiedPayload) ? input.modifiedPayload : undefined,
       }
       const result = await finalApiRuntime.reviewService.decide(reviewItemId, request, agentToolAuthContext())
-      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `Review 决策：${result.reviewItemId} -> ${result.status}`, { type: 'review_item', id: result.reviewItemId })
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `Review 决策：${result.reviewItemId} -> ${result.status}`, workflowLinkedEntity(latestReviewWorkflow(result), { type: 'review_item', id: result.reviewItemId }))
     }
 
     if (toolName === 'setSkuNextAction') {
@@ -697,7 +697,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const status = normalizeRuleSetStatus(input.status)
       const result = await finalApiRuntime.ruleSetService.setStatus(ruleSetId, status, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集状态', summary: `规则集状态已更新为：${result.status}` }], `更新规则集状态：${result.status}`, { type: 'rule_set', id: ruleSetId })
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集状态', summary: `规则集状态已更新为：${result.status}` }], `更新规则集状态：${result.status}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
     }
 
     if (toolName === 'retryRun') {
@@ -855,7 +855,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const targetReportId = String(input.targetReportId ?? '')
       if (!baseReportId || !targetReportId) throw new Error('baseReportId and targetReportId are required')
       const result = await finalApiRuntime.reportService.compare(baseReportId, targetReportId, agentToolAuthContext())
-      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), result.summary, { type: 'report', id: result.baseReportId })
+      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), result.summary, workflowLinkedEntity(result, { type: 'report', id: result.baseReportId }))
     }
 
     if (toolName === 'exportReport') {
@@ -868,7 +868,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         idempotencyKey: optionalString(input.idempotencyKey) ?? `agent:${Date.now().toString(36)}`,
       }
       const result = await finalApiRuntime.reportService.export(reportId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, { type: 'report', id: reportId })
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, workflowLinkedEntity(result, { type: 'report', id: reportId }))
     }
 
     if (toolName === 'subscribeReport') {
@@ -879,7 +879,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         recipients: stringArray(input.recipients).length ? stringArray(input.recipients) : ['ops@example.test'],
       }
       const result = await finalApiRuntime.reportService.saveSubscription(reportId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, { type: 'report', id: reportId })
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, workflowLinkedEntity(result, { type: 'report', id: reportId }))
     }
 
     if (toolName === 'getWorkspaceSettings') {
@@ -1349,6 +1349,17 @@ async function getRequiredSkuDetail(skuProfileId: string): Promise<SkuDetailDto>
 
 function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string, linkedEntity?: { type: string; id: string }): FinalApiToolExecution {
   return { status: 'SUCCEEDED', result, evidence, linkedEntity, trace: [{ summary }] }
+}
+
+function workflowLinkedEntity(value: unknown, fallback: { type: string; id: string }): { type: string; id: string } {
+  const workflowRunId = isRecord(value) && typeof value.workflowRunId === 'string' && value.workflowRunId.trim() ? value.workflowRunId.trim() : ''
+  return workflowRunId ? { type: 'workflow_run', id: workflowRunId } : fallback
+}
+
+function latestReviewWorkflow(detail: unknown): { workflowRunId?: string } {
+  if (!isRecord(detail) || !Array.isArray(detail.approvalHistory)) return {}
+  const latest = [...detail.approvalHistory].reverse().find((item) => isRecord(item) && typeof item.workflowRunId === 'string') as Record<string, unknown> | undefined
+  return typeof latest?.workflowRunId === 'string' ? { workflowRunId: latest.workflowRunId } : {}
 }
 
 function stringArray(value: unknown): string[] {

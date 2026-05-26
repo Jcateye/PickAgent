@@ -233,6 +233,8 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   })
   assert.equal(updated.status, 'SUCCEEDED')
   assert.equal((updated.result as { status: string }).status, 'DISABLED')
+  assert.equal(updated.linkedEntity?.type, 'workflow_run')
+  assert.ok((updated.result as { workflowRunId?: string }).workflowRunId)
 
   const detail = await finalApiRuntime.ruleSetService.get(ruleSetId)
   assert.equal(detail?.status, 'DISABLED')
@@ -250,6 +252,7 @@ test('agent chat listRuleSetVersions tool reads persisted rule set versions', as
   const ruleSetId = (created.result as { ruleSetId: string }).ruleSetId
   const version = await executeFinalApiTool('createRuleSetVersion', { ruleSetId })
   assert.equal(version.status, 'SUCCEEDED')
+  assert.equal(version.linkedEntity?.type, 'workflow_run')
   const ruleSetVersionId = (version.result as { ruleSetVersionId: string }).ruleSetVersionId
 
   const listed = await executeFinalApiTool('listRuleSetVersions', { ruleSetId })
@@ -582,6 +585,53 @@ test('agent chat exportSkuList tool creates auditable sku csv export', async () 
   assert.match(result.csv, /skuProfileId,displaySku,productName/)
   assert.ok(result.workflowRunId)
   assert.equal(execution.linkedEntity?.type, 'workflow_run')
+})
+
+test('agent chat audited report and review write tools link to run console', async () => {
+  const externalSkuId = `agent_write_run_link_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_write_run_link_store',
+      externalSkuId,
+      productName: 'Agent 写操作 Run 链接 SKU',
+      stock: 38,
+      positiveRate: 0.98,
+    }],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0].skuProfileId
+
+  const generated = await executeFinalApiTool('generateReport', { type: 'HEALTH', skuProfileIds: [skuProfileId] })
+  assert.equal(generated.status, 'SUCCEEDED')
+  const reportId = (generated.result as { reportId: string }).reportId
+
+  const exported = await executeFinalApiTool('exportReport', { reportId, format: 'PDF' })
+  assert.equal(exported.status, 'SUCCEEDED')
+  assert.equal(exported.linkedEntity?.type, 'workflow_run')
+  assert.ok((exported.result as { workflowRunId?: string }).workflowRunId)
+
+  const createdReviews = await executeFinalApiTool('createReviewItems', {
+    items: [{
+      skuProfileId,
+      sourceType: 'health',
+      sourceId: skuProfileId,
+      question: '确认 Agent 写操作 Run 链接',
+      recommendation: '用于验证 Chat Review 工具回链到 Run Console。',
+      riskLevel: 'L1',
+      evidence: [{ type: 'tool_trace', entityId: skuProfileId, label: 'SKU 证据', summary: 'Agent test evidence' }],
+    }],
+  })
+  assert.equal(createdReviews.status, 'SUCCEEDED')
+  const reviewItemId = (createdReviews.result as Array<{ reviewItemId: string }>)[0].reviewItemId
+
+  const updatedReview = await executeFinalApiTool('updateReviewItem', { reviewItemId, recommendation: '已补充建议内容' })
+  assert.equal(updatedReview.status, 'SUCCEEDED')
+  assert.equal(updatedReview.linkedEntity?.type, 'workflow_run')
+
+  const decidedReview = await executeFinalApiTool('decideReviewItem', { reviewItemId, decision: 'APPROVE', decisionBy: 'agent-test' })
+  assert.equal(decidedReview.status, 'SUCCEEDED')
+  assert.equal(decidedReview.linkedEntity?.type, 'workflow_run')
 })
 
 test('agent chat generateReportPreview tool aliases to the real report generator', async () => {
