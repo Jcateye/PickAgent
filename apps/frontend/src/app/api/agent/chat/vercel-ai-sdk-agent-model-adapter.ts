@@ -819,7 +819,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('exportReport', inputJson),
     }),
     subscribeReport: tool({
-      description: '更新指定 reportId 的报告订阅。支持 frequency=DAILY/WEEKLY/MONTHLY/OFF 和 recipients。',
+      description: '更新指定 reportId 的报告订阅。支持 frequency=DAILY/WEEKLY/MONTHLY/OFF 和 recipients；在报告中心页面可使用 workbench context 的 subscriptionFrequency 和 subscriptionRecipientsDraft 作为当前表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('subscribeReport', inputJson),
     }),

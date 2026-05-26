@@ -267,9 +267,17 @@ export function ReportCenterPage() {
       entityId: detail?.reportId ?? selectedReportId ?? 'report-center',
       label: detail?.title ?? selectedSummary?.title ?? '报告中心',
     },
-    visibleFilters: { selectedVersionId, activeTab, format, includeCharts, includeDetails, subscriptionFrequency },
+    visibleFilters: {
+      selectedVersionId,
+      activeTab,
+      format,
+      includeCharts,
+      includeDetails,
+      subscriptionFrequency,
+      subscriptionRecipientsDraft: subscriptionRecipients,
+    },
     visibleColumns: ['section', 'summary', 'risk', 'repairSuggestion', 'version'],
-  }), [activeTab, detail?.reportId, detail?.title, format, includeCharts, includeDetails, selectedReportId, selectedSummary?.title, selectedVersionId, subscriptionFrequency])
+  }), [activeTab, detail?.reportId, detail?.title, format, includeCharts, includeDetails, selectedReportId, selectedSummary?.title, selectedVersionId, subscriptionFrequency, subscriptionRecipients])
 
   return (
     <>
