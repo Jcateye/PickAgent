@@ -385,6 +385,8 @@ test('agent chat createReviewItems tool supports batch simulation review creatio
   const reviews = created.result as Array<{ reviewItemId: string; sourceType: string; skuProfileId?: string; status: string }>
   assert.equal(reviews.length, 2)
   assert.ok(reviews.every((item) => item.status === 'OPEN' && item.sourceType === 'simulation'))
+  assert.equal(created.linkedEntity?.type, 'workflow_run')
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviews[0].reviewItemId))
 
   const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileIds[0], {
     actorId: 'agent_demo',
@@ -740,6 +742,8 @@ test('agent chat audited report and review write tools link to run console', asy
   })
   assert.equal(createdReviews.status, 'SUCCEEDED')
   const reviewItemId = (createdReviews.result as Array<{ reviewItemId: string }>)[0].reviewItemId
+  assert.equal(createdReviews.linkedEntity?.type, 'workflow_run')
+  assert.ok(createdReviews.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
 
   const updatedReview = await executeFinalApiTool('updateReviewItem', { reviewItemId, recommendation: '已补充建议内容' })
   assert.equal(updatedReview.status, 'SUCCEEDED')

@@ -563,7 +563,10 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'createReviewItems') {
       const items = await reviewCreateItemsInput(input)
       const result = await finalApiRuntime.reviewService.create(items, agentToolAuthContext())
-      return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined)
+      const reviewEntity = result[0] ? { type: 'review_item', id: result[0].reviewItemId } : undefined
+      const firstDetail = result[0] ? await finalApiRuntime.reviewService.getDetail(result[0].reviewItemId, agentToolAuthContext()) : null
+      const workflowEntity = reviewEntity ? workflowLinkedEntity(latestReviewWorkflow(firstDetail), reviewEntity) : undefined
+      return succeeded(result, result.flatMap((created) => created.evidence), `创建 Review：${result.map((created) => created.reviewItemId).join(', ')}`, workflowEntity, workflowEntity?.type === 'workflow_run' && reviewEntity ? [reviewEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'getReviewDetail') {
