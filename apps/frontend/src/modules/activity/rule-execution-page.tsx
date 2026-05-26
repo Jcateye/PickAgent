@@ -105,19 +105,30 @@ export function RuleExecutionPage() {
     setBusy(true)
     setActionLink(null)
     try {
-      const parsedRuleSet = await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: ruleName.trim() || '活动规则执行路径',
-          platform: platform.trim() || 'internal',
-          sourceText: sourceText.trim(),
-        }),
-      })
+      const parsedRuleSet = activityId
+        ? activityPlanToRuleSet(await fetchActivityApi<ActivityExecutionPlanDto>(`/api/activities/${encodeURIComponent(activityId)}/rule-sets/parse`, {
+          method: 'POST',
+          body: JSON.stringify({
+            name: ruleName.trim() || '活动规则执行路径',
+            sourceText: sourceText.trim(),
+          }),
+        }))
+        : await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: ruleName.trim() || '活动规则执行路径',
+            platform: platform.trim() || 'internal',
+            sourceText: sourceText.trim(),
+          }),
+        })
       const skuProfileIds = candidateSkuProfileIds.length
         ? candidateSkuProfileIds
         : (await fetchActivityApi<DashboardSkuPageDto>('/api/skus?page=1&pageSize=8')).items.map((item) => item.skuProfileId)
       if (!skuProfileIds.length) throw new Error('没有可模拟的 SKU 数据')
-      const run = await fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${encodeURIComponent(parsedRuleSet.ruleSetId)}/simulations`, {
+      const simulationPath = activityId
+        ? `/api/activities/${encodeURIComponent(activityId)}/simulations`
+        : `/api/rule-sets/${encodeURIComponent(parsedRuleSet.ruleSetId)}/simulations`
+      const run = await fetchActivityApi<ActivitySimulationRunDto>(simulationPath, {
         method: 'POST',
         body: JSON.stringify({ skuProfileIds }),
       })

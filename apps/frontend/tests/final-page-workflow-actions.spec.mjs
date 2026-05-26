@@ -283,19 +283,28 @@ test('rule execution page keeps activity candidate SKU scope when rerunning chec
   await page.goto(`${baseURL}/rule-execution?activityId=${activity.activityId}`, { waitUntil: 'networkidle' })
   await expect(page.getByText('候选清单: 1 个 SKU')).toBeVisible()
 
+  const parseResponse = page.waitForResponse((response) => response.url().endsWith(`/api/activities/${activity.activityId}/rule-sets/parse`) && response.request().method() === 'POST')
   const simulationResponse = page.waitForResponse((response) => {
     const url = new URL(response.url())
-    return /\/api\/rule-sets\/[^/]+\/simulations$/.test(url.pathname) && response.request().method() === 'POST'
+    return url.pathname === `/api/activities/${activity.activityId}/simulations` && response.request().method() === 'POST'
   })
   await page.getByRole('button', { name: /运行检查/ }).first().click()
+  const parseEnvelope = await (await parseResponse).json()
   const simulationHttpResponse = await simulationResponse
   const simulationRequestBody = simulationHttpResponse.request().postDataJSON()
   const simulationEnvelope = await simulationHttpResponse.json()
 
+  expect(parseEnvelope.code).toBe('OK')
   expect(simulationEnvelope.code).toBe('OK')
+  expect(simulationEnvelope.data.activityId).toBe(activity.activityId)
   expect(simulationRequestBody.skuProfileIds).toEqual([candidateSkuProfileId])
   expect(simulationRequestBody.skuProfileIds).not.toContain(otherSkuProfileId)
   expect(simulationEnvelope.data.results.map((item) => item.skuProfileId)).toEqual([candidateSkuProfileId])
+  const planResponse = await page.request.get(`${baseURL}/api/activities/${activity.activityId}/execution-plan`, { headers: authHeaders })
+  const planEnvelope = await planResponse.json()
+  expect(planEnvelope.code).toBe('OK')
+  expect(planEnvelope.data.ruleSet.ruleSetId).toBe(parseEnvelope.data.ruleSet.ruleSetId)
+  expect(planEnvelope.data.runId).toBe(simulationEnvelope.data.simulationRunId)
   await expect(page).toHaveURL(new RegExp(`activityId=${activity.activityId}`))
   await expect(page.getByText(/运行检查已完成/)).toBeVisible()
 })
