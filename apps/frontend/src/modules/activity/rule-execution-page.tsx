@@ -35,6 +35,7 @@ export function RuleExecutionPage() {
   const [sourceText, setSourceText] = useState(defaultRuleSourceText)
   const [ruleSet, setRuleSet] = useState<ActivityRuleSetDto | null>(null)
   const [simulationRun, setSimulationRun] = useState<ActivitySimulationRunDto | null>(null)
+  const [activityId, setActivityId] = useState<string | null>(() => getInitialRuleExecutionParam('activityId'))
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function RuleExecutionPage() {
     if (activityId) {
       let cancelled = false
       setBusy(true)
+      setActivityId(activityId)
       fetchActivityApi<ActivityExecutionPlanDto>(`/api/activities/${activityId}/execution-plan`)
         .then(async (plan) => {
           if (cancelled) return
@@ -218,7 +220,7 @@ export function RuleExecutionPage() {
   }
 
   const structuredRules = ruleSet?.rules.length ? ruleSet.rules : defaultStructuredRules
-  const checklistItems = buildChecklistItems(structuredRules, simulationRun?.results ?? [])
+  const checklistItems = buildChecklistItems(structuredRules, simulationRun?.results ?? [], activityId)
   const requirementSummary = summarizeRequirements(checklistItems)
   const statusSummary = summarizeChecklistStatus(checklistItems)
   const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
@@ -230,9 +232,9 @@ export function RuleExecutionPage() {
     selectedEntity: simulationRun
       ? { entityType: 'simulationRun', entityId: simulationRun.simulationRunId, label: `模拟运行 ${simulationRun.simulationRunId}` }
       : { entityType: 'activityRuleSet', entityId: ruleSet?.ruleSetId ?? 'rule-execution', label: ruleSet?.name ?? ruleName },
-    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId },
+    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId, activityId },
     visibleColumns: ['checkItem', 'status', 'owner', 'requiredData', 'method'],
-  }), [platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
+  }), [activityId, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
 
   return (
     <>
@@ -319,7 +321,7 @@ export function RuleExecutionPage() {
               </thead>
               <tbody>
                 {structuredRules.map((rule) => {
-                  const evidenceHref = ruleEvidenceHref(rule, simulationRun?.results ?? [])
+                  const evidenceHref = ruleEvidenceHref(rule, simulationRun?.results ?? [], activityId)
                   return (
                     <tr key={rule.id}>
                       <td>{rule.id}</td>
@@ -495,7 +497,7 @@ interface ChecklistItem {
   failedCount: number
 }
 
-function buildChecklistItems(rules: CanonicalRuleDto[], results: SimulationResultDto[]): ChecklistItem[] {
+function buildChecklistItems(rules: CanonicalRuleDto[], results: SimulationResultDto[], activityId?: string | null): ChecklistItem[] {
   return rules.map((rule) => {
     const failedCount = results.filter((result) => result.failedRules.some((failedRule) => failedRule.id === rule.id || failedRule.field === rule.field)).length
     const status: ChecklistStatus = failedCount === 0 && results.length > 0 ? 'ready' : rule.type === 'manual_review' || rule.type === 'field_compare' || rule.type === 'boolean_block' ? 'pending' : 'missing'
@@ -507,7 +509,7 @@ function buildChecklistItems(rules: CanonicalRuleDto[], results: SimulationResul
       method: ruleCondition(rule),
       status,
       owner: ownerLabel(status, rule),
-      actionHref: status === 'missing' ? '/data-sources' : status === 'pending' ? '/review-approvals' : '/sku-access',
+      actionHref: status === 'missing' ? '/data-sources' : status === 'pending' ? '/review-approvals' : skuAccessHref(undefined, activityId),
       actionLabel: status === 'missing' ? '补数' : status === 'pending' ? '确认' : '查看',
       failedCount,
     }
@@ -608,12 +610,19 @@ function activityPlanToRuleSet(plan: ActivityExecutionPlanDto): ActivityRuleSetD
   }
 }
 
-function ruleEvidenceHref(rule: CanonicalRuleDto, results: SimulationResultDto[]): string {
+function ruleEvidenceHref(rule: CanonicalRuleDto, results: SimulationResultDto[], activityId?: string | null): string {
   const matchedResult = results.find((result) => result.failedRules.some((failedRule) => failedRule.id === rule.id || failedRule.field === rule.field))
     ?? results[0]
-  if (!matchedResult?.skuProfileId) return '/sku-access'
-  const params = new URLSearchParams({ skuProfileId: matchedResult.skuProfileId, drawerTab: 'evidence' })
-  return `/sku-access?${params.toString()}`
+  return skuAccessHref(matchedResult?.skuProfileId, activityId, 'evidence')
+}
+
+function skuAccessHref(skuProfileId?: string, activityId?: string | null, drawerTab?: string): string {
+  const params = new URLSearchParams()
+  if (skuProfileId) params.set('skuProfileId', skuProfileId)
+  if (activityId) params.set('activityId', activityId)
+  if (drawerTab) params.set('drawerTab', drawerTab)
+  const query = params.toString()
+  return query ? `/sku-access?${query}` : '/sku-access'
 }
 
 function ruleSetDetailToActivityRuleSet(detail: RuleSetDetailDto): ActivityRuleSetDto {

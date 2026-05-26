@@ -20,6 +20,12 @@ interface SkuExportDto {
   artifactContentType?: 'text/csv'
   workflowRunId?: string
 }
+interface ActivityCandidateSkuResponseDto {
+  activityId: string
+  skuProfileIds: string[]
+  addedSkuProfileIds: string[]
+  workflowRunId: string
+}
 interface ActionLink {
   href: string
   label: string
@@ -52,6 +58,7 @@ export function SkuAccessPage() {
   const [healthStatus, setHealthStatus] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>(() => getInitialHealthStatus())
   const [sourceKind, setSourceKind] = useState(() => getInitialSkuParam('sourceKind') ?? 'ALL')
   const [category, setCategory] = useState(() => getInitialSkuParam('category') ?? 'ALL')
+  const [activityId] = useState(() => getInitialSkuParam('activityId'))
   const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>(() => getInitialDrawerTab())
   const [nextActionType, setNextActionType] = useState<SkuNextAction['type']>('MANUAL_REVIEW')
   const [message, setMessage] = useState<string | null>(null)
@@ -93,8 +100,8 @@ export function SkuAccessPage() {
   }, [page, healthStatus, sourceKind, category, query])
 
   useEffect(() => {
-    syncSkuUrl({ skuProfileId: selectedId, page, healthStatus, sourceKind, category, query, drawerTab })
-  }, [selectedId, page, healthStatus, sourceKind, category, query, drawerTab])
+    syncSkuUrl({ skuProfileId: selectedId, page, healthStatus, sourceKind, category, query, drawerTab, activityId })
+  }, [selectedId, page, healthStatus, sourceKind, category, query, drawerTab, activityId])
 
   useEffect(() => {
     if (!selectedId) return
@@ -127,9 +134,9 @@ export function SkuAccessPage() {
       entityId: selectedRow?.skuProfileId ?? selectedId ?? 'sku-access',
       label: selectedRow?.displaySku ?? selectedRow?.productName ?? 'SKU 准入工作台',
     },
-    visibleFilters: { page, healthStatus, sourceKind, category, query, drawerTab, selectedIds },
+    visibleFilters: { page, healthStatus, sourceKind, category, query, drawerTab, selectedIds, activityId },
     visibleColumns: ['displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction'],
-  }), [category, drawerTab, healthStatus, page, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind])
+  }), [activityId, category, drawerTab, healthStatus, page, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind])
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
     const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length
@@ -212,6 +219,38 @@ export function SkuAccessPage() {
       return
     }
     const nextAction = nextActionOptions.find((option) => option.type === nextActionType) ?? nextActionOptions[0]
+    if (nextAction.type === 'JOIN_ACTIVITY') {
+      if (!activityId) {
+        setMessage('加入候选清单需要 activityId，请从活动或规则执行页进入 SKU 准入工作台')
+        return
+      }
+      const busyKey = items.length === 1 ? `candidate:${items[0].skuProfileId}` : 'bulk-candidate'
+      setBusy(busyKey)
+      setActionLink(null)
+      try {
+        const result = await fetchActivityApi<ActivityCandidateSkuResponseDto>(`/api/activities/${encodeURIComponent(activityId)}/candidate-skus`, {
+          method: 'POST',
+          body: JSON.stringify({
+            skuProfileIds: items.map((item) => item.skuProfileId),
+            reasonCode: 'sku-access-page',
+            comment: items.length > 1 ? 'SKU 准入页批量加入候选清单' : 'SKU 准入页加入候选清单',
+          }),
+        })
+        const nextActionForRows = { type: 'JOIN_ACTIVITY' as const, label: '加入候选清单' }
+        const updatedIds = new Set(result.skuProfileIds)
+        setSkuPage((current) => current ? {
+          ...current,
+          items: current.items.map((row) => updatedIds.has(row.skuProfileId) ? { ...row, nextAction: nextActionForRows } : row),
+        } : current)
+        setMessage(`已加入活动候选清单：新增 ${result.addedSkuProfileIds.length} 个，候选共 ${result.skuProfileIds.length} 个`)
+        setActionLink({ href: runConsoleHref(result.workflowRunId), label: '查看候选清单 Run' })
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : '加入活动候选清单失败')
+      } finally {
+        setBusy(null)
+      }
+      return
+    }
     if (items.length > 1) {
       setBusy('bulk-next')
       setActionLink(null)
@@ -439,7 +478,7 @@ export function SkuAccessPage() {
           </thead>
           <tbody>
             {rows.map((item) => (
-              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true); syncSkuUrl({ skuProfileId: item.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab }) }}>
+              <tr key={item.skuProfileId} className={selectedId === item.skuProfileId ? styles.rowActive : undefined} onClick={() => { setSelectedId(item.skuProfileId); setDrawerOpen(true); syncSkuUrl({ skuProfileId: item.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab, activityId }) }}>
                 <td><input type="checkbox" checked={selectedIds.includes(item.skuProfileId)} onChange={(event) => { event.stopPropagation(); toggleRowSelection(item.skuProfileId) }} onClick={(event) => event.stopPropagation()} /></td>
                 <td>{shortSku(item.displaySku)}</td>
                 <td className={styles.productCell}>
@@ -493,7 +532,7 @@ export function SkuAccessPage() {
           </div>
           <div className={styles.drawerTabs}>
             {skuDrawerTabs.map((tab) => (
-              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDrawerTab(tab.value); syncSkuUrl({ skuProfileId: selectedRow.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab: tab.value }) }}>
+              <button className={`${styles.drawerTab} ${drawerTab === tab.value ? styles.active : ''}`} key={tab.value} type="button" onClick={() => { setDrawerTab(tab.value); syncSkuUrl({ skuProfileId: selectedRow.skuProfileId, page, healthStatus, sourceKind, category, query, drawerTab: tab.value, activityId }) }}>
                 {tab.label}{tab.value === 'evidence' ? ` (${selectedRow.evidenceCount})` : ''}
               </button>
             ))}
@@ -750,6 +789,7 @@ function syncSkuUrl(state: {
   category: string
   query: string
   drawerTab: SkuDrawerTab
+  activityId?: string | null
 }) {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams()
@@ -760,6 +800,7 @@ function syncSkuUrl(state: {
   if (state.category !== 'ALL') params.set('category', state.category)
   if (state.query.trim()) params.set('q', state.query.trim())
   if (state.drawerTab !== 'overview') params.set('drawerTab', state.drawerTab)
+  if (state.activityId) params.set('activityId', state.activityId)
   const nextSearch = params.toString()
   const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
