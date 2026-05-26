@@ -833,7 +833,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         inputJson: isRecord(input.inputJson) ? input.inputJson : undefined,
         timeoutMs: optionalNumber(input.timeoutMs),
       })
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent Run', summary: `启动 Agent Run：${result.status}` }], `启动 Agent Run：${result.id}`, { type: 'workflow_run', id: result.id })
+      const missionEntity = { type: 'agent_mission', id: missionId }
+      const runEntity = { type: 'workflow_run', id: result.id }
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent Run', summary: `启动 Agent Run：${result.status}` }], `启动 Agent Run：${result.id}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'getAgentRunDetail') {
@@ -847,14 +849,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const runId = String(input.runId ?? '')
       if (!runId) throw new Error('runId is required')
       const result = finalAgentRuntime.agentService.pauseRun(runId, optionalString(input.pausedBy) ?? 'agent-chat-tool')
-      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 暂停', summary: `Run 状态：${result.status}` }], `暂停 Agent Run：${result.status}`, { type: 'workflow_run', id: runId })
+      const runEntity = { type: 'workflow_run', id: runId }
+      const missionEntity = { type: 'agent_mission', id: result.missionId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 暂停', summary: `Run 状态：${result.status}` }], `暂停 Agent Run：${result.status}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'cancelAgentRun') {
       const runId = String(input.runId ?? '')
       if (!runId) throw new Error('runId is required')
       const result = finalAgentRuntime.agentService.cancelRun(runId, optionalString(input.canceledBy) ?? 'agent-chat-tool', optionalString(input.reason))
-      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 取消', summary: `Run 状态：${result.status}` }], `取消 Agent Run：${result.status}`, { type: 'workflow_run', id: runId })
+      const runEntity = { type: 'workflow_run', id: runId }
+      const missionEntity = { type: 'agent_mission', id: result.missionId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run 取消', summary: `Run 状态：${result.status}` }], `取消 Agent Run：${result.status}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'answerAgentRunQuestion') {
@@ -862,7 +868,10 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const question = String(input.question ?? '')
       if (!runId || !question.trim()) throw new Error('runId and question are required')
       const result = finalAgentRuntime.agentService.answerQuestion(runId, { question, askedBy: optionalString(input.askedBy) ?? 'agent-chat-tool' })
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.messageId, label: 'Agent Run 问答', summary: result.answer }], `回答 Agent Run 问题：${result.messageId}`, { type: 'workflow_run', id: runId })
+      const detail = finalAgentRuntime.agentService.getRun(runId)
+      const runEntity = { type: 'workflow_run', id: runId }
+      const missionEntity = { type: 'agent_mission', id: detail.run.missionId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.messageId, label: 'Agent Run 问答', summary: result.answer }], `回答 Agent Run 问题：${result.messageId}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'decideAgentReviewGate') {

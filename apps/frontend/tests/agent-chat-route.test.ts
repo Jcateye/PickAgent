@@ -34,6 +34,38 @@ test('agent chat mission tools link back to the mission console', async () => {
   const missionId = (created.result as { mission: { id: string } }).mission.id
   assert.equal(created.linkedEntity.id, missionId)
   assert.equal(linkedEntityHref(created.linkedEntity.type, created.linkedEntity.id), `/agent-mission?missionId=${missionId}`)
+
+  const started = await executeFinalApiTool('startAgentRun', { missionId, inputJson: { source: 'agent-chat-test' } })
+  assert.equal(started.status, 'SUCCEEDED')
+  const startedRun = started.result as { id: string; missionId: string; status: string }
+  assert.equal(startedRun.missionId, missionId)
+  assert.equal(started.linkedEntity?.type, 'workflow_run')
+  assert.equal(started.linkedEntity.id, startedRun.id)
+  assert.ok(started.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+  assert.ok(started.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === startedRun.id))
+
+  const answered = await executeFinalApiTool('answerAgentRunQuestion', { runId: startedRun.id, question: '当前任务状态是什么？' })
+  assert.equal(answered.status, 'SUCCEEDED')
+  assert.equal(answered.linkedEntity?.type, 'workflow_run')
+  assert.equal(answered.linkedEntity.id, startedRun.id)
+  assert.ok(answered.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+  assert.ok(answered.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === startedRun.id))
+
+  const paused = await executeFinalApiTool('pauseAgentRun', { runId: startedRun.id, pausedBy: 'agent-chat-test' })
+  assert.equal(paused.status, 'SUCCEEDED')
+  assert.equal((paused.result as { status: string }).status, 'PAUSED')
+  assert.equal(paused.linkedEntity?.type, 'workflow_run')
+  assert.equal(paused.linkedEntity.id, startedRun.id)
+  assert.ok(paused.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+
+  const cancelStarted = await executeFinalApiTool('startAgentRun', { missionId, inputJson: { source: 'agent-chat-cancel-test' } })
+  const cancelRunId = (cancelStarted.result as { id: string }).id
+  const canceled = await executeFinalApiTool('cancelAgentRun', { runId: cancelRunId, canceledBy: 'agent-chat-test', reason: 'link assertion' })
+  assert.equal(canceled.status, 'SUCCEEDED')
+  assert.equal((canceled.result as { status: string }).status, 'CANCELED')
+  assert.equal(canceled.linkedEntity?.type, 'workflow_run')
+  assert.equal(canceled.linkedEntity.id, cancelRunId)
+  assert.ok(canceled.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
 })
 
 test('agent chat connector linked entities restore data source details', async () => {
