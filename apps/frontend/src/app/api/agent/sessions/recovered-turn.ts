@@ -2,6 +2,8 @@ export function toRecoveredTurn(contentJson: Record<string, unknown>, runId: str
   const toolExecutions = Array.isArray(contentJson.toolExecutions) ? contentJson.toolExecutions : []
   if (!toolExecutions.length) return undefined
   const reviewGate = recoverReviewGate(toolExecutions, runId)
+  const evidenceRefs = recoverEvidenceRefs(toolExecutions)
+  const linkedEntities = recoverLinkedEntities(toolExecutions)
   return {
     runId: runId ?? '',
     fallbackUsed: false,
@@ -20,8 +22,8 @@ export function toRecoveredTurn(contentJson: Record<string, unknown>, runId: str
         evidenceRefs: Array.isArray(value.evidenceRefIds) ? value.evidenceRefIds.map(String) : [],
       }
     }),
-    evidenceRefs: [],
-    linkedEntities: [],
+    evidenceRefs,
+    linkedEntities,
     reviewGate,
   }
 }
@@ -43,4 +45,76 @@ function recoverReviewGate(toolExecutions: unknown[], runId: string | null) {
     evidenceRefs: Array.isArray(gated.evidenceRefIds) ? gated.evidenceRefIds.map(String) : [],
     runTraceHref: runId ? `/agent-mission?runId=${encodeURIComponent(runId)}` : undefined,
   }
+}
+
+function recoverEvidenceRefs(toolExecutions: unknown[]) {
+  const refs = toolExecutions.flatMap((item) => {
+    const value = item as Record<string, unknown>
+    return Array.isArray(value.evidenceRefs) ? value.evidenceRefs : []
+  })
+  return uniqueById(refs.map((item, index) => {
+    const value = item as Record<string, unknown>
+    const evidenceType = String(value.evidenceType ?? 'tool_result')
+    return {
+      id: String(value.id ?? `recovered-evidence-${index}`),
+      evidenceType: evidenceType === 'snapshot' || evidenceType === 'rule' || evidenceType === 'simulation' || evidenceType === 'review_gate' ? evidenceType : 'tool_result',
+      label: String(value.label ?? '历史证据'),
+      summary: String(value.summary ?? ''),
+      entityType: typeof value.entityType === 'string' ? value.entityType : undefined,
+      entityId: typeof value.entityId === 'string' ? value.entityId : undefined,
+    }
+  }))
+}
+
+function recoverLinkedEntities(toolExecutions: unknown[]) {
+  const entities = toolExecutions.flatMap((item) => {
+    const value = item as Record<string, unknown>
+    return Array.isArray(value.linkedEntities) ? value.linkedEntities : []
+  })
+  return uniqueById(entities.map((item, index) => {
+    const value = item as Record<string, unknown>
+    return {
+      id: String(value.id ?? `recovered-entity-${index}`),
+      entityType: String(value.entityType ?? 'dashboard'),
+      entityId: String(value.entityId ?? ''),
+      label: String(value.label ?? value.entityId ?? '历史实体'),
+      reason: String(value.reason ?? '从历史工具调用恢复'),
+      sourceType: recoveredSourceType(value.sourceType),
+      sourceId: String(value.sourceId ?? 'recovered-tool-call'),
+      href: typeof value.href === 'string' ? value.href : recoveredLinkedEntityHref(String(value.entityType ?? 'dashboard'), String(value.entityId ?? '')),
+    }
+  }).filter((item) => item.entityId))
+}
+
+function recoveredSourceType(value: unknown) {
+  return value === 'mission' || value === 'run' || value === 'message' || value === 'review_gate' ? value : 'tool_call'
+}
+
+function recoveredLinkedEntityHref(entityType: string, entityId: string): string {
+  if (entityType === 'sku_profile') return `/sku-access?${new URLSearchParams({ skuProfileId: entityId, drawerTab: 'evidence' }).toString()}`
+  if (entityType === 'activity') return `/rule-execution?${new URLSearchParams({ activityId: entityId }).toString()}`
+  if (entityType === 'rule_set' || entityType === 'activity_rule_set') return `/rule-library?${new URLSearchParams({ ruleSetId: entityId }).toString()}`
+  if (entityType === 'review_item') return `/review-approvals?${new URLSearchParams({ reviewItemId: entityId }).toString()}`
+  if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
+  if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
+  if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
+  if (entityType === 'agent_mission') return `/agent-mission?${new URLSearchParams({ missionId: entityId }).toString()}`
+  if (entityType === 'download_artifact') return entityId.startsWith('/api/') ? entityId : '/overview'
+  if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
+  if (entityId === 'reports') return '/report-center'
+  if (entityId === 'reviews') return '/review-approvals'
+  if (entityId === 'rule-sets') return '/rule-library'
+  if (entityId === 'run-console') return '/run-console'
+  if (entityId === 'agent-missions') return '/agent-mission'
+  if (entityId === 'settings' || entityId === 'tool-policy' || entityId === 'settings-users') return '/settings'
+  return '/overview'
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
 }

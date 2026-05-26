@@ -1690,6 +1690,25 @@ test('agent chat session recovery preserves review gate turns', () => {
         riskLevel: 'L2',
         reviewPolicy: 'REVIEW_GATE',
         summary: '等待人工确认后执行 generateReport',
+        evidenceRefIds: ['evidence_report_1'],
+        evidenceRefs: [{
+          id: 'evidence_report_1',
+          evidenceType: 'tool_result',
+          label: '报告生成输入',
+          summary: '恢复后的报告生成证据摘要',
+          entityType: 'report',
+          entityId: 'report_1',
+        }],
+        linkedEntities: [{
+          id: 'entity_report_1',
+          entityType: 'report',
+          entityId: 'report_1',
+          label: '历史报告',
+          reason: '查看恢复后的报告',
+          sourceType: 'tool_call',
+          sourceId: 'tool_call_review_1',
+          href: '/report-center?reportId=report_1',
+        }],
         reviewGateId: 'gate_review_1',
       },
     ],
@@ -1698,6 +1717,11 @@ test('agent chat session recovery preserves review gate turns', () => {
   assert.equal(turn?.toolTrace[0]?.status, 'waiting_for_approval')
   assert.equal(turn?.toolTrace[0]?.riskLevel, 'L2')
   assert.equal(turn?.toolTrace[0]?.reviewPolicy, 'review_gate')
+  assert.equal(turn?.toolTrace[0]?.evidenceRefs[0], 'evidence_report_1')
+  assert.equal(turn?.evidenceRefs[0]?.label, '报告生成输入')
+  assert.equal(turn?.evidenceRefs[0]?.entityId, 'report_1')
+  assert.equal(turn?.linkedEntities[0]?.href, '/report-center?reportId=report_1')
+  assert.equal(turn?.linkedEntities[0]?.reason, '查看恢复后的报告')
   assert.equal(turn?.reviewGate?.id, 'gate_review_1')
   assert.equal(turn?.reviewGate?.status, 'PENDING')
 })

@@ -330,7 +330,24 @@ function summarizeToolExecutions(executions: AgentConversationToolExecution[]): 
     reviewPolicy: execution.toolCall.reviewPolicy,
     summary: execution.summary,
     evidenceRefIds: execution.evidenceRefs.map((ref) => ref.id),
+    evidenceRefs: execution.evidenceRefs.map((ref) => ({
+      id: ref.id,
+      evidenceType: ref.evidenceType,
+      label: ref.label,
+      summary: ref.summary,
+      entityType: ref.entityType ?? null,
+      entityId: ref.entityId ?? null,
+    })),
     linkedEntityIds: execution.linkedEntities.map((entity) => entity.id),
+    linkedEntities: execution.linkedEntities.map((entity) => ({
+      id: entity.id,
+      entityType: entity.entityType,
+      entityId: entity.entityId,
+      label: entity.label,
+      reason: entity.reason,
+      sourceType: entity.sourceType,
+      sourceId: entity.sourceId,
+    })),
     reviewGateId: execution.reviewGate?.id ?? null,
   }));
 }
