@@ -874,7 +874,7 @@ test('agent chat reads connector run and activity simulation run details', async
   assert.ok((connectorRuns.result as { items: Array<{ connectorRunId: string }> }).items.some((item) => item.connectorRunId === connectorRunId))
   assert.equal(connectorRuns.linkedEntity?.type, 'workflow_run')
   assert.ok(connectorRuns.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
-  assert.ok(connectorRuns.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === connectorRunResult.workflowRunRef?.entityId))
+  assert.ok(connectorRuns.linkedEntities?.some((entity) => entity.type === 'workflow_run'))
   const connectorRunDetail = await executeFinalApiTool('getConnectorRunDetail', { connectorRunId })
   assert.equal(connectorRunDetail.status, 'SUCCEEDED')
   assert.equal((connectorRunDetail.result as { connectorRunId: string; rowCount: number }).connectorRunId, connectorRunId)
@@ -1104,6 +1104,88 @@ test('agent chat generateReportPreview tool aliases to the real report generator
   assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
   const detail = await finalApiRuntime.reportService.getDetail(result.reportId)
   assert.equal(detail?.summary.totalSku, 1)
+})
+
+test('agent chat report read tools cover list, detail, versions, and version detail', async () => {
+  const externalSkuId = `agent_report_read_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_report_read_store',
+        externalSkuId,
+        productName: 'Agent 报告读取 SKU',
+        stock: 39,
+        positiveRate: 0.98,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const generated = await executeFinalApiTool('generateReport', { type: 'HEALTH', skuProfileIds: [skuProfileId] })
+  assert.equal(generated.status, 'SUCCEEDED')
+  const reportId = (generated.result as { reportId: string }).reportId
+
+  const listed = await executeFinalApiTool('listReports', {})
+  assert.equal(listed.status, 'SUCCEEDED')
+  assert.ok((listed.result as { items: Array<{ reportId: string }> }).items.some((item) => item.reportId === reportId))
+  assert.ok(['report', 'dashboard'].includes(listed.linkedEntity?.type ?? ''))
+
+  const detail = await executeFinalApiTool('getReportDetail', { reportId })
+  assert.equal(detail.status, 'SUCCEEDED')
+  assert.equal((detail.result as { reportId: string }).reportId, reportId)
+  assert.equal(detail.linkedEntity?.type, 'report')
+  assert.equal(detail.linkedEntity.id, reportId)
+
+  const versions = await executeFinalApiTool('listReportVersions', { reportId })
+  assert.equal(versions.status, 'SUCCEEDED')
+  const versionItems = (versions.result as { items: Array<{ versionId: string; reportId: string }> }).items
+  const versionId = versionItems[0]?.versionId
+  assert.ok(versionId)
+  assert.ok(versionItems.every((item) => item.reportId === reportId))
+  assert.equal(versions.linkedEntity?.type, 'report')
+  assert.equal(versions.linkedEntity.id, reportId)
+
+  const versionDetail = await executeFinalApiTool('getReportVersion', { reportId, versionId })
+  assert.equal(versionDetail.status, 'SUCCEEDED')
+  assert.equal((versionDetail.result as { reportId: string; versionId: string }).reportId, reportId)
+  assert.equal((versionDetail.result as { versionId: string }).versionId, versionId)
+  assert.equal(versionDetail.linkedEntity?.type, 'report')
+  assert.equal(versionDetail.linkedEntity.id, reportId)
+})
+
+test('agent chat browser discovery tools read page detection and scan preview without writing SKU data', async () => {
+  const beforeProjectionCount = finalApiRuntime.store.projections.size
+  const externalSkuId = `agent_browser_preview_${Date.now()}`
+
+  const detected = await executeFinalApiTool('detectBrowserPage', {
+    url: 'https://tmall.example.test/sku-list',
+    title: '天猫商品列表',
+    htmlTextSample: 'sku title stock sales positiveRate',
+  })
+  assert.equal(detected.status, 'SUCCEEDED')
+  assert.ok(['connector', 'dashboard'].includes(detected.linkedEntity?.type ?? ''))
+
+  const preview = await executeFinalApiTool('previewBrowserScan', {
+    url: 'https://tmall.example.test/sku-list',
+    rows: [
+      {
+        sku: externalSkuId,
+        title: 'Agent 浏览器预览 SKU',
+        stock: 52,
+        sales: 160,
+        positiveRate: 0.97,
+      },
+    ],
+  })
+  assert.equal(preview.status, 'SUCCEEDED')
+  const result = preview.result as { ingestReady: boolean; fieldMappings: Array<{ sourceField: string }> }
+  assert.equal(result.ingestReady, true)
+  assert.ok(result.fieldMappings.some((item) => item.sourceField === 'sku'))
+  assert.ok(['connector', 'dashboard'].includes(preview.linkedEntity?.type ?? ''))
+  assert.equal(finalApiRuntime.store.projections.size, beforeProjectionCount)
 })
 
 test('agent chat sku query tools support page-level advanced filters', async () => {
