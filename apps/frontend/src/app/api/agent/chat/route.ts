@@ -883,7 +883,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         decidedBy: optionalString(input.decidedBy) ?? optionalString(input.decisionBy) ?? 'agent-chat-tool',
         decisionComment: optionalString(input.decisionComment),
       })
-      return succeeded(result, [{ type: 'review', entityId: gateId, label: 'Agent Review Gate', summary: `Review Gate 决策：${result.gate.status}` }], `处理 Agent Review Gate：${result.gate.status}`, { type: 'workflow_run', id: result.continuationRun.id })
+      const runEntity = { type: 'workflow_run', id: result.continuationRun.id }
+      const missionEntity = { type: 'agent_mission', id: result.continuationRun.missionId }
+      return succeeded(result, [{ type: 'review', entityId: gateId, label: 'Agent Review Gate', summary: `Review Gate 决策：${result.gate.status}` }], `处理 Agent Review Gate：${result.gate.status}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'listReports') {

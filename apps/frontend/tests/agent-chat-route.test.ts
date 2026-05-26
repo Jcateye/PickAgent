@@ -4,7 +4,7 @@ import test from 'node:test'
 import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route'
 import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/recovered-turn'
-import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
+import { finalAgentRuntime, finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('sku_profile', 'sku_1'), '/sku-access?skuProfileId=sku_1&drawerTab=evidence')
@@ -57,6 +57,27 @@ test('agent chat mission tools link back to the mission console', async () => {
   assert.equal(paused.linkedEntity?.type, 'workflow_run')
   assert.equal(paused.linkedEntity.id, startedRun.id)
   assert.ok(paused.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+
+  const gate = finalAgentRuntime.agentService.createReviewGateForTest({
+    missionId,
+    runId: startedRun.id,
+    toolCallId: null,
+    reasonCode: 'agent-chat-test',
+    question: '是否允许继续执行？',
+    agentRecommendation: '允许继续执行并保留任务上下文。',
+    riskIfApproved: '会创建 continuation run。',
+    riskIfRejected: '任务停留在当前 run。',
+    evidenceRefs: [],
+  })
+  const decided = await executeFinalApiTool('decideAgentReviewGate', { gateId: gate.id, decision: 'APPROVE', decidedBy: 'agent-chat-test' })
+  assert.equal(decided.status, 'SUCCEEDED')
+  const decisionResult = decided.result as { continuationRun: { id: string; missionId: string }; gate: { status: string } }
+  assert.equal(decisionResult.gate.status, 'APPROVED')
+  assert.equal(decisionResult.continuationRun.missionId, missionId)
+  assert.equal(decided.linkedEntity?.type, 'workflow_run')
+  assert.equal(decided.linkedEntity.id, decisionResult.continuationRun.id)
+  assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+  assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decisionResult.continuationRun.id))
 
   const cancelStarted = await executeFinalApiTool('startAgentRun', { missionId, inputJson: { source: 'agent-chat-cancel-test' } })
   const cancelRunId = (cancelStarted.result as { id: string }).id
