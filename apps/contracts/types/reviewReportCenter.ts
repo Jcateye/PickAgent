@@ -169,6 +169,7 @@ export interface ReportComparisonDto {
   };
   summary: string;
   evidenceSummary: EvidenceRef[];
+  workflowRunId?: string;
 }
 
 export interface ReportExportRequestDto {
@@ -186,6 +187,7 @@ export interface ReportExportJobDto {
   includeCharts: boolean;
   includeDetails: boolean;
   requestedAt: string;
+  workflowRunId?: string;
 }
 
 export interface ReportSubscriptionRequestDto {
@@ -196,4 +198,5 @@ export interface ReportSubscriptionRequestDto {
 export interface ReportSubscriptionDto extends ReportSubscriptionRequestDto {
   reportId: string;
   updatedAt: string;
+  workflowRunId?: string;
 }

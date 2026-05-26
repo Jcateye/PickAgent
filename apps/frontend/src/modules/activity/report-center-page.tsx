@@ -9,6 +9,10 @@ import styles from './report-center.module.css'
 type ExportFormat = 'PDF' | 'EXCEL' | 'PPT'
 type ReportTab = ReportDetailDto['tabs'][number]
 type SubscriptionFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'OFF'
+interface ActionLink {
+  href: string
+  label: string
+}
 
 const tabLabels: Record<ReportTab, string> = {
   SUMMARY: '执行摘要',
@@ -32,6 +36,7 @@ export function ReportCenterPage() {
   const [subscriptionFrequency, setSubscriptionFrequency] = useState<SubscriptionFrequency>('WEEKLY')
   const [subscriptionRecipients, setSubscriptionRecipients] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<ActionLink | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const hydratedSelectionRef = useRef<{ reportId: string; versionId: string | null } | null>(null)
 
@@ -101,12 +106,17 @@ export function ReportCenterPage() {
   async function exportReport() {
     if (!detail) return
     setBusy('export')
+    setActionLink(null)
     try {
       const job = await fetchActivityApi<ReportExportJobDto>(`/api/reports/${detail.reportId}/export`, {
         method: 'POST',
         body: JSON.stringify({ format, includeCharts, includeDetails, idempotencyKey: `${detail.reportId}:${format}:${includeCharts}:${includeDetails}:${Date.now()}` }),
       })
       setMessage(`已创建导出任务：${job.exportJobId} / 图表 ${job.includeCharts ? '包含' : '不包含'} / 明细 ${job.includeDetails ? '包含' : '不包含'}`)
+      setActionLink({
+        href: job.workflowRunId ? runConsoleHref(job.workflowRunId) : reportCenterHref(job.reportId, selectedVersionId, activeTab),
+        label: job.workflowRunId ? '查看导出 Run' : '查看报告',
+      })
       await loadReports(detail.reportId, selectedVersionId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出报告失败')
@@ -123,12 +133,17 @@ export function ReportCenterPage() {
       return
     }
     setBusy('subscribe')
+    setActionLink(null)
     try {
       const subscription = await fetchActivityApi<ReportSubscriptionDto>(`/api/reports/${detail.reportId}/subscriptions`, {
         method: 'POST',
         body: JSON.stringify({ frequency: subscriptionFrequency, recipients }),
       })
       setMessage(`已更新订阅：${subscription.frequency} / ${subscription.recipients.join(', ')}`)
+      setActionLink({
+        href: subscription.workflowRunId ? runConsoleHref(subscription.workflowRunId) : reportCenterHref(subscription.reportId, selectedVersionId, activeTab),
+        label: subscription.workflowRunId ? '查看订阅 Run' : '查看报告',
+      })
       setDetail((current) => current && current.reportId === subscription.reportId ? { ...current, subscription } : current)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '订阅报告失败')
@@ -159,6 +174,7 @@ export function ReportCenterPage() {
       return
     }
     setBusy('compare')
+    setActionLink(null)
     try {
       const result = await fetchActivityApi<ReportComparisonDto>('/api/reports/compare', {
         method: 'POST',
@@ -166,6 +182,10 @@ export function ReportCenterPage() {
       })
       setComparison(result.summary)
       setMessage(`已生成报告对比：${result.baseReportId} / ${result.targetReportId}`)
+      setActionLink({
+        href: result.workflowRunId ? runConsoleHref(result.workflowRunId) : reportCenterHref(result.baseReportId, null, 'SUMMARY'),
+        label: result.workflowRunId ? '查看对比 Run' : '查看基准报告',
+      })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '对比报告失败')
     } finally {
@@ -185,7 +205,12 @@ export function ReportCenterPage() {
         <div>
           <div className={styles.topBarTitle}>报告中心</div>
           <div className={styles.topBarSub}>查看任务执行结果与合规状态，识别风险并跟踪修复进展。</div>
-          {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>{message}</div> : null}
+          {message ? (
+            <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>
+              {message}
+              {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+            </div>
+          ) : null}
         </div>
         <div className={styles.actions}>
           <button className={styles.btnAction} type="button" onClick={() => void loadReports(selectedReportId)}><RefreshCw size={14} /> 刷新</button>
@@ -480,6 +505,18 @@ function repairSuggestionSkuHref(priority: ReportDetailDto['summary']['repairSug
     drawerTab: 'evidence',
   })
   return `/sku-access?${params.toString()}`
+}
+
+function reportCenterHref(reportId: string, versionId?: string | null, activeTab: ReportTab = 'SUMMARY'): string {
+  const params = new URLSearchParams({ reportId })
+  if (versionId) params.set('versionId', versionId)
+  if (activeTab !== 'SUMMARY') params.set('tab', activeTab)
+  return `/report-center?${params.toString()}`
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
 }
 
 function RiskTable({ riskRows }: { riskRows: ReportDetailDto['summary']['majorRisks'] }) {

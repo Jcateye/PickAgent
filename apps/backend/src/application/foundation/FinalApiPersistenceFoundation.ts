@@ -996,10 +996,11 @@ export class ReportRepository {
     const key = request.idempotencyKey ? `${reportId}:${request.idempotencyKey}` : "";
     const existing = key ? this.store.reportExports.get(key) : undefined;
     if (existing) return existing;
-    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
+    const workflowRunId = nextId("workflow");
+    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString(), workflowRunId };
     this.store.reportExports.set(key || job.exportJobId, job);
     const audit: WorkflowAuditRecord = {
-      workflowRunId: nextId("workflow"),
+      workflowRunId,
       workflowType: "report_export",
       status: "SUCCEEDED",
       subjectType: "report",
@@ -1015,10 +1016,11 @@ export class ReportRepository {
 
   saveSubscription(boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): ReportSubscriptionDto | Promise<ReportSubscriptionDto> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(reportId), reportId);
-    const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
+    const workflowRunId = nextId("workflow");
+    const subscription = { ...request, reportId, updatedAt: new Date().toISOString(), workflowRunId };
     this.store.reportSubscriptions.set(reportId, subscription);
     const audit: WorkflowAuditRecord = {
-      workflowRunId: nextId("workflow"),
+      workflowRunId,
       workflowType: "report_subscription",
       status: "SUCCEEDED",
       subjectType: "report",
@@ -1035,8 +1037,9 @@ export class ReportRepository {
   recordComparison(boundary: P0AuthContextDto, comparison: ReportComparisonDto): void | Promise<void> {
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(comparison.baseReportId), comparison.baseReportId);
     assertTenantBoundary(boundary, this.store.tenantByEntityId.get(comparison.targetReportId), comparison.targetReportId);
+    const workflowRunId = nextId("workflow");
     const audit: WorkflowAuditRecord = {
-      workflowRunId: nextId("workflow"),
+      workflowRunId,
       workflowType: "report_compare",
       status: "SUCCEEDED",
       subjectType: "report",
@@ -1052,6 +1055,7 @@ export class ReportRepository {
     };
     this.store.workflowAudits.set(audit.workflowRunId, audit);
     this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+    comparison.workflowRunId = workflowRunId;
   }
 
   getSimulationResult(boundary: P0AuthContextDto, id: string): SimulationResultDto | null | Promise<SimulationResultDto | null> {
@@ -2134,10 +2138,11 @@ export class PrismaReportRepository extends ReportRepository {
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
     }
-    const job = { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING" as const, format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString() };
+    const workflowRunId = nextUuid();
+    const job = { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING" as const, format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString(), workflowRunId };
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "report_export",
         status: "SUCCEEDED",
         subjectType: "report",
@@ -2152,13 +2157,14 @@ export class PrismaReportRepository extends ReportRepository {
   }
 
   async saveSubscription(boundary: P0AuthContextDto, reportId: string, request: ReportSubscriptionRequestDto): Promise<ReportSubscriptionDto> {
-    const subscription = { ...request, reportId, updatedAt: new Date().toISOString() };
+    const workflowRunId = nextUuid();
+    const subscription = { ...request, reportId, updatedAt: new Date().toISOString(), workflowRunId };
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { subscriptionJson: subscription } });
     }
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "report_subscription",
         status: "SUCCEEDED",
         subjectType: "report",
@@ -2173,9 +2179,10 @@ export class PrismaReportRepository extends ReportRepository {
   }
 
   async recordComparison(boundary: P0AuthContextDto, comparison: ReportComparisonDto): Promise<void> {
+    const workflowRunId = nextUuid();
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "report_compare",
         status: "SUCCEEDED",
         subjectType: "report",
@@ -2191,6 +2198,7 @@ export class PrismaReportRepository extends ReportRepository {
         completedAt: new Date(comparison.generatedAt),
       },
     });
+    comparison.workflowRunId = workflowRunId;
   }
 
   async getSimulationResult(_boundary: P0AuthContextDto, id: string): Promise<SimulationResultDto | null> {
