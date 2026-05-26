@@ -171,9 +171,10 @@ test('agent chat updates connector permissions with persisted config and audit l
     permissions: ['read_product', 'read_inventory', 'write_product'],
   })
   assert.equal(updated.status, 'SUCCEEDED')
-  const updatedResult = updated.result as { connectorId: string; config: { permissions: string[] }; permissions: Array<{ key: string; granted: boolean }>; workflowRunId?: string }
+  const updatedResult = updated.result as { connectorId: string; config: { permissions: string[] }; permissionSummary?: string; permissions: Array<{ key: string; granted: boolean }>; workflowRunId?: string }
   assert.deepEqual(updatedResult.config.permissions, ['read_product', 'read_inventory', 'write_product'])
   assert.equal(updatedResult.permissions.find((item) => item.key === 'write_product')?.granted, true)
+  assert.match(updatedResult.permissionSummary ?? '', /允许修改商品信息/)
   assert.ok(updatedResult.workflowRunId)
   assert.equal(updated.linkedEntity?.type, 'workflow_run')
   assert.equal(updated.linkedEntity.id, updatedResult.workflowRunId)
@@ -182,7 +183,9 @@ test('agent chat updates connector permissions with persisted config and audit l
 
   const detail = await executeFinalApiTool('getConnectorDetail', { connectorId })
   assert.equal(detail.status, 'SUCCEEDED')
-  assert.equal((detail.result as { permissions: Array<{ key: string; granted: boolean }> }).permissions.find((item) => item.key === 'write_product')?.granted, true)
+  const detailResult = detail.result as { permissionSummary?: string; permissions: Array<{ key: string; granted: boolean }> }
+  assert.equal(detailResult.permissions.find((item) => item.key === 'write_product')?.granted, true)
+  assert.match(detailResult.permissionSummary ?? '', /允许修改商品信息/)
 })
 
 test('agent chat activity simulation links back to restorable rule execution results', async () => {

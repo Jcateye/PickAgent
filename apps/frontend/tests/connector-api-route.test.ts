@@ -197,6 +197,7 @@ test('connector permission updates are derived from persisted config', async () 
   assert.equal(createdResponse.status, 200)
   const connectorId = createdEnvelope.data.connectorId
   assert.equal(createdEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, false)
+  assert.match(createdEnvelope.data.permissionSummary, /只读采集/)
 
   const updateResponse = await updateConnector(
     new Request(`http://localhost/api/connectors/${connectorId}`, {
@@ -210,11 +211,14 @@ test('connector permission updates are derived from persisted config', async () 
   assert.equal(updateResponse.status, 200)
   assert.equal(updateEnvelope.data.config.permissions.includes('write_product'), true)
   assert.equal(updateEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, true)
+  assert.match(updateEnvelope.data.permissionSummary, /允许修改商品信息/)
+  assert.doesNotMatch(updateEnvelope.data.permissionSummary, /只读采集/)
 
   const getResponse = await getConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { headers: authHeaders }), { params: Promise.resolve({ connectorId }) })
   const getEnvelope = await getResponse.json()
   assert.equal(getResponse.status, 200)
   assert.equal(getEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, true)
+  assert.match(getEnvelope.data.permissionSummary, /允许修改商品信息/)
 })
 
 test('connector routes reject cross-tenant connector and run access with P0 code', async () => {

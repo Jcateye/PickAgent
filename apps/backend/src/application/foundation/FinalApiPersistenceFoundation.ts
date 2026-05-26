@@ -4227,8 +4227,11 @@ function permissionsFromConfig(config: Record<string, unknown>): Array<{ key: st
 }
 
 function permissionSummary(config: Record<string, unknown>): string {
-  const granted = permissionsFromConfig(config).filter((item) => item.granted).length;
-  return `已授权 ${granted} 项，只读采集，不保存 cookie/token`;
+  const permissions = permissionsFromConfig(config);
+  const granted = permissions.filter((item) => item.granted).length;
+  const canWriteProduct = permissions.some((item) => item.key === "write_product" && item.granted);
+  const accessMode = canWriteProduct ? "允许修改商品信息" : "只读采集";
+  return `已授权 ${granted} 项，${accessMode}，不保存 cookie/token`;
 }
 
 function connectorConfigSummary(config: Record<string, unknown>): string {
