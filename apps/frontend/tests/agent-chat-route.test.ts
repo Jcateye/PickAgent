@@ -197,6 +197,42 @@ test('agent chat activity simulation links back to restorable rule execution res
   assert.equal(linkedEntityHref('simulation_run', `${ruleSetId}:${simulationRunId}`), `/rule-execution?simulationRunId=${simulationRunId}&ruleSetId=${ruleSetId}`)
 })
 
+test('agent chat runSimulation alias executes the real activity readiness simulation', async () => {
+  const ingested = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_run_simulation_alias_store',
+      externalSkuId: `agent_run_simulation_alias_${Date.now()}`,
+      productName: 'Agent runSimulation 兼容 SKU',
+      stock: 35,
+      positiveRate: 0.97,
+      certificateStatus: 'valid',
+    }],
+  })
+  assert.equal(ingested.status, 'SUCCEEDED')
+  const skuProfileId = (ingested.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const ruleSet = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent runSimulation 兼容规则',
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'ENABLED',
+  })
+  assert.equal(ruleSet.status, 'SUCCEEDED')
+  const ruleSetId = (ruleSet.result as { ruleSetId: string }).ruleSetId
+
+  const simulation = await executeFinalApiTool('runSimulation', { ruleSetId, skuProfileIds: [skuProfileId] })
+  assert.equal(simulation.status, 'SUCCEEDED')
+  const result = simulation.result as { simulationRunId: string; workflowRunId?: string; results: Array<{ skuProfileId: string }> }
+  assert.ok(result.simulationRunId)
+  assert.ok(result.workflowRunId)
+  assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
+  assert.equal(simulation.linkedEntity?.type, 'workflow_run')
+  assert.ok(simulation.linkedEntities?.some((entity) => entity.type === 'simulation_run' && entity.id === `${ruleSetId}:${result.simulationRunId}`))
+  assert.equal(isAgentToolDeniedBySettings('runSimulation', { allowedAgentTools: ['simulateActivityReadiness'], deniedRuntimeTools: [] }), false)
+})
+
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
   const previousOpenAiKey = process.env.OPENAI_API_KEY
   const previousOpenAiModel = process.env.OPENAI_MODEL

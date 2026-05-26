@@ -127,7 +127,7 @@ export function createPersistentToolExecutor(repository: AgentConversationReposi
     inputJson: Record<string, unknown>
     externalToolCallId?: string | null
   }): Promise<AgentConversationToolExecution> => {
-    const toolName = input.toolName === 'reportPreview' ? 'generateReport' : input.toolName === 'generateReportPreview' ? 'generateReport' : input.toolName
+    const toolName = normalizeExecutableToolName(input.toolName)
     const safeInput = scrubSensitive(input.inputJson) as Record<string, unknown>
     const policy = await finalApiRuntime.workspaceSettingsService.getToolPolicy(agentToolAuthContext())
     const isDeniedBySettings = isAgentToolDeniedBySettings(toolName, policy)
@@ -254,9 +254,8 @@ export function isAgentToolDeniedBySettings(toolName: string, policy: Pick<ToolP
 }
 
 export async function executeFinalApiTool(toolName: string, input: Record<string, unknown>): Promise<FinalApiToolExecution> {
-  if (toolName === 'generateReportPreview' || toolName === 'reportPreview') {
-    return executeFinalApiTool('generateReport', input)
-  }
+  const executableToolName = normalizeExecutableToolName(toolName)
+  if (executableToolName !== toolName) return executeFinalApiTool(executableToolName, input)
   try {
     if (toolName === 'getDashboardContext') {
       const authContext = agentToolAuthContext()
@@ -1709,6 +1708,13 @@ function containsSensitive(value: unknown): boolean {
 
 function normalizePolicyToolName(toolName: string): string {
   if (toolName === 'reportPreview' || toolName === 'generateReportPreview') return 'generateReport'
+  if (toolName === 'runSimulation') return 'simulateActivityReadiness'
+  return toolName
+}
+
+function normalizeExecutableToolName(toolName: string): string {
+  if (toolName === 'reportPreview' || toolName === 'generateReportPreview') return 'generateReport'
+  if (toolName === 'runSimulation') return 'simulateActivityReadiness'
   return toolName
 }
 
