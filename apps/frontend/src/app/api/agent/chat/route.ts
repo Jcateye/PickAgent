@@ -593,7 +593,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!skuProfileId) throw new Error('skuProfileId is required')
       const nextAction = normalizeNextAction(input)
       const result = await finalApiRuntime.skuReadinessQueryService.updateNextAction(skuProfileId, { nextAction, comment: optionalString(input.comment) ?? 'agent-chat-tool' }, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: skuProfileId, label: 'SKU 下一步设置', summary: `下一步已设置为：${result.statusSummary.nextStep}` }], `设置 SKU 下一步：${result.statusSummary.nextStep}`, { type: 'sku_profile', id: skuProfileId })
+      const skuEntity = { type: 'sku_profile', id: skuProfileId }
+      const workflowEntity = workflowLinkedEntity(result, skuEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: skuProfileId, label: 'SKU 下一步设置', summary: `下一步已设置为：${result.statusSummary.nextStep}` }], `设置 SKU 下一步：${result.statusSummary.nextStep}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [skuEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'listConnectors') {
@@ -737,7 +739,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
           skuProfileIds,
           whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
         }, agentToolAuthContext())
-        return succeeded(result, [{ type: 'simulation', entityId: result.simulationRunId, label: '活动准入模拟重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.results.length} 个` }], `创建活动准入模拟重试运行：${result.simulationRunId}`, { type: 'simulation_run', id: simulationLinkedEntityId(sourceId, result.simulationRunId) })
+        const simulationEntity = { type: 'simulation_run', id: simulationLinkedEntityId(sourceId, result.simulationRunId) }
+        const workflowEntity = workflowLinkedEntity(result, simulationEntity)
+        return succeeded(result, [{ type: 'simulation', entityId: result.simulationRunId, label: '活动准入模拟重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.results.length} 个` }], `创建活动准入模拟重试运行：${result.simulationRunId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [simulationEntity, workflowEntity] : undefined)
       }
       throw new Error('runType must be connector_sync, agent_run, or activity_simulation')
     }

@@ -476,9 +476,44 @@ test('agent chat retryRun tool supports activity simulation retries', async () =
   })
 
   assert.equal(retry.status, 'SUCCEEDED')
-  const result = retry.result as { simulationRunId: string; results: Array<{ skuProfileId: string }> }
+  const result = retry.result as { simulationRunId: string; workflowRunId?: string; results: Array<{ skuProfileId: string }> }
   assert.ok(result.simulationRunId)
+  assert.ok(result.workflowRunId)
+  assert.equal(retry.linkedEntity?.type, 'workflow_run')
+  assert.equal(retry.linkedEntity?.id, result.workflowRunId)
+  assert.ok(retry.linkedEntities?.some((entity) => entity.type === 'simulation_run' && entity.id === `${ruleSetId}:${result.simulationRunId}`))
   assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
+})
+
+test('agent chat setSkuNextAction links audited run and sku object', async () => {
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_next_action_store',
+        externalSkuId: `agent_next_action_${Date.now()}`,
+        productName: 'Agent 下一步设置 SKU',
+        stock: 18,
+        positiveRate: 0.95,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const updated = await executeFinalApiTool('setSkuNextAction', {
+    skuProfileId,
+    type: 'MANUAL_REVIEW',
+    label: '提交人工确认',
+  })
+  assert.equal(updated.status, 'SUCCEEDED')
+  const result = updated.result as { workflowRunId?: string; statusSummary: { nextStep: string } }
+  assert.equal(result.statusSummary.nextStep, '提交人工确认')
+  assert.ok(result.workflowRunId)
+  assert.equal(updated.linkedEntity?.type, 'workflow_run')
+  assert.equal(updated.linkedEntity?.id, result.workflowRunId)
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === skuProfileId))
 })
 
 test('agent chat reads connector run and activity simulation run details', async () => {
