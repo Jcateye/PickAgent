@@ -540,7 +540,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       }, agentToolAuthContext())
       const reportEntity = { type: 'report', id: result.reportId }
       const workflowEntity = workflowLinkedEntity(result, reportEntity)
-      return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, reportEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : undefined)
+      return succeeded(result, result.evidenceSummary, `生成报告：${result.title}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'listReviews') {
@@ -876,7 +876,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const targetReportId = String(input.targetReportId ?? '')
       if (!baseReportId || !targetReportId) throw new Error('baseReportId and targetReportId are required')
       const result = await finalApiRuntime.reportService.compare(baseReportId, targetReportId, agentToolAuthContext())
-      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), result.summary, workflowLinkedEntity(result, { type: 'report', id: result.baseReportId }))
+      const reportEntity = { type: 'report', id: result.baseReportId }
+      const workflowEntity = workflowLinkedEntity(result, reportEntity)
+      return succeeded(result, result.evidenceSummary.map(reportEvidenceToAgentEvidence), result.summary, workflowEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'exportReport') {
@@ -890,7 +892,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       }
       const result = await finalApiRuntime.reportService.export(reportId, request, agentToolAuthContext())
       const linkedEntity = workflowLinkedEntity(result, { type: 'report', id: reportId })
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, linkedEntity, result.artifactHref ? [{ type: 'download_artifact', id: result.artifactHref }, linkedEntity] : undefined)
+      const reportEntity = { type: 'report', id: reportId }
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, linkedEntity, linkedEntity.type === 'workflow_run' ? [reportEntity, ...(result.artifactHref ? [{ type: 'download_artifact', id: result.artifactHref }] : []), linkedEntity] : undefined)
     }
 
     if (toolName === 'subscribeReport') {
@@ -901,7 +904,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         recipients: stringArray(input.recipients).length ? stringArray(input.recipients) : ['ops@example.test'],
       }
       const result = await finalApiRuntime.reportService.saveSubscription(reportId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, workflowLinkedEntity(result, { type: 'report', id: reportId }))
+      const reportEntity = { type: 'report', id: reportId }
+      const workflowEntity = workflowLinkedEntity(result, reportEntity)
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告订阅', summary: `频率：${result.frequency}，收件人：${result.recipients.join(', ')}` }], `更新报告订阅：${result.frequency}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'getWorkspaceSettings') {

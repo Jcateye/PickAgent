@@ -715,8 +715,9 @@ test('agent chat audited report and review write tools link to run console', asy
   assert.equal(generated.status, 'SUCCEEDED')
   const generatedResult = generated.result as { reportId: string; workflowRunId?: string }
   const reportId = generatedResult.reportId
-  assert.equal(generated.linkedEntity?.type, 'report')
   assert.ok(generatedResult.workflowRunId)
+  assert.equal(generated.linkedEntity?.type, 'workflow_run')
+  assert.equal(generated.linkedEntity.id, generatedResult.workflowRunId)
   assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
   assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === generatedResult.workflowRunId))
 
@@ -726,8 +727,28 @@ test('agent chat audited report and review write tools link to run console', asy
   const exportedResult = exported.result as { workflowRunId?: string; artifactHref?: string }
   assert.ok(exportedResult.workflowRunId)
   assert.match(exportedResult.artifactHref ?? '', new RegExp(`/api/reports/${reportId}/download\\\\?`))
+  assert.ok(exported.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
   assert.ok(exported.linkedEntities?.some((entity) => entity.type === 'download_artifact' && entity.id === exportedResult.artifactHref))
   assert.ok(exported.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === exportedResult.workflowRunId))
+
+  const secondGenerated = await executeFinalApiTool('generateReport', { type: 'HEALTH', skuProfileIds: [skuProfileId] })
+  assert.equal(secondGenerated.status, 'SUCCEEDED')
+  const secondReportId = (secondGenerated.result as { reportId: string }).reportId
+  const compared = await executeFinalApiTool('compareReports', { baseReportId: reportId, targetReportId: secondReportId })
+  assert.equal(compared.status, 'SUCCEEDED')
+  const comparedResult = compared.result as { baseReportId: string; workflowRunId?: string }
+  assert.ok(comparedResult.workflowRunId)
+  assert.equal(compared.linkedEntity?.type, 'workflow_run')
+  assert.ok(compared.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
+  assert.ok(compared.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === comparedResult.workflowRunId))
+
+  const subscribed = await executeFinalApiTool('subscribeReport', { reportId, frequency: 'WEEKLY', recipients: ['ops@example.test'] })
+  assert.equal(subscribed.status, 'SUCCEEDED')
+  const subscribedResult = subscribed.result as { reportId: string; workflowRunId?: string }
+  assert.ok(subscribedResult.workflowRunId)
+  assert.equal(subscribed.linkedEntity?.type, 'workflow_run')
+  assert.ok(subscribed.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
+  assert.ok(subscribed.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === subscribedResult.workflowRunId))
 
   const createdReviews = await executeFinalApiTool('createReviewItems', {
     items: [{
@@ -777,10 +798,14 @@ test('agent chat generateReportPreview tool aliases to the real report generator
   })
 
   assert.equal(execution.status, 'SUCCEEDED')
-  const result = execution.result as { reportId: string; title: string }
+  const result = execution.result as { reportId: string; title: string; workflowRunId?: string }
   assert.ok(result.reportId)
   assert.match(result.title, /健康|活动|报告/)
-  assert.equal(execution.linkedEntity?.type, 'report')
+  assert.ok(result.workflowRunId)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.equal(execution.linkedEntity.id, result.workflowRunId)
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === result.reportId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
   const detail = await finalApiRuntime.reportService.getDetail(result.reportId)
   assert.equal(detail?.summary.totalSku, 1)
 })
