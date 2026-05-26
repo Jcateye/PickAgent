@@ -107,6 +107,8 @@ export interface SkuExportDto {
   contentType: "text/csv";
   csv: string;
   rowCount: number;
+  artifactHref?: string;
+  artifactContentType?: "text/csv";
   workflowRunId?: string;
 }
 
@@ -2795,22 +2797,27 @@ export class SkuReadinessQueryService {
   }
 
   async exportList(query: DashboardSkuListQuery, boundary: P0AuthContextDto): Promise<SkuExportDto> {
-    const filtered = (await this.repository.list(boundary)).filter((record) => matchesDashboardSkuQuery(record, query));
-    const sorted = sortDashboardSkuRecords(filtered, query);
-    const items = sorted.map(toDashboardSkuListItem);
-    const fileName = `sku-access-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
-    const csv = buildSkuListCsv(items);
+    const exported = await this.buildExportArtifact(query, boundary);
     let workflowRunId: string | undefined;
     if (this.tx && this.auditRepository) {
       const audit = await this.tx.transaction((tx) => this.auditRepository!.recordWorkflowAudit(tx, boundary, {
         workflowType: "sku_export",
         subjectType: "sku_batch",
         input: { query, actorId: boundary.actorId, tenantId: boundary.tenantId, sessionId: boundary.sessionId, surface: boundary.surface },
-        output: { rowCount: items.length, fileName, skuProfileIds: items.map((item) => item.skuProfileId).slice(0, 200) },
+        output: { rowCount: exported.rowCount, fileName: exported.fileName, artifactHref: exported.artifactHref, skuProfileIds: exported.skuProfileIds.slice(0, 200) },
       }));
       workflowRunId = audit.workflowRunId;
     }
-    return { fileName, contentType: "text/csv", csv, rowCount: items.length, workflowRunId };
+    return { fileName: exported.fileName, contentType: exported.contentType, csv: exported.csv, rowCount: exported.rowCount, artifactHref: exported.artifactHref, artifactContentType: exported.artifactContentType, workflowRunId };
+  }
+
+  async buildExportArtifact(query: DashboardSkuListQuery, boundary: P0AuthContextDto): Promise<SkuExportDto & { skuProfileIds: string[] }> {
+    const filtered = (await this.repository.list(boundary)).filter((record) => matchesDashboardSkuQuery(record, query));
+    const sorted = sortDashboardSkuRecords(filtered, query);
+    const items = sorted.map(toDashboardSkuListItem);
+    const fileName = `sku-access-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+    const csv = buildSkuListCsv(items);
+    return { fileName, contentType: "text/csv", csv, rowCount: items.length, artifactHref: skuExportArtifactHref(query), artifactContentType: "text/csv", skuProfileIds: items.map((item) => item.skuProfileId) };
   }
 }
 
@@ -3349,6 +3356,16 @@ function buildSkuListCsv(items: DashboardSkuListItemDto[]): string {
 
 function csvCell(value: unknown): string {
   return JSON.stringify(String(value ?? ""));
+}
+
+function skuExportArtifactHref(query: DashboardSkuListQuery): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query) as Array<[string, unknown]>) {
+    if (value === undefined || value === null || value === "" || value === "ALL") continue;
+    params.set(key, Array.isArray(value) ? value.join(",") : String(value));
+  }
+  const queryString = params.toString();
+  return queryString ? `/api/skus/export/download?${queryString}` : "/api/skus/export/download";
 }
 
 function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSkuReadinessDetailDto {

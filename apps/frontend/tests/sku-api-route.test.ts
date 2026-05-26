@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 import { GET as getSkuDetail, PATCH as updateSkuNextAction } from '../src/app/api/skus/[skuProfileId]/route'
+import { GET as downloadSkuExport } from '../src/app/api/skus/export/download/route'
 import { POST as exportSkus } from '../src/app/api/skus/export/route'
 
 const tenantAHeaders = {
@@ -111,10 +112,20 @@ test('sku export route returns backend csv and workflow audit', async () => {
   assert.equal(envelope.data.rowCount, 1)
   assert.match(envelope.data.csv, /skuProfileId,displaySku,productName/)
   assert.match(envelope.data.csv, new RegExp(ingest.summaries[0].skuProfileId))
+  assert.match(envelope.data.artifactHref, /\/api\/skus\/export\/download\?/)
   assert.ok(envelope.data.workflowRunId)
 
   const audits = await finalApiRuntime.workflowAuditService.list(boundary, 20)
   const audit = audits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
   assert.equal(audit?.workflowType, 'sku_export')
   assert.equal(audit?.output.rowCount, 1)
+  assert.equal(audit?.output.artifactHref, envelope.data.artifactHref)
+
+  const downloadResponse = await downloadSkuExport(new Request(`http://localhost${envelope.data.artifactHref}`, {
+    method: 'GET',
+    headers: tenantAHeaders,
+  }))
+  assert.equal(downloadResponse.status, 200)
+  assert.match(downloadResponse.headers.get('content-disposition') ?? '', /attachment/)
+  assert.match(await downloadResponse.text(), new RegExp(ingest.summaries[0].skuProfileId))
 })

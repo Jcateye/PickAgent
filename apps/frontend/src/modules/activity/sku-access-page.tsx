@@ -14,6 +14,8 @@ interface SkuExportDto {
   contentType: 'text/csv'
   csv: string
   rowCount: number
+  artifactHref?: string
+  artifactContentType?: 'text/csv'
   workflowRunId?: string
 }
 interface ActionLink {
@@ -294,12 +296,7 @@ export function SkuAccessPage() {
       })
       downloadCsv(exported)
       setMessage(`已导出 SKU 当前筛选结果：${exported.rowCount} 行${exported.workflowRunId ? ` / Run ${exported.workflowRunId}` : ''}`)
-      if (exported.workflowRunId) {
-        setActionLink({
-          href: runConsoleHref(exported.workflowRunId),
-          label: '查看导出 Run',
-        })
-      }
+      setActionLink(exported.artifactHref ? { href: exported.artifactHref, label: '下载导出文件' } : exported.workflowRunId ? { href: runConsoleHref(exported.workflowRunId), label: '查看导出 Run' } : null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出 SKU 失败')
     } finally {

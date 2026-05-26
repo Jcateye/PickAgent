@@ -30,6 +30,8 @@ interface SkuExportDto {
   contentType: 'text/csv'
   csv: string
   rowCount: number
+  artifactHref?: string
+  artifactContentType?: 'text/csv'
   workflowRunId?: string
 }
 
@@ -43,6 +45,7 @@ export function OverviewPage() {
   const [statusFilter, setStatusFilter] = useState<DashboardSkuListItemDto['healthStatus'] | 'ALL'>(() => getInitialOverviewStatus())
   const [page, setPage] = useState(() => getInitialOverviewPage())
   const [message, setMessage] = useState<string | null>(null)
+  const [exportLink, setExportLink] = useState<{ href: string; label: string } | null>(null)
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -118,6 +121,7 @@ export function OverviewPage() {
 
   async function exportCurrentSkuRows() {
     setExporting(true)
+    setExportLink(null)
     try {
       const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
         method: 'POST',
@@ -131,6 +135,7 @@ export function OverviewPage() {
       })
       downloadCsv(exported)
       setMessage(`已导出 Overview SKU 清单：${exported.rowCount} 行${exported.workflowRunId ? ` / Run ${exported.workflowRunId}` : ''}`)
+      setExportLink(exported.artifactHref ? { href: exported.artifactHref, label: '下载导出文件' } : exported.workflowRunId ? { href: runConsoleHref(exported.workflowRunId), label: '查看导出 Run' } : null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出 SKU 失败')
     } finally {
@@ -158,7 +163,12 @@ export function OverviewPage() {
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
             <strong>下一步：</strong>{nextOverviewAction(missionSteps, overview.reviewCount)}
           </div>
-          {message ? <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>{message}</div> : null}
+          {message ? (
+            <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>
+              {message}
+              {exportLink ? <> · <a href={exportLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{exportLink.label}</a></> : null}
+            </div>
+          ) : null}
           
           <div className={styles.metaGrid}>
             <div className={styles.metaItem}>
