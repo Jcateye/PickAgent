@@ -49,6 +49,12 @@ test('rule set routes return stable auth envelopes when P0 context is missing', 
     disableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/disable`, { method: 'POST' }), params),
     listRuleSetVersions(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`), params),
     createRuleSetVersion(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { method: 'POST' }), params),
+    simulateRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ skuProfileIds: ['missing_auth_sku'] }),
+    }), params),
+    getRuleSetSimulationRun(new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations/missing_auth_simulation`), { params: Promise.resolve({ ruleSetId, simulationRunId: 'missing_auth_simulation' }) }),
   ])
 
   for (const response of responses) {
@@ -224,6 +230,14 @@ test('rule set simulation run route reads back persisted simulation by rule set'
   const wrongRuleEnvelope = await wrongRuleResponse.json()
   assert.equal(wrongRuleResponse.status, 404)
   assert.equal(wrongRuleEnvelope.code, 'ACTIVITY_SIMULATION.NOT_FOUND')
+
+  const deniedGetResponse = await getRuleSetSimulationRun(
+    new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations/${simulationRunId}`, { headers: otherTenantHeaders }),
+    { params: Promise.resolve({ ruleSetId, simulationRunId }) },
+  )
+  const deniedGetEnvelope = await deniedGetResponse.json()
+  assert.equal(deniedGetResponse.status, 403)
+  assert.equal(deniedGetEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })
 
 test('rule set routes consistently return tenant boundary denial', async () => {
@@ -246,6 +260,7 @@ test('rule set routes consistently return tenant boundary denial', async () => {
     disableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/disable`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
     listRuleSetVersions(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
     createRuleSetVersion(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    simulateRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/simulations`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ skuProfileIds: ['sku_cross_tenant'] }) }), { params: Promise.resolve({ ruleSetId }) }),
   ])
 
   for (const response of responses) {
