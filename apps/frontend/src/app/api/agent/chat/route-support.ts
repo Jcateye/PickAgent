@@ -334,9 +334,11 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'listRunConsole') {
       const pageSize = Math.min(numberOr(input.pageSize, 20), 50)
       const result = await buildRunConsolePage(agentToolAuthContext(), pageSize)
+      const runIdFilter = optionalString(input.runId ?? input.workflowRunId)
       const typeFilter = optionalString(input.type)
       const statusFilter = optionalString(input.status)
       const items = result.items.filter((item) => {
+        if (runIdFilter && item.runId !== runIdFilter) return false
         if (typeFilter && item.type !== typeFilter) return false
         if (statusFilter && item.status !== statusFilter) return false
         return true

@@ -421,6 +421,14 @@ test('agent chat listRunConsole tool reads workflow audits from run console', as
   assert.equal(execution.status, 'SUCCEEDED')
   const result = execution.result as { items: Array<{ runId: string; type: string; sourceId?: string }> }
   assert.ok(result.items.some((item) => item.runId === audit.workflowRunId && item.type === 'activity_rule_parse' && item.sourceId === audit.subjectId))
+
+  const selectedRunExecution = await executeFinalApiTool('listRunConsole', { pageSize: 20, runId: audit.workflowRunId })
+  assert.equal(selectedRunExecution.status, 'SUCCEEDED')
+  const selectedRunResult = selectedRunExecution.result as { items: Array<{ runId: string; type: string; sourceId?: string }>; total: number }
+  assert.equal(selectedRunResult.total, 1)
+  assert.deepEqual(selectedRunResult.items.map((item) => item.runId), [audit.workflowRunId])
+  assert.equal(selectedRunResult.items[0]?.type, 'activity_rule_parse')
+  assert.equal(selectedRunResult.items[0]?.sourceId, audit.subjectId)
 })
 
 test('agent chat exportRunLogs tool returns backend run log content', async () => {

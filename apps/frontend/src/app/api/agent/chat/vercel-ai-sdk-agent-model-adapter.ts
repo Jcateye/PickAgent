@@ -240,7 +240,12 @@ function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ 
   if (entityType === 'reviewItem' || entityType === 'review_item') return [{ toolName: 'getReviewDetail', inputJson: { reviewItemId: entityId } }]
   if (entityType === 'connector') return [{ toolName: 'getConnectorDetail', inputJson: { connectorId: entityId } }]
   if (entityType === 'ruleSet' || entityType === 'rule_set' || entityType === 'activityRuleSet') return [{ toolName: 'getRuleSetDetail', inputJson: { ruleSetId: entityId } }]
-  if (entityType === 'workflowRun' || entityType === 'workflow_run') return [{ toolName: 'exportRunLogs', inputJson: { runId: entityId } }]
+  if (entityType === 'workflowRun' || entityType === 'workflow_run') {
+    return [
+      { toolName: 'listRunConsole', inputJson: { runId: entityId, pageSize: 50 } },
+      { toolName: 'exportRunLogs', inputJson: { runId: entityId } },
+    ]
+  }
   if (entityType === 'activity') return [{ toolName: 'getActivityExecutionPlan', inputJson: { activityId: entityId } }]
   if (entityType === 'agentMission' || entityType === 'agent_mission') return [{ toolName: 'getAgentMission', inputJson: { missionId: entityId } }]
   if (entityType === 'simulationRun' || entityType === 'simulation_run') {
