@@ -153,6 +153,38 @@ test('agent chat connector linked entities restore data source details', async (
   assert.ok(disabled.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === disabledResult.workflowRunId))
 })
 
+test('agent chat updates connector permissions with persisted config and audit links', async () => {
+  const code = `agent_connector_permission_${Date.now()}`
+  const created = await executeFinalApiTool('createConnector', {
+    name: 'Agent 连接器权限验证',
+    code,
+    connectorKind: 'platform_api',
+    platform: 'tmall',
+    status: 'ACTIVE',
+    config: { source: 'agent-chat-test', permissions: ['read_product'] },
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  const connectorId = (created.result as { connectorId: string }).connectorId
+
+  const updated = await executeFinalApiTool('updateConnectorPermissions', {
+    connectorId,
+    permissions: ['read_product', 'read_inventory', 'write_product'],
+  })
+  assert.equal(updated.status, 'SUCCEEDED')
+  const updatedResult = updated.result as { connectorId: string; config: { permissions: string[] }; permissions: Array<{ key: string; granted: boolean }>; workflowRunId?: string }
+  assert.deepEqual(updatedResult.config.permissions, ['read_product', 'read_inventory', 'write_product'])
+  assert.equal(updatedResult.permissions.find((item) => item.key === 'write_product')?.granted, true)
+  assert.ok(updatedResult.workflowRunId)
+  assert.equal(updated.linkedEntity?.type, 'workflow_run')
+  assert.equal(updated.linkedEntity.id, updatedResult.workflowRunId)
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === updatedResult.workflowRunId))
+
+  const detail = await executeFinalApiTool('getConnectorDetail', { connectorId })
+  assert.equal(detail.status, 'SUCCEEDED')
+  assert.equal((detail.result as { permissions: Array<{ key: string; granted: boolean }> }).permissions.find((item) => item.key === 'write_product')?.granted, true)
+})
+
 test('agent chat activity simulation links back to restorable rule execution results', async () => {
   const ingested = await executeFinalApiTool('ingestSkus', {
     rows: [{
@@ -1385,6 +1417,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
   assert.equal(agentToolRiskLevel('createReviewItems'), 'L1')
   assert.equal(agentToolRiskLevel('runConnectorSync'), 'L1')
+  assert.equal(agentToolRiskLevel('updateConnectorPermissions'), 'L1')
   assert.equal(agentToolRiskLevel('setSkuNextAction'), 'L1')
   assert.equal(agentToolRiskLevel('exportReport'), 'L1')
   assert.equal(agentToolRiskLevel('exportSkuList'), 'L1')
@@ -1400,6 +1433,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRequiresReviewGate('getReportDetail'), false)
   assert.equal(agentToolRequiresReviewGate('createReviewItems'), false)
   assert.equal(agentToolRequiresReviewGate('runConnectorSync'), false)
+  assert.equal(agentToolRequiresReviewGate('updateConnectorPermissions'), false)
   assert.equal(agentToolRequiresReviewGate('setSkuNextAction'), false)
   assert.equal(agentToolRequiresReviewGate('exportReport'), false)
   assert.equal(agentToolRequiresReviewGate('exportSkuList'), false)

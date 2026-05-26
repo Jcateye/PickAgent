@@ -145,8 +145,8 @@ function createConversationRepository(env: Record<string, string | undefined> = 
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'addActivityCandidateSkus', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
-const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'addActivityCandidateSkus', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'addActivityCandidateSkus', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'updateConnectorPermissions', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
+const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'addActivityCandidateSkus', 'updateConnectorPermissions', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 export function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -721,6 +721,26 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const connectorEntity = { type: 'connector', id: connectorId }
       const workflowEntity = workflowLinkedEntity(result, connectorEntity)
       return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '更新连接器', summary: `${result.name} / ${result.status}` }], `更新连接器：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
+    }
+
+    if (toolName === 'updateConnectorPermissions') {
+      const connectorId = String(input.connectorId ?? '')
+      const permissions = stringArray(input.permissions ?? input.permissionKeys)
+      if (!connectorId || !permissions.length) throw new Error('connectorId and permissions are required')
+      const current = await finalApiRuntime.connectorService.get(connectorId, agentToolAuthContext())
+      if (!current) throw new Error(`Connector not found: ${connectorId}`)
+      const result = await finalApiRuntime.connectorService.update(connectorId, {
+        config: {
+          ...current.config,
+          permissions,
+          permissionsChangedFrom: 'agent-chat-tool',
+          permissionsChangedAt: new Date().toISOString(),
+        },
+      }, agentToolAuthContext())
+      const connectorEntity = { type: 'connector', id: connectorId }
+      const workflowEntity = workflowLinkedEntity(result, connectorEntity)
+      const granted = result.permissions.filter((item) => item.granted).map((item) => item.key)
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorId, label: '连接器权限', summary: `已授权：${granted.join(', ') || 'none'}` }], `更新连接器权限：${result.permissionSummary}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'detectBrowserPage') {

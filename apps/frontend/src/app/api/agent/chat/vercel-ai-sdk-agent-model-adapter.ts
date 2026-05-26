@@ -613,6 +613,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateConnector', inputJson),
     }),
+    updateConnectorPermissions: tool({
+      description: '更新真实数据源连接器权限。需要 connectorId 和 permissions/permissionKeys，例如 read_product、read_inventory、write_product；会持久化到连接器配置并写入审计 Run。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('updateConnectorPermissions', inputJson),
+    }),
     detectBrowserPage: tool({
       description: '识别浏览器当前页面是否是可采集的电商商品页面。需要 url，可选 title/htmlTextSample。只返回识别结果，不写入业务数据。',
       inputSchema: objectSchema,
