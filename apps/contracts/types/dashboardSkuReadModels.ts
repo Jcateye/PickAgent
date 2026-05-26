@@ -145,4 +145,5 @@ export interface DashboardSkuReadinessDetailDto {
   } | null;
   relatedRules: TraceableRef[];
   relatedReviews: TraceableRef[];
+  workflowRunId?: string;
 }

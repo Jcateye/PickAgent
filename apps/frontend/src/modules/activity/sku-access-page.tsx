@@ -231,6 +231,8 @@ export function SkuAccessPage() {
         const selected = details.find((detail) => detail.skuProfileId === selectedId)
         if (selected) setSelectedDetail(selected)
         setMessage(`已批量设置下一步为「${nextAction.label}」：${items.length} 个 SKU`)
+        const firstRunId = details.find((detail) => detail.workflowRunId)?.workflowRunId
+        setActionLink(firstRunId ? { href: runConsoleHref(firstRunId), label: `查看首个设置 Run（共 ${items.length} 个）` } : null)
       } catch (error) {
         setMessage(error instanceof Error ? error.message : '批量设置下一步失败')
       } finally {
@@ -255,6 +257,7 @@ export function SkuAccessPage() {
         items: current.items.map((row) => row.skuProfileId === item.skuProfileId ? { ...row, nextAction } : row),
       } : current)
       setMessage(`已设置下一步：${detail.statusSummary.nextStep}`)
+      setActionLink(detail.workflowRunId ? { href: runConsoleHref(detail.workflowRunId), label: '查看设置 Run' } : null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '设置下一步失败')
     } finally {

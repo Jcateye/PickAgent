@@ -149,6 +149,7 @@ interface DashboardSkuReadModelRecord {
   latestSimulationResult: SimulationResultDto | null;
   relatedReviews: ReviewItemDto[];
   nextActionOverride?: DashboardSkuListItemDto["nextAction"];
+  workflowRunId?: string;
   updatedAt: string;
 }
 
@@ -477,7 +478,7 @@ export class DashboardSkuReadModelRepository {
     };
     this.store.workflowAudits.set(audit.workflowRunId, audit);
     this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
-    return this.toRecord(summary);
+    return { ...this.toRecord(summary), workflowRunId: audit.workflowRunId };
   }
 
   private toRecord(summary: SkuSummaryDto): DashboardSkuReadModelRecord {
@@ -1499,10 +1500,10 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
         completedAt: new Date(),
       },
     });
-    return this.toRecordFromProjection(row, input.nextAction);
+    return this.toRecordFromProjection(row, input.nextAction, workflowRunId);
   }
 
-  private async toRecordFromProjection(row: Record<string, unknown>, nextActionOverride?: DashboardSkuListItemDto["nextAction"]): Promise<DashboardSkuReadModelRecord> {
+  private async toRecordFromProjection(row: Record<string, unknown>, nextActionOverride?: DashboardSkuListItemDto["nextAction"], workflowRunId?: string): Promise<DashboardSkuReadModelRecord> {
     const summary = toSkuSummaryFromProjection(row);
     const latestSnapshot = row.latestSnapshot ? toSnapshotDto(row.latestSnapshot as Record<string, unknown>) : null;
     const latestDiagnosis = row.latestDiagnosis ? toDiagnosisDto(row.latestDiagnosis as Record<string, unknown>) : null;
@@ -1526,6 +1527,7 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
       latestSimulationResult: simulationRows[0] ? toSimulationResultDto(simulationRows[0]) : null,
       relatedReviews: reviewRows.map(toReviewItemDto),
       nextActionOverride: nextActionOverride ?? nextActionFromWorkflowRun(nextActionRun),
+      workflowRunId,
       updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : latestDiagnosis?.diagnosedAt ?? latestSnapshot?.collectedAt ?? new Date(0).toISOString(),
     };
   }
@@ -3414,6 +3416,7 @@ function toDashboardSkuDetail(record: DashboardSkuReadModelRecord): DashboardSku
       : null,
     relatedRules: record.latestSimulationResult ? [traceableRef("rule_set", record.latestSimulationResult.ruleSetId, "活动规则集")] : [],
     relatedReviews: record.relatedReviews.map((item) => traceableRef("review_item", item.reviewItemId, item.question)),
+    workflowRunId: record.workflowRunId,
   };
 }
 

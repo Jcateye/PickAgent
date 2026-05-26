@@ -77,6 +77,59 @@ test('sku detail and next action routes return stable missing and tenant boundar
   assert.equal(deniedPatchEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })
 
+test('sku next action route returns workflow run id for audit navigation', async () => {
+  const externalSkuId = `sku_route_next_action_${Date.now()}`
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T10:30:00.000Z',
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'sku_route_store',
+        externalSkuId,
+        productName: '下一步动作路由测试',
+        stock: 8,
+        positiveRate: 0.93,
+        raw: { externalSkuId },
+      },
+    ],
+  }, {
+    actorId: 'sku_route_tenant_a',
+    tenantId: 'sku_route_tenant_a',
+    sessionId: 'sku_route_session_a',
+    surface: 'route-test',
+    requestId: 'sku_route_next_action_ingest',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+
+  const response = await updateSkuNextAction(
+    new Request(`http://localhost/api/skus/${skuProfileId}`, {
+      method: 'PATCH',
+      headers: tenantAHeaders,
+      body: JSON.stringify({
+        nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' },
+        comment: 'route-test-next-action',
+      }),
+    }),
+    { params: Promise.resolve({ skuProfileId }) },
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.match(envelope.data.workflowRunId, /^workflow_/)
+  assert.equal(envelope.data.statusSummary.nextStep, '提交人工确认')
+
+  const audits = await finalApiRuntime.workflowAuditService.list({
+    actorId: 'sku_route_tenant_a',
+    tenantId: 'sku_route_tenant_a',
+    sessionId: 'sku_route_session_a',
+    surface: 'route-test',
+    requestId: 'sku_route_next_action_audit',
+  }, 20)
+  const audit = audits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
+  assert.equal(audit?.workflowType, 'sku_next_action_update')
+  assert.equal(audit?.subjectId, skuProfileId)
+})
+
 test('sku export route returns backend csv and workflow audit', async () => {
   const externalSkuId = `sku_route_export_${Date.now()}`
   const boundary = {
