@@ -25,6 +25,7 @@ interface DashboardSkuPageDto {
 
 export function RuleExecutionPage() {
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [ruleName, setRuleName] = useState('活动规则执行路径')
   const [platform, setPlatform] = useState('tmall')
@@ -95,6 +96,7 @@ export function RuleExecutionPage() {
 
   async function runCheck() {
     setBusy(true)
+    setActionLink(null)
     try {
       const parsedRuleSet = await fetchActivityApi<ActivityRuleSetDto>('/api/activities/parse', {
         method: 'POST',
@@ -115,6 +117,7 @@ export function RuleExecutionPage() {
       setSimulationRun(run)
       syncRuleExecutionUrl(parsedRuleSet.ruleSetId, run.simulationRunId)
       setMessage(`运行检查已完成：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((item) => item.eligibility === 'BLOCKED').length} 个。`)
+      setActionLink({ href: runConsoleHref(run.simulationRunId), label: '查看模拟 Run' })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '运行检查失败')
     } finally {
@@ -124,6 +127,7 @@ export function RuleExecutionPage() {
 
   async function saveRuleSetToLibrary() {
     setBusy(true)
+    setActionLink(null)
     try {
       const saved = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
         method: 'POST',
@@ -138,6 +142,10 @@ export function RuleExecutionPage() {
         }),
       })
       setMessage(`已保存到规则库：${saved.name} / ${saved.ruleSetId}`)
+      setActionLink({
+        href: saved.workflowRunId ? runConsoleHref(saved.workflowRunId) : ruleLibraryHref(saved.ruleSetId),
+        label: saved.workflowRunId ? '查看保存 Run' : '查看规则集',
+      })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存规则集失败')
     } finally {
@@ -152,6 +160,7 @@ export function RuleExecutionPage() {
       return
     }
     setBusy(true)
+    setActionLink(null)
     try {
       const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
         method: 'POST',
@@ -184,6 +193,12 @@ export function RuleExecutionPage() {
         })))
       }
       setMessage(`${action === 'assign' ? '批量指派已生成待审批 Review' : '批量确认已生成并批准 Review'}：${created.map((item) => item.reviewItemId).join(', ')}`)
+      if (created[0]) {
+        setActionLink({
+          href: reviewApprovalHref(created[0].reviewItemId),
+          label: created.length > 1 ? `查看首个 Review（共 ${created.length} 个）` : '查看 Review',
+        })
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '批量操作失败')
     } finally {
@@ -226,7 +241,7 @@ export function RuleExecutionPage() {
           <button className="primaryButton" type="button" onClick={() => void runCheck()} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Play size={16} /> 运行检查
           </button>
-          <a className="secondaryButton" href="/run-console" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <a className="secondaryButton" href={simulationRun ? runConsoleHref(simulationRun.simulationRunId) : '/run-console'} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <FileText size={16} /> 查看 Run
           </a>
           <button className="iconButton" type="button" onClick={() => void saveRuleSetToLibrary()} disabled={busy} title="保存到规则库">
@@ -234,7 +249,12 @@ export function RuleExecutionPage() {
           </button>
         </div>
       </div>
-      {message ? <div style={{ color: 'var(--muted)', fontSize: '13px' }}>{message}</div> : null}
+      {message ? (
+        <div style={{ color: 'var(--muted)', fontSize: '13px' }}>
+          {message}
+          {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+        </div>
+      ) : null}
 
       <div className="twoColumnScaffold">
         <div className="twoColumnMain" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -532,6 +552,21 @@ function DecisionFlowPreview({ statusSummary, hasSimulation }: { statusSummary: 
 function getInitialRuleExecutionParam(name: string): string | null {
   if (typeof window === 'undefined') return null
   return new URLSearchParams(window.location.search).get(name)
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
+}
+
+function ruleLibraryHref(ruleSetId: string): string {
+  const params = new URLSearchParams({ ruleSetId })
+  return `/rule-library?${params.toString()}`
+}
+
+function reviewApprovalHref(reviewItemId: string): string {
+  const params = new URLSearchParams({ reviewItemId })
+  return `/review-approvals?${params.toString()}`
 }
 
 function syncRuleExecutionUrl(ruleSetId?: string, simulationRunId?: string, activityId?: string) {
