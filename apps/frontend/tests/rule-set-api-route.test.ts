@@ -19,6 +19,15 @@ const authHeaders = {
   'x-request-id': 'rule_set_route_request',
 }
 
+const otherTenantHeaders = {
+  'content-type': 'application/json',
+  'x-p0-actor-id': 'rule_set_route_other_tenant',
+  'x-p0-tenant-id': 'other_tenant',
+  'x-p0-session-id': 'rule_set_route_other_session',
+  'x-p0-surface': 'route-test',
+  'x-request-id': 'rule_set_route_other_request',
+}
+
 test('rule set routes return not found for missing rule set reads and writes', async () => {
   const params = { params: Promise.resolve({ ruleSetId: 'missing_rule_set' }) }
 
@@ -185,4 +194,33 @@ test('rule set simulation run route reads back persisted simulation by rule set'
   const wrongRuleEnvelope = await wrongRuleResponse.json()
   assert.equal(wrongRuleResponse.status, 404)
   assert.equal(wrongRuleEnvelope.code, 'ACTIVITY_SIMULATION.NOT_FOUND')
+})
+
+test('rule set routes consistently return tenant boundary denial', async () => {
+  const createdResponse = await createRuleSet(
+    new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: '跨租户规则边界测试', sourceText: '库存不得低于 20 件。', platform: 'tmall', status: 'ENABLED' }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const ruleSetId = createdEnvelope.data.ruleSetId
+
+  const responses = await Promise.all([
+    getRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    updateRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`, { method: 'PATCH', headers: otherTenantHeaders, body: JSON.stringify({ name: '跨租户修改' }) }), { params: Promise.resolve({ ruleSetId }) }),
+    deleteRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`, { method: 'DELETE', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    enableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/enable`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    disableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/disable`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    listRuleSetVersions(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+    createRuleSetVersion(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ ruleSetId }) }),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 403)
+    assert.equal(envelope.code, 'P0.TENANT_BOUNDARY_DENIED')
+  }
 })
