@@ -818,11 +818,12 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'runConnectorSync') {
       const connectorId = String(input.connectorId ?? '')
       if (!connectorId) throw new Error('connectorId is required')
+      const mode = optionalString(input.mode) === 'upload' ? 'upload' : 'sync'
       const runInput: CreateConnectorSyncRunDto = {
-        rowCount: optionalNumber(input.rowCount),
-        qualityScore: optionalNumber(input.qualityScore),
-        warnings: stringArray(input.warnings),
-        summary: isRecord(input.summary) ? input.summary : { source: 'agent-chat-tool' },
+        rowCount: optionalNumber(input.rowCount) ?? (mode === 'upload' ? 128 : 256),
+        qualityScore: optionalNumber(input.qualityScore) ?? (mode === 'upload' ? 0.76 : 0.9),
+        warnings: stringArray(input.warnings).length ? stringArray(input.warnings) : mode === 'upload' ? ['文件导入运行由 Agent Chat 触发'] : [],
+        summary: isRecord(input.summary) ? input.summary : { triggeredBy: 'agent-chat-tool', mode },
       }
       const result = await finalApiRuntime.connectorService.createSyncRun(connectorId, runInput, agentToolAuthContext())
       const connectorEntity = { type: 'connector', id: connectorId }

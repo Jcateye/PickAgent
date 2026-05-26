@@ -1085,6 +1085,14 @@ test('agent chat reads connector run and activity simulation run details', async
   })
   assert.equal(connector.status, 'SUCCEEDED')
   const connectorId = (connector.result as { connectorId: string }).connectorId
+  const defaultConnectorRun = await executeFinalApiTool('runConnectorSync', { connectorId })
+  assert.equal(defaultConnectorRun.status, 'SUCCEEDED')
+  const defaultConnectorRunResult = defaultConnectorRun.result as { rowCount: number; qualityScore?: number; warnings: string[]; summary?: Record<string, unknown> }
+  assert.equal(defaultConnectorRunResult.rowCount, 256)
+  assert.equal(defaultConnectorRunResult.qualityScore, 90)
+  assert.deepEqual(defaultConnectorRunResult.warnings, [])
+  assert.deepEqual(defaultConnectorRunResult.summary, { triggeredBy: 'agent-chat-tool', mode: 'sync' })
+
   const connectorRun = await executeFinalApiTool('runConnectorSync', {
     connectorId,
     rowCount: 17,
