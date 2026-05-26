@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { POST as createActivity } from '../src/app/api/activities/route'
+import { GET as fetchActivityList, POST as createActivity } from '../src/app/api/activities/route'
 import { GET as getActivity, PATCH as updateActivity } from '../src/app/api/activities/[activityId]/route'
 import { GET as getExecutionPlan } from '../src/app/api/activities/[activityId]/execution-plan/route'
 import { POST as addCandidateSkus } from '../src/app/api/activities/[activityId]/candidate-skus/route'
@@ -29,6 +29,28 @@ const otherTenantHeaders = {
   'x-p0-surface': 'route-test',
   'x-request-id': 'activity_route_other_request',
 }
+
+test('activity root and standalone parse routes return stable auth envelopes when P0 context is missing', async () => {
+  const responses = await Promise.all([
+    fetchActivityList(new Request('http://localhost/api/activities')),
+    createActivity(new Request('http://localhost/api/activities', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Activity', platform: 'tmall' }),
+    })),
+    parseStandaloneRules(new Request('http://localhost/api/activities/parse', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Parse', platform: 'tmall', sourceText: '库存不得低于 20 件。' }),
+    })),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
 
 test('standalone activity rule parse route returns workflow run id for audit navigation', async () => {
   const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
