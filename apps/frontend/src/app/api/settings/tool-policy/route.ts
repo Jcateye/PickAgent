@@ -1,10 +1,20 @@
-import { authContextFromRequest, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 export async function GET(request: Request) {
-  return ok(await finalApiRuntime.workspaceSettingsService.getToolPolicy(authContextFromRequest(request)))
+  try {
+    return ok(await finalApiRuntime.workspaceSettingsService.getToolPolicy(authContextFromRequest(request)))
+  } catch (error) {
+    return authFail(error)
+  }
 }
 
 export async function PATCH(request: Request) {
-  const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>
-  return ok(await finalApiRuntime.workspaceSettingsService.updateToolPolicy(payload, authContextFromRequest(request)))
+  try {
+    const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>
+    return ok(await finalApiRuntime.workspaceSettingsService.updateToolPolicy(payload, authContextFromRequest(request)))
+  } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'tool policy update failed', 400)
+  }
 }

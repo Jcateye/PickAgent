@@ -92,3 +92,43 @@ test('settings user route updates approval role status and rejects missing users
   assert.equal(missingResponse.status, 404)
   assert.equal(missingEnvelope.code, 'SETTINGS_USER.NOT_FOUND')
 })
+
+test('settings routes return stable auth envelopes when P0 context is missing', async () => {
+  const checks = [
+    () => getWorkspace(new Request('http://localhost/api/settings/workspace')),
+    () =>
+      updateWorkspace(
+        new Request('http://localhost/api/settings/workspace', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ dataFreshnessThresholdHours: 12 }),
+        }),
+      ),
+    () => getToolPolicy(new Request('http://localhost/api/settings/tool-policy')),
+    () =>
+      updateToolPolicy(
+        new Request('http://localhost/api/settings/tool-policy', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ deniedRuntimeTools: ['missingAuthTool'] }),
+        }),
+      ),
+    () => listUsers(new Request('http://localhost/api/settings/users')),
+    () =>
+      updateUser(
+        new Request('http://localhost/api/settings/users/qa_reviewer', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status: 'ACTIVE' }),
+        }),
+        { params: Promise.resolve({ userId: 'qa_reviewer' }) },
+      ),
+  ]
+
+  for (const requestSettingsRoute of checks) {
+    const response = await requestSettingsRoute()
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})

@@ -1,5 +1,9 @@
-import { authContextFromRequest, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { authContextFromRequest, authFail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 export async function GET(request: Request) {
-  return ok(await finalApiRuntime.workspaceSettingsService.listUsers(authContextFromRequest(request)))
+  try {
+    return ok(await finalApiRuntime.workspaceSettingsService.listUsers(authContextFromRequest(request)))
+  } catch (error) {
+    return authFail(error)
+  }
 }

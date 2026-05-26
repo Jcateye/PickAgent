@@ -1,4 +1,5 @@
-import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 interface RouteContext {
   params: Promise<{ userId: string }>
@@ -12,6 +13,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     return ok(await finalApiRuntime.workspaceSettingsService.updateUserStatus(userId, status, authContextFromRequest(request)))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (error instanceof Error && error.message.includes('Settings user not found')) {
       return fail('SETTINGS_USER.NOT_FOUND', 'settings user not found', 404, { userId })
     }
