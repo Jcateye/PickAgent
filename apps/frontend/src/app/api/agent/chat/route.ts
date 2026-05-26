@@ -1503,7 +1503,7 @@ function normalizeLinkedEntityType(type: string): AgentLinkedEntity['entityType'
   if (type === 'activity_rule_set') return 'rule_set'
   if (type === 'dashboard') return 'dashboard'
   if (type === 'report') return 'report'
-  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run') return type
+  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run' || type === 'connector') return type
   return 'dashboard'
 }
 
@@ -1514,6 +1514,7 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
   if (entityType === 'review_item') return 'Review 工作台'
   if (entityType === 'report') return '报告中心'
   if (entityType === 'workflow_run') return 'Run Console'
+  if (entityType === 'connector') return '数据源'
   if (entityId === 'connectors') return '数据源'
   if (entityId === 'reports') return '报告中心'
   if (entityId === 'reviews') return 'Review 工作台'
@@ -1533,6 +1534,7 @@ export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'review_item') return `/review-approvals?${new URLSearchParams({ reviewItemId: entityId }).toString()}`
   if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
   if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
+  if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
   if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
   if (entityId === 'reports') return '/report-center'
   if (entityId === 'reviews') return '/review-approvals'

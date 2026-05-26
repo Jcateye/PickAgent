@@ -11,11 +11,29 @@ test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('rule_set', 'rule_1'), '/rule-library?ruleSetId=rule_1')
   assert.equal(linkedEntityHref('review_item', 'review_1'), '/review-approvals?reviewItemId=review_1')
   assert.equal(linkedEntityHref('report', 'report_1'), '/report-center?reportId=report_1')
+  assert.equal(linkedEntityHref('connector', 'connector_1'), '/data-sources?connectorId=connector_1')
   assert.equal(linkedEntityHref('simulation_run', 'rule_1:run_1'), '/rule-execution?simulationRunId=run_1&ruleSetId=rule_1')
   assert.equal(linkedEntityHref('dashboard', 'connectors'), '/data-sources')
   assert.equal(linkedEntityHref('dashboard', 'reports'), '/report-center')
   assert.equal(linkedEntityHref('dashboard', 'reviews'), '/review-approvals')
   assert.equal(linkedEntityHref('dashboard', 'rule-sets'), '/rule-library')
+})
+
+test('agent chat connector linked entities restore data source details', async () => {
+  const code = `agent_connector_link_${Date.now()}`
+  const created = await executeFinalApiTool('createConnector', {
+    name: 'Agent 连接器深链验证',
+    code,
+    connectorKind: 'browser_extension',
+    platform: 'tmall',
+    status: 'ACTIVE',
+    config: { source: 'agent-chat-test' },
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  assert.equal(created.linkedEntity?.type, 'connector')
+  const connectorId = (created.result as { connectorId: string }).connectorId
+  assert.equal(created.linkedEntity.id, connectorId)
+  assert.equal(linkedEntityHref(created.linkedEntity.type, created.linkedEntity.id), `/data-sources?connectorId=${connectorId}`)
 })
 
 test('agent chat activity simulation links back to restorable rule execution results', async () => {
