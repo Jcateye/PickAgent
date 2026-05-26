@@ -2,6 +2,36 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { VercelAiSdkAgentModelAdapter, createVercelAiSdkAgentModelAdapterFromEnv } from '../src/app/api/agent/chat/vercel-ai-sdk-agent-model-adapter'
+import { defaultAgentToolNames } from '../../contracts/types/businessFoundation'
+
+test('vercel ai sdk agent model adapter exposes every registered default tool', async () => {
+  const adapter = new VercelAiSdkAgentModelAdapter({
+    apiKey: 'test-key',
+    modelName: 'test-model',
+    model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
+    generateText: (async (input: { tools?: Record<string, unknown> }) => {
+      assert.deepEqual(Object.keys(input.tools ?? {}).sort(), [...defaultAgentToolNames].sort())
+      return {
+        text: '工具名单一致',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+        response: { id: 'response_tool_registry_consistency' },
+        providerMetadata: {},
+      }
+    }) as never,
+  })
+
+  await adapter.complete({
+    session: { id: 'session_1', sessionKey: 's', userId: null, surface: 'agent-copilot', piSessionKey: null, piSessionRef: null, title: null, status: 'ACTIVE', configJson: {}, lastActiveAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '检查工具注册一致性', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: null, subjectId: null, constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '有哪些工具？', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
+    executeTool: async () => {
+      throw new Error('tool execution is not needed for registry consistency')
+    },
+  })
+})
 
 test('vercel ai sdk agent model adapter delegates assistant reply to generateText', async () => {
   const calls: Array<{ system?: string; prompt?: string; messages?: Array<{ content?: string }> }> = []
