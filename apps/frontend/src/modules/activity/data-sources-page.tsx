@@ -228,6 +228,33 @@ export function DataSourcesPage() {
     setDetail(nextDetail)
     setRuns(nextRuns.items)
   }
+
+  async function updateConnectorPermissions(connectorId: string, permissions: string[]) {
+    if (!detail || detail.connectorId !== connectorId) return
+    setBusy(`permissions:${connectorId}`)
+    setActionLink(null)
+    try {
+      const updated = await fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${connectorId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          config: {
+            ...detail.config,
+            permissions,
+            permissionsChangedFrom: 'data-sources-page',
+            permissionsChangedAt: new Date().toISOString(),
+          },
+        }),
+      })
+      setDetail(updated)
+      setMessage(`已更新连接器权限：${updated.permissionSummary}`)
+      setActionLink(connectorWriteRunActionLink(updated.workflowRunId, updated.connectorId, '查看权限 Run'))
+      await loadConnectors(updated.connectorId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '连接器权限更新失败')
+    } finally {
+      setBusy(null)
+    }
+  }
   const agentContext = useMemo<WorkbenchContext>(() => ({
     route: '/data-sources',
     pageTitle: '数据源连接器',
@@ -400,7 +427,7 @@ export function DataSourcesPage() {
           <div className={styles.panelBody}>
             {panelTab === 'overview' ? <ConnectorOverviewPanel key={detail.connectorId} detail={detail} runs={runs} createRun={createRun} onIngestComplete={reloadSelectedConnector} busy={busy} /> : null}
             {panelTab === 'config' ? <ConnectorConfigPanel detail={detail} editConnectorConfig={editConnectorConfig} toggleConnectorStatus={toggleConnectorStatus} busy={busy} /> : null}
-            {panelTab === 'permissions' ? <ConnectorPermissionPanel detail={detail} /> : null}
+            {panelTab === 'permissions' ? <ConnectorPermissionPanel detail={detail} updateConnectorPermissions={updateConnectorPermissions} busy={busy} /> : null}
           </div>
         </div>
       )}
@@ -556,7 +583,19 @@ function ConnectorConfigPanel({ detail, editConnectorConfig, toggleConnectorStat
   )
 }
 
-function ConnectorPermissionPanel({ detail }: { detail: ConnectorDetailDto }) {
+function ConnectorPermissionPanel({ detail, updateConnectorPermissions, busy }: {
+  detail: ConnectorDetailDto
+  updateConnectorPermissions: (connectorId: string, permissions: string[]) => Promise<void>
+  busy: string | null
+}) {
+  const selectedPermissions = detail.permissions.filter((permission) => permission.granted).map((permission) => permission.key)
+  const togglePermission = (permissionKey: string) => {
+    const nextPermissions = selectedPermissions.includes(permissionKey)
+      ? selectedPermissions.filter((item) => item !== permissionKey)
+      : [...selectedPermissions, permissionKey]
+    void updateConnectorPermissions(detail.connectorId, nextPermissions)
+  }
+
   return (
     <>
       <div className={styles.blockTitle}>权限摘要</div>
@@ -569,7 +608,14 @@ function ConnectorPermissionPanel({ detail }: { detail: ConnectorDetailDto }) {
         {detail.permissions.map((permission) => (
           <div className={styles.permissionItem} key={permission.key}>
             <span>{permission.label}</span>
-            <span className={permission.granted ? styles.permissionGranted : styles.permissionMissing}>{permission.granted ? '已授权' : '未授权'}</span>
+            <button
+              className={permission.granted ? styles.permissionGranted : styles.permissionMissing}
+              type="button"
+              onClick={() => togglePermission(permission.key)}
+              disabled={busy === `permissions:${detail.connectorId}`}
+            >
+              {permission.granted ? '已授权' : '未授权'}
+            </button>
           </div>
         ))}
       </div>

@@ -177,6 +177,46 @@ test('connector write routes return workflow run ids for audit navigation', asyn
   assert.match(disableEnvelope.data.workflowRunId, /^workflow_/)
 })
 
+test('connector permission updates are derived from persisted config', async () => {
+  const stamp = Date.now()
+  const createdResponse = await createConnector(
+    new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: `permission_connector_${stamp}`,
+        name: 'Permission Connector',
+        kind: 'platform_api',
+        platform: 'tmall',
+        status: 'ACTIVE',
+        config: { source: 'route-test', permissions: ['read_product'] },
+      }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const connectorId = createdEnvelope.data.connectorId
+  assert.equal(createdEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, false)
+
+  const updateResponse = await updateConnector(
+    new Request(`http://localhost/api/connectors/${connectorId}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ config: { source: 'route-test', permissions: ['read_product', 'write_product'] } }),
+    }),
+    { params: Promise.resolve({ connectorId }) },
+  )
+  const updateEnvelope = await updateResponse.json()
+  assert.equal(updateResponse.status, 200)
+  assert.equal(updateEnvelope.data.config.permissions.includes('write_product'), true)
+  assert.equal(updateEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, true)
+
+  const getResponse = await getConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { headers: authHeaders }), { params: Promise.resolve({ connectorId }) })
+  const getEnvelope = await getResponse.json()
+  assert.equal(getResponse.status, 200)
+  assert.equal(getEnvelope.data.permissions.find((item: { key: string }) => item.key === 'write_product')?.granted, true)
+})
+
 test('connector routes reject cross-tenant connector and run access with P0 code', async () => {
   const createdResponse = await createConnector(
     new Request('http://localhost/api/connectors', {

@@ -159,6 +159,18 @@ test('data sources page creates a browser connector and writes scanned SKU data 
   expect(enableEnvelope.code).toBe('OK')
   expect(enableEnvelope.data.status).toBe('ACTIVE')
   await expect(page.getByText(`${connectorName} 已编辑 已启用`)).toBeVisible()
+
+  await page.getByRole('button', { name: '权限' }).click()
+  const permissionResponse = page.waitForResponse((response) => response.url().endsWith(`/api/connectors/${connectorId}`) && response.request().method() === 'PATCH')
+  await page.getByText('修改商品信息').locator('xpath=..').getByRole('button', { name: '未授权' }).click()
+  const permissionHttpResponse = await permissionResponse
+  const permissionRequestBody = permissionHttpResponse.request().postDataJSON()
+  const permissionEnvelope = await permissionHttpResponse.json()
+  expect(permissionEnvelope.code).toBe('OK')
+  expect(permissionRequestBody.config.permissions).toContain('write_product')
+  expect(permissionEnvelope.data.permissions.find((item) => item.key === 'write_product')?.granted).toBe(true)
+  await expect(page.getByText(/已更新连接器权限/)).toBeVisible()
+  await expect(page.getByText('修改商品信息').locator('xpath=..').getByRole('button', { name: '已授权' })).toBeVisible()
 })
 
 test('rule execution page runs real parsing and simulation then saves the rule set', async ({ page }) => {

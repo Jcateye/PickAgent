@@ -450,8 +450,26 @@
 
 .permissionGranted {
   color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  background: rgba(22, 163, 74, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
 }
 
 .permissionMissing {
   color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.24);
+  background: rgba(220, 38, 38, 0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.permissionGranted:disabled,
+.permissionMissing:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }

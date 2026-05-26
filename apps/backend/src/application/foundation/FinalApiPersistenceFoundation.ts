@@ -4222,7 +4222,7 @@ function permissionsFromConfig(config: Record<string, unknown>): Array<{ key: st
   return [
     { key: "read_product", label: "读取商品信息", granted: permissions.includes("read_product") || permissions.length === 0 },
     { key: "read_inventory", label: "读取库存信息", granted: permissions.includes("read_inventory") || permissions.length === 0 },
-    { key: "write_product", label: "修改商品信息", granted: false },
+    { key: "write_product", label: "修改商品信息", granted: permissions.includes("write_product") },
   ];
 }
 
