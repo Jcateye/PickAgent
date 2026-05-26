@@ -383,7 +383,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         q: optionalString(input.q ?? input.query ?? input.keyword),
         status: normalizeRuleSetListStatus(input.status),
       })
-      return succeeded(result, [{ type: 'rule', entityId: 'rule-sets', label: '规则集列表', summary: `读取 ${result.items.length} 个规则集` }], `读取规则集：${result.items.length} 个`, result.items[0] ? { type: 'rule_set', id: result.items[0].ruleSetId } : { type: 'dashboard', id: 'rule-sets' })
+      const ruleSetEntities = result.items.map((item) => ({ type: 'rule_set', id: item.ruleSetId }))
+      return succeeded(result, [{ type: 'rule', entityId: 'rule-sets', label: '规则集列表', summary: `读取 ${result.items.length} 个规则集` }], `读取规则集：${result.items.length} 个`, ruleSetEntities[0] ?? { type: 'dashboard', id: 'rule-sets' }, ruleSetEntities)
     }
 
     if (toolName === 'getRuleSetDetail') {
@@ -435,7 +436,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'listActivities') {
       const result = await finalApiRuntime.activityService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: 'activities', label: '活动列表', summary: `读取 ${result.items.length} 个活动` }], `读取活动：${result.items.length} 个`, result.items[0] ? { type: 'activity', id: result.items[0].activityId } : { type: 'dashboard', id: 'activities' })
+      const activityEntities = result.items.map((item) => ({ type: 'activity', id: item.activityId }))
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'activities', label: '活动列表', summary: `读取 ${result.items.length} 个活动` }], `读取活动：${result.items.length} 个`, activityEntities[0] ?? { type: 'dashboard', id: 'activities' }, activityEntities)
     }
 
     if (toolName === 'createActivity') {
@@ -635,7 +637,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         q: optionalString(input.q ?? input.query ?? input.keyword),
       }
       const result = await finalApiRuntime.reviewService.list(query, agentToolAuthContext())
-      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'review', entityId: item.reviewItemId, label: item.title, summary: `${item.status} / ${item.riskLevel} / ${item.summary}` })), `读取 Review 列表：${result.total} 条`, result.items[0] ? { type: 'review_item', id: result.items[0].reviewItemId } : { type: 'dashboard', id: 'reviews' })
+      const reviewEntities = result.items.map((item) => ({ type: 'review_item', id: item.reviewItemId }))
+      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'review', entityId: item.reviewItemId, label: item.title, summary: `${item.status} / ${item.riskLevel} / ${item.summary}` })), `读取 Review 列表：${result.total} 条`, reviewEntities[0] ?? { type: 'dashboard', id: 'reviews' }, reviewEntities)
     }
 
     if (toolName === 'createReviewItems') {
@@ -692,7 +695,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'listConnectors') {
       const result = await finalApiRuntime.connectorService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: 'connectors', label: '连接器列表', summary: `读取 ${result.items.length} 个连接器` }], `读取连接器：${result.items.length} 个`, result.items[0] ? { type: 'connector', id: result.items[0].connectorId } : { type: 'dashboard', id: 'connectors' })
+      const connectorEntities = result.items.map((item) => ({ type: 'connector', id: item.connectorId }))
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'connectors', label: '连接器列表', summary: `读取 ${result.items.length} 个连接器` }], `读取连接器：${result.items.length} 个`, connectorEntities[0] ?? { type: 'dashboard', id: 'connectors' }, connectorEntities)
     }
 
     if (toolName === 'getConnectorDetail') {
@@ -888,7 +892,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         pageSize: numberOr(input.pageSize, 10),
         status: optionalString(input.status),
       })
-      return succeeded(result, [{ type: 'tool_trace', entityId: 'agent-missions', label: 'Agent Mission 列表', summary: `读取 ${result.items.length} 个 Mission` }], `读取 Agent Mission：${result.items.length} 个`, result.items[0] ? { type: 'agent_mission', id: result.items[0].missionId } : { type: 'dashboard', id: 'agent-missions' })
+      const missionEntities = result.items.map((item) => ({ type: 'agent_mission', id: item.missionId }))
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'agent-missions', label: 'Agent Mission 列表', summary: `读取 ${result.items.length} 个 Mission` }], `读取 Agent Mission：${result.items.length} 个`, missionEntities[0] ?? { type: 'dashboard', id: 'agent-missions' }, missionEntities)
     }
 
     if (toolName === 'getAgentMission') {
@@ -984,7 +989,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'listReports') {
       const result = await finalApiRuntime.reportService.list(agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: 'reports', label: '报告列表', summary: `读取 ${result.items.length} 份报告` }], `读取报告：${result.items.length} 份`, result.items[0] ? { type: 'report', id: result.items[0].reportId } : { type: 'dashboard', id: 'reports' })
+      const reportEntities = result.items.map((item) => ({ type: 'report', id: item.reportId }))
+      return succeeded(result, [{ type: 'report', entityId: 'reports', label: '报告列表', summary: `读取 ${result.items.length} 份报告` }], `读取报告：${result.items.length} 份`, reportEntities[0] ?? { type: 'dashboard', id: 'reports' }, reportEntities)
     }
 
     if (toolName === 'getReportDetail') {

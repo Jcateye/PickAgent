@@ -139,6 +139,11 @@ test('agent chat connector linked entities restore data source details', async (
   assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
   assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === updatedResult.workflowRunId))
 
+  const listed = await executeFinalApiTool('listConnectors', { pageSize: 20 })
+  assert.equal(listed.status, 'SUCCEEDED')
+  assert.ok((listed.result as { items: Array<{ connectorId: string }> }).items.some((item) => item.connectorId === connectorId))
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+
   const disabled = await executeFinalApiTool('setConnectorStatus', {
     connectorId,
     status: 'DISABLED',
@@ -514,6 +519,8 @@ test('agent chat listRuleSets tool uses backend query and status filters', async
   assert.equal(result.items.some((item) => item.ruleSetId === draftRuleSetId), false)
   assert.equal(listed.linkedEntity?.type, 'rule_set')
   assert.equal(listed.linkedEntity.id, enabledRuleSetId)
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === enabledRuleSetId))
+  assert.equal(listed.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === draftRuleSetId), false)
 })
 
 test('agent chat listRuleSetVersions tool reads persisted rule set versions', async () => {
@@ -608,6 +615,29 @@ test('agent chat activity write tools link audited runs and activity object', as
   assert.equal(candidate.linkedEntity.id, candidateResult.workflowRunId)
   assert.ok(candidate.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
   assert.ok(candidate.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === candidateResult.workflowRunId))
+})
+
+test('agent chat listActivities links every returned activity', async () => {
+  const stamp = Date.now()
+  const first = await executeFinalApiTool('createActivity', {
+    name: `Agent 活动列表回链 A ${stamp}`,
+    platform: 'tmall',
+  })
+  const second = await executeFinalApiTool('createActivity', {
+    name: `Agent 活动列表回链 B ${stamp}`,
+    platform: 'tmall',
+  })
+  assert.equal(first.status, 'SUCCEEDED')
+  assert.equal(second.status, 'SUCCEEDED')
+  const firstId = (first.result as { activityId: string }).activityId
+  const secondId = (second.result as { activityId: string }).activityId
+
+  const listed = await executeFinalApiTool('listActivities', { pageSize: 20 })
+  assert.equal(listed.status, 'SUCCEEDED')
+  assert.ok((listed.result as { items: Array<{ activityId: string }> }).items.some((item) => item.activityId === firstId))
+  assert.ok((listed.result as { items: Array<{ activityId: string }> }).items.some((item) => item.activityId === secondId))
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === firstId))
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === secondId))
 })
 
 test('agent chat parses and binds activity rule sets into execution plans', async () => {
@@ -760,6 +790,7 @@ test('agent chat listReviews tool reads pending review queues', async () => {
   const result = listed.result as { items: Array<{ reviewItemId: string; status: string; riskLevel: string }> }
   assert.ok(result.items.some((item) => item.reviewItemId === reviewItemId && item.status === 'PENDING' && item.riskLevel === 'HIGH'))
   assert.equal(listed.linkedEntity?.type, 'review_item')
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
 })
 
 test('agent chat ingestSkus tool writes SKU projections that can be read back', async () => {
@@ -1355,6 +1386,7 @@ test('agent chat report read tools cover list, detail, versions, and version det
   assert.equal(listed.status, 'SUCCEEDED')
   assert.ok((listed.result as { items: Array<{ reportId: string }> }).items.some((item) => item.reportId === reportId))
   assert.ok(['report', 'dashboard'].includes(listed.linkedEntity?.type ?? ''))
+  assert.ok(listed.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
 
   const detail = await executeFinalApiTool('getReportDetail', { reportId })
   assert.equal(detail.status, 'SUCCEEDED')
