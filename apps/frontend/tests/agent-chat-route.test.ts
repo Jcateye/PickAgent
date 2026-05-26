@@ -1451,6 +1451,7 @@ test('agent chat sku query tools support page-level advanced filters', async () 
   assert.deepEqual(searchResult.query.categories, [baselineItem.category ?? 'seasonal'])
   if (baselineItem.sourceKind) assert.deepEqual(searchResult.query.sourceKinds, [baselineItem.sourceKind])
   assert.ok(searchResult.items.some((item) => item.skuProfileId === skuProfileId))
+  assert.ok(search.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === skuProfileId))
 
   const exported = await executeFinalApiTool('exportSkuList', {
     platforms: ['tmall'],

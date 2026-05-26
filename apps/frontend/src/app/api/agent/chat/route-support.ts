@@ -361,7 +361,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         total: result.total,
         items: result.items.map(toSkuCandidate),
       }
-      return succeeded(payload, skuListEvidence(payload.items), `查询 SKU：命中 ${result.total} 条`, result.items[0] ? { type: 'sku_profile', id: result.items[0].skuProfileId } : { type: 'dashboard', id: 'sku-search' })
+      const skuEntities = result.items.map((item) => ({ type: 'sku_profile', id: item.skuProfileId }))
+      return succeeded(payload, skuListEvidence(payload.items), `查询 SKU：命中 ${result.total} 条`, skuEntities[0] ?? { type: 'dashboard', id: 'sku-search' }, skuEntities)
     }
 
     if (toolName === 'exportSkuList') {
