@@ -259,6 +259,73 @@ test('run console retry route replays failed sku export audits as real workflow 
   assert.equal(retried?.output.rowCount, 1)
 })
 
+test('run console retry route replays failed sku next action audits', async () => {
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T15:20:00.000Z',
+    rows: [{
+      platform: 'tmall',
+      storeId: 'run_console_retry_next_action_store',
+      externalSkuId: `run_console_retry_next_action_${Date.now()}`,
+      productName: 'Run Console 重试下一步 SKU',
+      stock: 12,
+      positiveRate: 0.96,
+      raw: {},
+    }],
+  }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_retry_next_action_ingest',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+  const nextAction = { type: 'MANUAL_REVIEW', label: '提交人工确认' }
+  const failedRunId = `workflow_failed_sku_next_action_${Date.now()}`
+  finalApiRuntime.store.workflowAudits.set(failedRunId, {
+    workflowRunId: failedRunId,
+    workflowType: 'sku_next_action_update',
+    status: 'FAILED',
+    subjectType: 'sku_profile',
+    subjectId: skuProfileId,
+    input: {
+      actorId: authHeaders['x-p0-actor-id'],
+      tenantId: authHeaders['x-p0-tenant-id'],
+      sessionId: authHeaders['x-p0-session-id'],
+      surface: authHeaders['x-p0-surface'],
+      nextAction,
+      comment: 'forced failure for next action retry',
+    },
+    output: { error: 'forced failure for retry route test', nextAction },
+    createdAt: new Date().toISOString(),
+  })
+  finalApiRuntime.store.tenantByEntityId.set(failedRunId, authHeaders['x-p0-tenant-id'])
+
+  const listResponse = await listRuns(new Request('http://localhost/api/run-console?pageSize=100', { headers: authHeaders }))
+  const listEnvelope = await listResponse.json()
+  assert.equal(listResponse.status, 200)
+  const failedRun = listEnvelope.data.items.find((item: { runId: string }) => item.runId === failedRunId)
+  assert.equal(failedRun?.retryable, true)
+
+  const response = await retryRun(
+    new Request(`http://localhost/api/run-console/${failedRunId}/retry`, { method: 'POST', headers: authHeaders }),
+    { params: Promise.resolve({ runId: failedRunId }) },
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.equal(envelope.data.type, 'sku_next_action_update')
+  assert.match(envelope.data.runId, /^workflow_/)
+
+  const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileId, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_retry_next_action_detail',
+  })
+  assert.equal(detail?.statusSummary.nextStep, nextAction.label)
+})
+
 test('run console marks unsafe workflow audits as not retryable', async () => {
   const failedRunId = `workflow_failed_review_update_${Date.now()}`
   finalApiRuntime.store.workflowAudits.set(failedRunId, {

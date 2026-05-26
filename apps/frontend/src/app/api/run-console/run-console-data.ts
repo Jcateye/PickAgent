@@ -122,6 +122,7 @@ const retryableRunConsoleTypes = new Set([
   'sku_export',
   'report_generate',
   'report_export',
+  'sku_next_action_update',
   'rule_set_version_create',
   'rule_set_status_update',
   'activity_candidate_skus',

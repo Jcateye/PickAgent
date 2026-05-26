@@ -384,7 +384,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       gateId: { type: 'string' },
       runId: { type: 'string' },
       workflowRunId: { type: 'string' },
-      runType: { type: 'string', enum: ['connector_sync', 'agent_run', 'activity_simulation', 'sku_export', 'report_generate', 'report_export', 'rule_set_version_create', 'rule_set_status_update', 'activity_candidate_skus'] },
+      runType: { type: 'string', enum: ['connector_sync', 'agent_run', 'activity_simulation', 'sku_export', 'report_generate', 'report_export', 'sku_next_action_update', 'rule_set_version_create', 'rule_set_status_update', 'activity_candidate_skus'] },
       missionType: { type: 'string' },
       autonomyLevel: { type: 'string' },
       modelProvider: { type: 'string' },
@@ -739,7 +739,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('setRuleSetStatus', inputJson),
     }),
     retryRun: tool({
-      description: '为失败运行创建真实重试运行，和运行控制台使用同一套后端服务。支持 connector_sync、agent_run、activity_simulation、sku_export、report_generate、report_export、rule_set_version_create、rule_set_status_update、activity_candidate_skus；可选 runId 记录 retryOf。',
+      description: '为失败运行创建真实重试运行，和运行控制台使用同一套后端服务。支持 connector_sync、agent_run、activity_simulation、sku_export、report_generate、report_export、sku_next_action_update、rule_set_version_create、rule_set_status_update、activity_candidate_skus；可选 runId 记录 retryOf。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('retryRun', inputJson),
     }),

@@ -1,6 +1,7 @@
 import { authContextFromRequest, authFail, fail, finalAgentRuntime, finalApiRuntime, ok } from '../../../_final-api-runtime'
 import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { buildRunConsolePage, runConsoleRetryDisabledReason, type RunConsoleItemDto } from '../../run-console-data'
+import type { DashboardSkuListItemDto } from '../../../../../../../contracts/types/dashboardSkuReadModels'
 
 interface RouteContext {
   params: Promise<{ runId: string }>
@@ -81,6 +82,17 @@ async function retryRun(run: RunConsoleItemDto, boundary: ReturnType<typeof auth
     const retryRunId = result.workflowRunId ?? result.exportJobId
     return { runId: retryRunId, type: run.type, sourceHref: `/run-console?runId=${encodeURIComponent(retryRunId)}`, result }
   }
+  if (run.type === 'sku_next_action_update') {
+    const sourceId = requireSourceId(run)
+    const nextAction = isRecord(input.nextAction) ? input.nextAction : isRecord(run.logs[1]?.payload) && isRecord(run.logs[1]?.payload.nextAction) ? run.logs[1].payload.nextAction : null
+    if (!nextAction) throw new Error('当前 SKU 下一步运行没有可复用的 nextAction')
+    const result = await finalApiRuntime.skuReadinessQueryService.updateNextAction(sourceId, {
+      nextAction: normalizeNextAction(nextAction),
+      comment: typeof input.comment === 'string' ? `retryOf:${run.runId}; ${input.comment}` : `retryOf:${run.runId}`,
+    }, boundary)
+    const retryRunId = result.workflowRunId ?? run.runId
+    return { runId: retryRunId, type: run.type, sourceHref: `/run-console?runId=${encodeURIComponent(retryRunId)}`, result }
+  }
   if (run.type === 'rule_set_version_create') {
     const sourceId = requireSourceId(run)
     const result = await finalApiRuntime.ruleSetService.createVersion(sourceId, boundary)
@@ -130,4 +142,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : []
+}
+
+function normalizeNextAction(value: Record<string, unknown>): DashboardSkuListItemDto['nextAction'] {
+  const rawType = typeof value.type === 'string' && value.type.trim() ? value.type : 'VIEW_DETAIL'
+  const type = rawType === 'JOIN_ACTIVITY' || rawType === 'REPAIR_ISSUE' || rawType === 'MANUAL_REVIEW' || rawType === 'VIEW_BLOCKER' || rawType === 'VIEW_DETAIL' ? rawType : 'VIEW_DETAIL'
+  const label = typeof value.label === 'string' && value.label.trim() ? value.label : type
+  return {
+    type,
+    label,
+    disabled: typeof value.disabled === 'boolean' ? value.disabled : undefined,
+  }
 }

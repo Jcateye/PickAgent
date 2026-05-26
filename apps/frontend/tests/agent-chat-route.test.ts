@@ -1122,6 +1122,37 @@ test('agent chat setSkuNextAction links audited run and sku object', async () =>
   assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === skuProfileId))
 })
 
+test('agent chat retryRun replays sku next action updates', async () => {
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_next_action_retry_store',
+        externalSkuId: `agent_next_action_retry_${Date.now()}`,
+        productName: 'Agent 下一步重试 SKU',
+        stock: 9,
+        positiveRate: 0.94,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+  const skuProfileId = (ingest.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const retry = await executeFinalApiTool('retryRun', {
+    runType: 'sku_next_action_update',
+    sourceId: skuProfileId,
+    runId: 'workflow_failed_next_action_from_agent_test',
+    nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' },
+  })
+  assert.equal(retry.status, 'SUCCEEDED')
+  const result = retry.result as { workflowRunId?: string; statusSummary: { nextStep: string } }
+  assert.equal(result.statusSummary.nextStep, '提交人工确认')
+  assert.ok(result.workflowRunId)
+  assert.equal(retry.linkedEntity?.type, 'workflow_run')
+  assert.ok(retry.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === skuProfileId))
+})
+
 test('agent chat reads connector run and activity simulation run details', async () => {
   const connector = await executeFinalApiTool('createConnector', {
     name: 'Agent 运行详情连接器',

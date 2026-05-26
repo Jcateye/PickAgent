@@ -919,6 +919,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         const workflowEntity = workflowLinkedEntity(result, reportEntity)
         return succeeded(result, [{ type: 'report', entityId: sourceId, label: '报告导出重试', summary: `重试来源：${retryOf ?? '未指定'}，格式：${result.format}` }], `创建报告导出重试任务：${result.exportJobId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [reportEntity, workflowEntity] : [reportEntity])
       }
+      if (runType === 'sku_next_action_update') {
+        const skuProfileId = sourceId || String(input.skuProfileId ?? '')
+        if (!skuProfileId) throw new Error('sourceId/skuProfileId is required for sku_next_action_update retry')
+        const nextAction = normalizeNextAction(input)
+        const result = await finalApiRuntime.skuReadinessQueryService.updateNextAction(skuProfileId, {
+          nextAction,
+          comment: optionalString(input.comment) ?? `agent-chat-retry:${retryOf ?? ''}`,
+        }, agentToolAuthContext())
+        const skuEntity = { type: 'sku_profile', id: skuProfileId }
+        const workflowEntity = workflowLinkedEntity(result, skuEntity)
+        return succeeded(result, [{ type: 'tool_trace', entityId: skuProfileId, label: 'SKU 下一步重试', summary: `重试来源：${retryOf ?? '未指定'}，下一步：${result.statusSummary.nextStep}` }], `创建 SKU 下一步重试运行：${workflowEntity.id}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [skuEntity, workflowEntity] : [skuEntity])
+      }
       if (runType === 'rule_set_version_create') {
         if (!sourceId) throw new Error('sourceId/ruleSetId is required for rule_set_version_create retry')
         const result = await finalApiRuntime.ruleSetService.createVersion(sourceId, agentToolAuthContext())
@@ -947,7 +959,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         const workflowEntity = workflowLinkedEntity(result, activityEntity)
         return succeeded(result, [{ type: 'tool_trace', entityId: sourceId, label: '活动候选 SKU 重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.addedSkuProfileIds.length} 个` }], `创建候选 SKU 重试运行：${workflowEntity.id}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, workflowEntity] : [activityEntity])
       }
-      throw new Error('runType must be connector_sync, agent_run, activity_simulation, sku_export, report_generate, report_export, rule_set_version_create, rule_set_status_update, or activity_candidate_skus')
+      throw new Error('runType must be connector_sync, agent_run, activity_simulation, sku_export, report_generate, report_export, sku_next_action_update, rule_set_version_create, rule_set_status_update, or activity_candidate_skus')
     }
 
     if (toolName === 'listAgentMissions') {
