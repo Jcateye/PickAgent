@@ -47,10 +47,16 @@ export function SettingsPage() {
       freshnessHours,
       allowedToolCount: allowedTools.size,
       deniedRuntimeTools: currentDeniedRuntimeTools,
+      settingsDraft: {
+        dataFreshnessThresholdHours: freshnessHours,
+        allowedAgentTools: Array.from(allowedTools),
+        deniedRuntimeToolsText,
+        deniedRuntimeTools: parseRuntimeToolList(deniedRuntimeToolsText),
+      },
       activeUserCount: users.filter((user) => user.status === 'ACTIVE').length,
     },
     visibleColumns: ['workspace', 'toolPolicy', 'reviewUsers', 'workflowRunId'],
-  }), [allowedTools.size, currentDeniedRuntimeTools, freshnessHours, users, workspace?.name, workspace?.workspaceId])
+  }), [allowedTools, currentDeniedRuntimeTools, deniedRuntimeToolsText, freshnessHours, users, workspace?.name, workspace?.workspaceId])
 
   async function saveWorkspace() {
     setBusy('workspace')

@@ -829,7 +829,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getWorkspaceSettings', inputJson),
     }),
     updateWorkspaceSettings: tool({
-      description: '更新真实工作区设置。可改 dataFreshnessThresholdHours、reviewSlaHours、allowedAgentTools、deniedRuntimeTools。',
+      description: '更新真实工作区设置。可改 dataFreshnessThresholdHours、reviewSlaHours；在设置页面可使用 workbench context 的 settingsDraft.dataFreshnessThresholdHours 作为当前工作区设置草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateWorkspaceSettings', inputJson),
     }),
@@ -839,7 +839,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getToolPolicy', inputJson),
     }),
     updateToolPolicy: tool({
-      description: '更新 Agent 工具策略。可传 allowedAgentTools 或 deniedRuntimeTools，会影响 Chat 后续可调用业务能力。',
+      description: '更新 Agent 工具策略。可传 allowedAgentTools 或 deniedRuntimeTools，会影响 Chat 后续可调用业务能力；在设置页面可使用 workbench context 的 settingsDraft.allowedAgentTools 和 settingsDraft.deniedRuntimeTools 作为当前策略草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateToolPolicy', inputJson),
     }),
