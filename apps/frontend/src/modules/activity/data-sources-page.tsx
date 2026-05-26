@@ -16,6 +16,10 @@ type BrowserScanIngestResponse = {
   ingest: { summaries: SkuSummaryDto[]; workflowRunId: string }
   run: ConnectorRunDetailDto | null
 }
+interface ActionLink {
+  href: string
+  label: string
+}
 
 export function DataSourcesPage() {
   const [connectorPage, setConnectorPage] = useState<PageDto<ConnectorListItemDto> | null>(null)
@@ -26,6 +30,7 @@ export function DataSourcesPage() {
   const [panelTab, setPanelTab] = useState<ConnectorPanelTab>(() => getInitialConnectorPanelTab())
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<ActionLink | null>(null)
 
   async function loadConnectors(preferredId?: string | null) {
     const page = await fetchActivityApi<PageDto<ConnectorListItemDto>>('/api/connectors?pageSize=20')
@@ -142,6 +147,7 @@ export function DataSourcesPage() {
       return
     }
     setBusy(connectorId)
+    setActionLink(null)
     try {
       const run = await fetchActivityApi<ConnectorRunSummaryDto>(`/api/connectors/${connectorId}/sync-runs`, {
         method: 'POST',
@@ -153,6 +159,10 @@ export function DataSourcesPage() {
         }),
       })
       setMessage(`已创建采集运行：${run.connectorRunId}`)
+      setActionLink({
+        href: connectorRunHref(run),
+        label: '查看采集 Run',
+      })
       await loadConnectors(connectorId)
       const [nextDetail, nextRuns] = await Promise.all([
         fetchActivityApi<ConnectorDetailDto>(`/api/connectors/${connectorId}`),
@@ -170,6 +180,7 @@ export function DataSourcesPage() {
   async function toggleConnectorStatus(target: ConnectorListItemDto | ConnectorDetailDto) {
     const nextStatus = target.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED'
     setBusy(`status:${target.connectorId}`)
+    setActionLink(null)
     try {
       const payload: UpdateConnectorDto = {
         status: nextStatus,
@@ -220,7 +231,12 @@ export function DataSourcesPage() {
 
         <h1 className={styles.pageTitle}>数据源连接器</h1>
         <div className={styles.pageDesc}>管理数据连接器，监控采集运行状态与数据新鲜度</div>
-        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>{message}</div> : null}
+        {message ? (
+          <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '12px' }}>
+            {message}
+            {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+          </div>
+        ) : null}
         {connectorForm ? (
           <form className={styles.connectorForm} onSubmit={(event) => { event.preventDefault(); void submitConnectorForm() }}>
             <div className={styles.formGrid}>
@@ -330,7 +346,7 @@ export function DataSourcesPage() {
 
           {displayRuns.map((run) => (
             <div className={styles.tableRow} key={run.connectorRunId}>
-              <div style={{ color: 'var(--muted)' }}>{run.connectorRunId}</div>
+              <div><a href={connectorRunHref(run)} style={{ color: 'var(--primary)' }}>{run.connectorRunId}</a></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{connectorIcon(connectors.find((item) => item.connectorId === run.connectorId)?.kind)} {connectors.find((item) => item.connectorId === run.connectorId)?.name ?? run.connectorId}</div>
               <div>{run.rowCount.toLocaleString()}</div>
               <div><span className={run.status === 'FAILED' ? styles.dotRed : styles.dotGreen}></span>{run.completedAt ? new Date(run.completedAt).toLocaleString('zh-CN') : '运行中'}</div>
@@ -386,6 +402,7 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
   const [scanRowsText, setScanRowsText] = useState('[\n  {\n    "sku": "SKU-001",\n    "title": "示例商品",\n    "stock": 120,\n    "sales": 320,\n    "positiveRate": 0.98\n  }\n]')
   const [scanPreview, setScanPreview] = useState<BrowserScanPreviewDto | null>(null)
   const [scanMessage, setScanMessage] = useState<string | null>(null)
+  const [scanActionLinks, setScanActionLinks] = useState<ActionLink[]>([])
   const [scanBusy, setScanBusy] = useState<'preview' | 'ingest' | null>(null)
 
   async function submitBrowserScan(mode: 'preview' | 'ingest') {
@@ -403,6 +420,7 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
       return
     }
     setScanBusy(mode)
+    setScanActionLinks([])
     try {
       const payload = { connectorId: detail.connectorId, url: scanUrl.trim(), storeId: scanStoreId.trim(), platform: detail.platform ?? undefined, rows }
       if (mode === 'preview') {
@@ -414,6 +432,10 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
       const result = await fetchActivityApi<BrowserScanIngestResponse>('/api/connectors/browser/scan-ingest', { method: 'POST', body: JSON.stringify(payload) })
       setScanPreview(result.preview)
       setScanMessage(`已写入 ${result.ingest.summaries.length} 个 SKU${result.run ? `，运行 ${result.run.connectorRunId}` : ''}`)
+      setScanActionLinks([
+        result.run ? { href: connectorRunHref(result.run), label: '查看采集 Run' } : { href: runConsoleHref(result.ingest.workflowRunId), label: '查看写入 Run' },
+        { href: skuAccessHref({ sourceKind: 'browser_extension', drawerTab: 'evidence' }), label: '查看写入 SKU' },
+      ])
       await onIngestComplete(detail.connectorId)
     } catch (error) {
       setScanMessage(error instanceof Error ? error.message : '浏览器扫描处理失败')
@@ -444,7 +466,12 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
               <button className="secondaryButton" type="button" onClick={() => void submitBrowserScan('preview')} disabled={!!scanBusy || detail.status === 'DISABLED'}>预览字段</button>
               <button className="primaryButton" type="button" onClick={() => void submitBrowserScan('ingest')} disabled={!!scanBusy || detail.status === 'DISABLED'}>写入 SKU</button>
             </div>
-            {scanMessage ? <div className={styles.scanMessage}>{scanMessage}</div> : null}
+            {scanMessage ? (
+              <div className={styles.scanMessage}>
+                {scanMessage}
+                {scanActionLinks.map((link) => <React.Fragment key={link.href}> · <a href={link.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{link.label}</a></React.Fragment>)}
+              </div>
+            ) : null}
             {scanPreview ? (
               <div className={styles.scanPreview}>
                 <div>ready: {String(scanPreview.ingestReady)}</div>
@@ -463,7 +490,7 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
       <div className={styles.recentRunsSmall}>
         {runs.slice(0, 5).map((run) => (
           <div className={styles.runItem} key={run.connectorRunId}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className={run.status === 'FAILED' ? styles.dotRed : styles.dotGreen}></span> {run.connectorRunId}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span className={run.status === 'FAILED' ? styles.dotRed : styles.dotGreen}></span> <a href={connectorRunHref(run)} style={{ color: 'var(--primary)' }}>{run.connectorRunId}</a></div>
             <div className={styles.success}>{run.status}</div>
             <div style={{ color: 'var(--muted)' }}>{run.startedAt ? new Date(run.startedAt).toLocaleTimeString('zh-CN') : '-'}</div>
           </div>
@@ -552,6 +579,23 @@ function syncConnectorUrl(connectorId: string | null, panelTab: ConnectorPanelTa
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
+}
+
+function connectorRunHref(run: ConnectorRunSummaryDto): string {
+  return runConsoleHref(run.workflowRunRef?.entityId ?? run.connectorRunId)
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
+}
+
+function skuAccessHref(state: { sourceKind?: string; drawerTab?: string }): string {
+  const params = new URLSearchParams()
+  if (state.sourceKind) params.set('sourceKind', state.sourceKind)
+  if (state.drawerTab) params.set('drawerTab', state.drawerTab)
+  const nextSearch = params.toString()
+  return nextSearch ? `/sku-access?${nextSearch}` : '/sku-access'
 }
 
 function connectorIcon(kind?: string) {
