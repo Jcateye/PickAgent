@@ -252,16 +252,19 @@ export function RuleExecutionPage() {
                 </tr>
               </thead>
               <tbody>
-                {structuredRules.map((rule) => (
-                  <tr key={rule.id}>
-                    <td>{rule.id}</td>
-                    <td>{rule.field ?? rule.compareField ?? '-'}</td>
-                    <td>{ruleCondition(rule)}</td>
-                    <td>{ruleTypeLabel(rule.type, rule.severity)}</td>
-                    <td className={(ruleSet?.confidence ?? 0.9) >= 0.9 ? styles.highConfidence : styles.medConfidence}>{confidenceLabel(ruleSet?.confidence ?? 0.9)}</td>
-                    <td><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
-                  </tr>
-                ))}
+                {structuredRules.map((rule) => {
+                  const evidenceHref = ruleEvidenceHref(rule, simulationRun?.results ?? [])
+                  return (
+                    <tr key={rule.id}>
+                      <td>{rule.id}</td>
+                      <td>{rule.field ?? rule.compareField ?? '-'}</td>
+                      <td>{ruleCondition(rule)}</td>
+                      <td>{ruleTypeLabel(rule.type, rule.severity)}</td>
+                      <td className={(ruleSet?.confidence ?? 0.9) >= 0.9 ? styles.highConfidence : styles.medConfidence}>{confidenceLabel(ruleSet?.confidence ?? 0.9)}</td>
+                      <td><a href={evidenceHref} style={{ color: 'var(--primary)' }}>查看证据 ↗</a></td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--muted)' }}>
@@ -506,6 +509,14 @@ function syncRuleExecutionUrl(ruleSetId: string, simulationRunId: string) {
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
+}
+
+function ruleEvidenceHref(rule: CanonicalRuleDto, results: SimulationResultDto[]): string {
+  const matchedResult = results.find((result) => result.failedRules.some((failedRule) => failedRule.id === rule.id || failedRule.field === rule.field))
+    ?? results[0]
+  if (!matchedResult?.skuProfileId) return '/sku-access'
+  const params = new URLSearchParams({ skuProfileId: matchedResult.skuProfileId, drawerTab: 'evidence' })
+  return `/sku-access?${params.toString()}`
 }
 
 function ruleSetDetailToActivityRuleSet(detail: RuleSetDetailDto): ActivityRuleSetDto {
