@@ -464,7 +464,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'ingestSkus') {
       const request = ingestPayloadInput(input)
       const result = await finalApiRuntime.ingestService.ingest(request, agentToolAuthContext())
-      return succeeded(result, result.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `写入 SKU 采集数据：${result.summaries.length} 条`, result.summaries[0] ? { type: 'sku_profile', id: result.summaries[0].skuProfileId } : { type: 'dashboard', id: 'sku-ingest' })
+      const skuEntities = result.summaries.map((item) => ({ type: 'sku_profile', id: item.skuProfileId }))
+      const workflowEntity = workflowLinkedEntity(result, skuEntities[0] ?? { type: 'dashboard', id: 'sku-ingest' })
+      return succeeded(result, result.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `写入 SKU 采集数据：${result.summaries.length} 条`, workflowEntity, workflowEntity.type === 'workflow_run' ? [...skuEntities, workflowEntity] : undefined)
     }
 
     if (toolName === 'checkDataFreshness') {

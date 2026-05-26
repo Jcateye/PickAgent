@@ -506,9 +506,14 @@ test('agent chat ingestSkus tool writes SKU projections that can be read back', 
   })
 
   assert.equal(execution.status, 'SUCCEEDED')
-  const summary = (execution.result as { summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> }).summaries[0]
+  const result = execution.result as { workflowRunId: string; summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> }
+  const summary = result.summaries[0]
   assert.ok(summary?.skuProfileId)
   assert.equal(summary.canonicalSkuKey, `tmall:agent_store:${externalSkuId}`)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.equal(execution.linkedEntity.id, result.workflowRunId)
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === summary.skuProfileId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
 
   const detail = await finalApiRuntime.ingestService.getSkuDetail(summary.skuProfileId)
   assert.equal(detail?.productName, 'Agent 写入测试 SKU')
