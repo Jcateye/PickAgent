@@ -497,7 +497,23 @@ test('agent chat reads connector run and activity simulation run details', async
     warnings: ['agent detail test'],
   })
   assert.equal(connectorRun.status, 'SUCCEEDED')
-  const connectorRunId = (connectorRun.result as { connectorRunId: string }).connectorRunId
+  assert.equal(connectorRun.linkedEntity?.type, 'workflow_run')
+  const connectorRunResult = connectorRun.result as { connectorRunId: string; workflowRunRef?: { entityId: string } }
+  const connectorRunId = connectorRunResult.connectorRunId
+  assert.ok(connectorRunResult.workflowRunRef?.entityId)
+  assert.equal(connectorRun.linkedEntity.id, connectorRunResult.workflowRunRef.entityId)
+  assert.ok(connectorRun.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(connectorRun.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === connectorRunResult.workflowRunRef?.entityId))
+  const connectorRetry = await executeFinalApiTool('retryRun', {
+    runType: 'connector_sync',
+    sourceId: connectorId,
+    runId: connectorRunResult.workflowRunRef.entityId,
+    rowCount: 18,
+    qualityScore: 0.9,
+  })
+  assert.equal(connectorRetry.status, 'SUCCEEDED')
+  assert.equal(connectorRetry.linkedEntity?.type, 'workflow_run')
+  assert.ok((connectorRetry.result as { workflowRunRef?: { entityId: string } }).workflowRunRef?.entityId)
   const connectorRuns = await executeFinalApiTool('listConnectorRuns', { connectorId, pageSize: 5 })
   assert.equal(connectorRuns.status, 'SUCCEEDED')
   assert.ok((connectorRuns.result as { items: Array<{ connectorRunId: string }> }).items.some((item) => item.connectorRunId === connectorRunId))

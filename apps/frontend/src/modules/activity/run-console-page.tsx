@@ -31,6 +31,11 @@ interface RunConsoleLogExportDto {
   lineCount: number
 }
 
+interface ConnectorRunRetryDto {
+  connectorRunId: string
+  workflowRunRef?: { entityId: string }
+}
+
 type RunConsoleTab = 'timeline' | 'raw' | 'tools'
 
 const runConsoleTabs: Array<{ value: RunConsoleTab; label: string }> = [
@@ -111,7 +116,7 @@ export function RunConsolePage() {
     setActionLink(null)
     try {
       if (selectedRun.type === 'connector_sync') {
-        const run = await fetchActivityApi<{ connectorRunId: string }>(`/api/connectors/${selectedRun.sourceId}/sync-runs`, {
+        const run = await fetchActivityApi<ConnectorRunRetryDto>(`/api/connectors/${selectedRun.sourceId}/sync-runs`, {
           method: 'POST',
           body: JSON.stringify({
             rowCount: 0,
@@ -121,7 +126,7 @@ export function RunConsolePage() {
           }),
         })
         setMessage(`已创建连接器重试运行：${run.connectorRunId}`)
-        setActionLink({ href: runConsoleHref(run.connectorRunId), label: '查看重试 Run' })
+        setActionLink({ href: runConsoleHref(run.workflowRunRef?.entityId ?? run.connectorRunId), label: '查看重试 Run' })
       } else if (selectedRun.type === 'agent_run') {
         const run = await fetchActivityApi<{ id?: string; runId?: string }>(`/api/agent/missions/${selectedRun.sourceId}/runs`, {
           method: 'POST',

@@ -682,7 +682,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         summary: isRecord(input.summary) ? input.summary : { source: 'agent-chat-tool' },
       }
       const result = await finalApiRuntime.connectorService.createSyncRun(connectorId, runInput, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器采集运行', summary: `状态：${result.status}，行数：${result.rowCount}` }], `创建连接器采集运行：${result.connectorRunId}`, { type: 'connector', id: connectorId })
+      const connectorEntity = { type: 'connector', id: connectorId }
+      const workflowEntity = connectorRunWorkflowEntity(result, connectorEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器采集运行', summary: `状态：${result.status}，行数：${result.rowCount}` }], `创建连接器采集运行：${result.connectorRunId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'setConnectorStatus') {
@@ -716,7 +718,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
           warnings: ['Agent 请求重试运行', ...stringArray(input.warnings)],
           summary: { retryOf, triggeredBy: 'agent-chat-tool', ...(isRecord(input.summary) ? input.summary : {}) },
         }, agentToolAuthContext())
-        return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建连接器重试运行：${result.connectorRunId}`, { type: 'connector', id: sourceId })
+        const connectorEntity = { type: 'connector', id: sourceId }
+        const workflowEntity = connectorRunWorkflowEntity(result, connectorEntity)
+        return succeeded(result, [{ type: 'tool_trace', entityId: result.connectorRunId, label: '连接器重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建连接器重试运行：${result.connectorRunId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [connectorEntity, workflowEntity] : undefined)
       }
       if (runType === 'agent_run' || input.missionId) {
         const result = finalAgentRuntime.agentService.startRun(sourceId, {
@@ -1358,6 +1362,13 @@ function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string
 
 function workflowLinkedEntity(value: unknown, fallback: { type: string; id: string }): { type: string; id: string } {
   const workflowRunId = isRecord(value) && typeof value.workflowRunId === 'string' && value.workflowRunId.trim() ? value.workflowRunId.trim() : ''
+  return workflowRunId ? { type: 'workflow_run', id: workflowRunId } : fallback
+}
+
+function connectorRunWorkflowEntity(value: unknown, fallback: { type: string; id: string }): { type: string; id: string } {
+  if (!isRecord(value)) return fallback
+  const workflowRunRef = isRecord(value.workflowRunRef) ? value.workflowRunRef : null
+  const workflowRunId = typeof workflowRunRef?.entityId === 'string' && workflowRunRef.entityId.trim() ? workflowRunRef.entityId.trim() : ''
   return workflowRunId ? { type: 'workflow_run', id: workflowRunId } : fallback
 }
 
