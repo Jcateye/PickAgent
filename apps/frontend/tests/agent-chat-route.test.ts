@@ -1274,6 +1274,13 @@ test('agent chat audited report and review write tools link to run console', asy
   assert.ok(subscribed.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === reportId))
   assert.ok(subscribed.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === subscribedResult.workflowRunId))
 
+  const unsubscribed = await executeFinalApiTool('subscribeReport', { reportId, frequency: 'OFF', recipients: [] })
+  assert.equal(unsubscribed.status, 'SUCCEEDED')
+  const unsubscribedResult = unsubscribed.result as { frequency: string; recipients: string[]; workflowRunId?: string }
+  assert.equal(unsubscribedResult.frequency, 'OFF')
+  assert.deepEqual(unsubscribedResult.recipients, [])
+  assert.ok(unsubscribedResult.workflowRunId)
+
   const createdReviews = await executeFinalApiTool('createReviewItems', {
     items: [{
       skuProfileId,

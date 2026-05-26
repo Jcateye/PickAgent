@@ -1133,9 +1133,10 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'subscribeReport') {
       const reportId = String(input.reportId ?? '')
       if (!reportId) throw new Error('reportId is required')
+      const frequency = input.frequency === 'DAILY' || input.frequency === 'MONTHLY' || input.frequency === 'OFF' ? input.frequency : 'WEEKLY'
       const request: ReportSubscriptionRequestDto = {
-        frequency: input.frequency === 'DAILY' || input.frequency === 'MONTHLY' || input.frequency === 'OFF' ? input.frequency : 'WEEKLY',
-        recipients: stringArray(input.recipients).length ? stringArray(input.recipients) : ['ops@example.test'],
+        frequency,
+        recipients: frequency === 'OFF' ? stringArray(input.recipients) : stringArray(input.recipients).length ? stringArray(input.recipients) : ['ops@example.test'],
       }
       const result = await finalApiRuntime.reportService.saveSubscription(reportId, request, agentToolAuthContext())
       const reportEntity = { type: 'report', id: reportId }
