@@ -32,6 +32,35 @@ const otherTenantHeaders = {
   'x-request-id': 'review_route_other_request',
 }
 
+test('review routes return stable auth envelopes when P0 context is missing', async () => {
+  const reviewItemId = 'missing_auth_review'
+  const responses = await Promise.all([
+    listReviews(new Request('http://localhost/api/reviews')),
+    createReviews(new Request('http://localhost/api/reviews', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items: [{ sourceType: 'agent', sourceId: 'missing_auth', question: 'q', recommendation: 'r', riskLevel: 'L1', evidence: [] }] }),
+    })),
+    getReview(new Request(`http://localhost/api/reviews/${reviewItemId}`), { params: Promise.resolve({ reviewItemId }) }),
+    patchReview(new Request(`http://localhost/api/reviews/${reviewItemId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ recommendation: 'missing auth patch' }),
+    }), { params: Promise.resolve({ reviewItemId }) }),
+    decideReview(new Request(`http://localhost/api/reviews/${reviewItemId}/decision`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'APPROVE', decisionBy: 'missing_auth' }),
+    }), { params: Promise.resolve({ reviewItemId }) }),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
+
 test('review routes return conflict when closed review is edited or decided again', async () => {
   const [review] = await finalApiRuntime.reviewService.create([
     {
