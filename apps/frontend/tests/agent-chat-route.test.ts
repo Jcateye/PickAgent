@@ -1132,6 +1132,48 @@ test('agent chat audited report and review write tools link to run console', asy
   assert.ok(decidedReview.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decidedReviewRunId))
 })
 
+test('agent chat generateReport tool supports SKU filters without explicit ids', async () => {
+  const stamp = Date.now()
+  const prefix = `agent_report_filter_${stamp}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: `agent_report_filter_store_${stamp}`,
+        externalSkuId: `${prefix}_a`,
+        productName: 'Agent 筛选生成报告 SKU A',
+        category: `agent_report_category_${stamp}`,
+        stock: 80,
+        positiveRate: 0.98,
+      },
+      {
+        platform: 'tmall',
+        storeId: `agent_report_filter_store_${stamp}`,
+        externalSkuId: `${prefix}_b`,
+        productName: 'Agent 筛选生成报告 SKU B',
+        category: `agent_report_category_${stamp}`,
+        stock: 90,
+        positiveRate: 0.99,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const generated = await executeFinalApiTool('generateReport', {
+    type: 'HEALTH',
+    query: prefix,
+    platform: 'tmall',
+    maxSkuCount: 50,
+  })
+  assert.equal(generated.status, 'SUCCEEDED')
+  const result = generated.result as { reportId: string; sections: Array<{ summary: string }>; workflowRunId?: string }
+  assert.ok(result.reportId)
+  assert.match(result.sections[0].summary, /覆盖 2 个 SKU/)
+  assert.ok(result.workflowRunId)
+  assert.equal(generated.linkedEntity?.type, 'workflow_run')
+  assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === result.reportId))
+})
+
 test('agent chat generateReportPreview tool aliases to the real report generator', async () => {
   const externalSkuId = `agent_report_preview_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {

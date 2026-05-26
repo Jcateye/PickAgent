@@ -593,7 +593,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     }
 
     if (toolName === 'generateReport') {
-      const skuProfileIds = stringArray(input.skuProfileIds)
+      const skuProfileIds = await reportSkuProfileIdsFromInput(input)
       if (skuProfileIds.length === 0) throw new Error('skuProfileIds are required')
       const result = await finalApiRuntime.reportService.generate({
         type: input.type === 'HEALTH' ? 'HEALTH' : 'ACTIVITY',
@@ -1111,6 +1111,20 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
     sortBy: optionalString(input.sortBy) as DashboardSkuListQuery['sortBy'],
     sortOrder: optionalString(input.sortOrder) as DashboardSkuListQuery['sortOrder'],
   }
+}
+
+async function reportSkuProfileIdsFromInput(input: Record<string, unknown>): Promise<string[]> {
+  const explicitIds = stringArray(input.skuProfileIds)
+  if (explicitIds.length) return explicitIds
+  const query = skuListQueryFromToolInput({
+    ...input,
+    page: 1,
+    pageSize: numberOr(input.maxSkuCount, 500),
+    sortBy: optionalString(input.sortBy) ?? 'updatedAt',
+    sortOrder: optionalString(input.sortOrder) ?? 'desc',
+  }, 500)
+  const result = await finalApiRuntime.skuReadinessQueryService.list(query, agentToolAuthContext())
+  return result.items.map((item) => item.skuProfileId)
 }
 
 function ingestPayloadInput(input: Record<string, unknown>): IngestPayloadDto {

@@ -544,12 +544,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('explainDecisionWithEvidence', inputJson),
     }),
     generateReport: tool({
-      description: '生成真实健康或活动报告，并写入报告中心。需要 type 和 skuProfileIds。',
+      description: '生成真实健康或活动报告，并写入报告中心。可传 skuProfileIds；也支持 q/query、category、platform、healthStatus、sourceKind 等 SKU 筛选条件自动生成报告。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('generateReport', inputJson),
     }),
     generateReportPreview: tool({
-      description: '生成真实健康或活动报告预览，并写入报告中心。需要 type 和 skuProfileIds；当前后端与 generateReport 使用同一持久化流程。',
+      description: '生成真实健康或活动报告预览，并写入报告中心。可传 skuProfileIds 或 SKU 筛选条件；当前后端与 generateReport 使用同一持久化流程。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('generateReportPreview', inputJson),
     }),
