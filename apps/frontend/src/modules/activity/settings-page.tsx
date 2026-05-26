@@ -11,6 +11,7 @@ export function SettingsPage() {
   const [toolPolicy, setToolPolicy] = useState<ToolPolicyDto | null>(null)
   const [users, setUsers] = useState<SettingsUserDto[]>([])
   const [freshnessHours, setFreshnessHours] = useState(24)
+  const [deniedRuntimeToolsText, setDeniedRuntimeToolsText] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -25,6 +26,7 @@ export function SettingsPage() {
     setToolPolicy(nextPolicy)
     setUsers(nextUsers)
     setFreshnessHours(nextWorkspace.dataFreshnessThresholdHours)
+    setDeniedRuntimeToolsText(nextPolicy.deniedRuntimeTools.join('\n'))
   }
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function SettingsPage() {
   }, [])
 
   const allowedTools = useMemo(() => new Set(toolPolicy?.allowedAgentTools ?? workspace?.allowedAgentTools ?? []), [toolPolicy, workspace])
+  const currentDeniedRuntimeTools = useMemo(() => toolPolicy?.deniedRuntimeTools ?? workspace?.deniedRuntimeTools ?? [], [toolPolicy, workspace])
   const agentContext = useMemo<WorkbenchContext>(() => ({
     route: '/settings',
     pageTitle: '系统设置',
@@ -43,11 +46,11 @@ export function SettingsPage() {
     visibleFilters: {
       freshnessHours,
       allowedToolCount: allowedTools.size,
-      deniedRuntimeTools: toolPolicy?.deniedRuntimeTools ?? workspace?.deniedRuntimeTools ?? [],
+      deniedRuntimeTools: currentDeniedRuntimeTools,
       activeUserCount: users.filter((user) => user.status === 'ACTIVE').length,
     },
     visibleColumns: ['workspace', 'toolPolicy', 'reviewUsers', 'workflowRunId'],
-  }), [allowedTools.size, freshnessHours, toolPolicy?.deniedRuntimeTools, users, workspace?.deniedRuntimeTools, workspace?.name, workspace?.workspaceId])
+  }), [allowedTools.size, currentDeniedRuntimeTools, freshnessHours, users, workspace?.name, workspace?.workspaceId])
 
   async function saveWorkspace() {
     setBusy('workspace')
@@ -77,13 +80,34 @@ export function SettingsPage() {
     try {
       const updated = await fetchActivityApi<ToolPolicyDto>('/api/settings/tool-policy', {
         method: 'PATCH',
-        body: JSON.stringify({ allowedAgentTools: nextAllowed, deniedRuntimeTools: toolPolicy?.deniedRuntimeTools ?? workspace?.deniedRuntimeTools ?? [] }),
+        body: JSON.stringify({ allowedAgentTools: nextAllowed, deniedRuntimeTools: currentDeniedRuntimeTools }),
       })
       setToolPolicy(updated)
+      setDeniedRuntimeToolsText(updated.deniedRuntimeTools.join('\n'))
       setMessage(`已更新 Agent 工具策略：允许 ${updated.allowedAgentTools.length} 个工具`)
       setActionLink(settingsRunActionLink(updated.workflowRunId, '查看策略 Run'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '工具策略保存失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function saveDeniedRuntimeTools() {
+    const nextDeniedRuntimeTools = parseRuntimeToolList(deniedRuntimeToolsText)
+    setBusy('denied-runtime-tools')
+    setActionLink(null)
+    try {
+      const updated = await fetchActivityApi<ToolPolicyDto>('/api/settings/tool-policy', {
+        method: 'PATCH',
+        body: JSON.stringify({ allowedAgentTools: Array.from(allowedTools), deniedRuntimeTools: nextDeniedRuntimeTools }),
+      })
+      setToolPolicy(updated)
+      setDeniedRuntimeToolsText(updated.deniedRuntimeTools.join('\n'))
+      setMessage(`已更新 Runtime 禁用工具：${updated.deniedRuntimeTools.length} 个`)
+      setActionLink(settingsRunActionLink(updated.workflowRunId, '查看策略 Run'))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Runtime 禁用工具保存失败')
     } finally {
       setBusy(null)
     }
@@ -184,8 +208,20 @@ export function SettingsPage() {
             </label>
           ))}
         </div>
-        <div style={{ padding: '0 20px 20px', color: 'var(--muted)', fontSize: '13px' }}>
-          强制禁用：{(toolPolicy?.deniedRuntimeTools ?? workspace?.deniedRuntimeTools ?? []).join(', ') || '-'}
+        <div style={{ padding: '0 20px 20px', display: 'grid', gap: '10px' }}>
+          <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--muted)' }}>
+            Runtime 强制禁用工具（逗号或换行分隔）
+            <textarea
+              value={deniedRuntimeToolsText}
+              onChange={(event) => setDeniedRuntimeToolsText(event.target.value)}
+              rows={3}
+              style={{ width: '100%', resize: 'vertical', border: '1px solid var(--line)', borderRadius: '6px', padding: '8px', font: 'inherit', color: 'var(--fg)' }}
+            />
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+            <span style={{ color: 'var(--muted)', fontSize: '13px' }}>当前生效：{currentDeniedRuntimeTools.join(', ') || '-'}</span>
+            <button className="secondaryButton" type="button" onClick={() => void saveDeniedRuntimeTools()} disabled={busy === 'denied-runtime-tools'}>保存 Runtime 禁用</button>
+          </div>
         </div>
       </div>
     </div>
@@ -195,6 +231,10 @@ export function SettingsPage() {
 
 function SettingStat({ label, value }: { label: string; value: string }) {
   return <div style={{ border: '1px solid var(--line)', borderRadius: '8px', padding: '12px' }}><div style={{ color: 'var(--muted)', fontSize: '12px' }}>{label}</div><div style={{ fontWeight: 700, fontSize: '18px', marginTop: '4px' }}>{value}</div></div>
+}
+
+function parseRuntimeToolList(value: string): string[] {
+  return Array.from(new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)))
 }
 
 function settingsRunActionLink(workflowRunId: string | undefined, label: string): { href: string; label: string } {
