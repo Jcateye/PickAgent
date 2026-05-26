@@ -359,7 +359,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
     properties: {
       skuProfileId: { type: 'string' },
       q: { type: 'string' },
-      query: { type: 'string' },
+      query: { anyOf: [{ type: 'string' }, { type: 'object', additionalProperties: true }] },
       keyword: { type: 'string' },
       externalSkuId: { type: 'string' },
       productName: { type: 'string' },

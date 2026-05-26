@@ -16,6 +16,10 @@ test('vercel ai sdk agent model adapter exposes every registered default tool', 
       for (const reviewStatus of ['PENDING', 'OPEN', 'APPROVED', 'REJECTED', 'MODIFIED']) {
         assert.match(listReviewsSchema, new RegExp(`"${reviewStatus}"`))
       }
+      const exportSkuSchema = JSON.stringify((input.tools?.exportSkuList as { inputSchema?: unknown } | undefined)?.inputSchema)
+      assert.match(exportSkuSchema, /"query"/)
+      assert.match(exportSkuSchema, /"anyOf"/)
+      assert.match(exportSkuSchema, /"object"/)
       return {
         text: '工具名单一致',
         usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
