@@ -96,6 +96,11 @@ export interface PageDto<T> {
   total: number;
 }
 
+export interface RuleSetListQueryDto {
+  q?: string;
+  status?: RuleSetStatusDto | "ALL";
+}
+
 export interface HealthSummaryDto {
   total: number;
   ready: number;
@@ -672,9 +677,9 @@ export class ActivityRepository {
 export class RuleSetRepository {
   constructor(private readonly store: FinalApiPersistenceStore) {}
 
-  list(boundary: P0AuthContextDto, page = 1, pageSize = 20): PageDto<RuleSetListItemDto> | Promise<PageDto<RuleSetListItemDto>> {
+  list(boundary: P0AuthContextDto, page = 1, pageSize = 20, query: RuleSetListQueryDto = {}): PageDto<RuleSetListItemDto> | Promise<PageDto<RuleSetListItemDto>> {
     const rows = Array.from(this.store.ruleSets.values()).filter((item) => this.store.tenantByEntityId.get(item.ruleSetId) === boundary.tenantId);
-    const items = rows.map((ruleSet) => this.toListItem(ruleSet)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const items = filterRuleSetListItems(rows.map((ruleSet) => this.toListItem(ruleSet)), query).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     const start = (page - 1) * pageSize;
     return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
   }
@@ -1767,11 +1772,11 @@ export class PrismaRuleSetRepository extends RuleSetRepository {
     super(new FinalApiPersistenceStore());
   }
 
-  async list(_boundary: P0AuthContextDto, page = 1, pageSize = 20): Promise<PageDto<RuleSetListItemDto>> {
-    const rows = await this.prisma.activityRuleSet.findMany({ orderBy: { updatedAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize });
-    const total = await this.prisma.activityRuleSet.count();
-    const items = await Promise.all(rows.map((row) => this.toListItemFromRow(row)));
-    return { items, page, pageSize, total };
+  async list(_boundary: P0AuthContextDto, page = 1, pageSize = 20, query: RuleSetListQueryDto = {}): Promise<PageDto<RuleSetListItemDto>> {
+    const rows = await this.prisma.activityRuleSet.findMany({ orderBy: { updatedAt: "desc" } });
+    const filtered = filterRuleSetListItems(await Promise.all(rows.map((row) => this.toListItemFromRow(row))), query);
+    const start = (page - 1) * pageSize;
+    return { items: filtered.slice(start, start + pageSize), page, pageSize, total: filtered.length };
   }
 
   async getDetail(_boundary: P0AuthContextDto, ruleSetId: string): Promise<RuleSetDetailDto | null> {
@@ -2921,8 +2926,8 @@ export class ConnectorManagementService {
 export class RuleSetService {
   constructor(private readonly tx: TransactionManager, private readonly auditRepository: IngestRepository, private readonly repository: RuleSetRepository) {}
 
-  list(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary): Promise<PageDto<RuleSetListItemDto>> {
-    return Promise.resolve(this.repository.list(boundary, page, pageSize));
+  list(page?: number, pageSize?: number, boundary: P0AuthContextDto = explicitDevBoundary, query: RuleSetListQueryDto = {}): Promise<PageDto<RuleSetListItemDto>> {
+    return Promise.resolve(this.repository.list(boundary, page, pageSize, query));
   }
 
   async get(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto | null> {
@@ -3061,6 +3066,20 @@ const defaultAllowedAgentTools = [...defaultAgentToolNames];
 
 function defaultRuleSetMetadata(): RuleSetMetadata {
   return { type: "ACTIVITY_RULE", source: "INTERNAL", status: "DRAFT", version: "v1", updatedAt: new Date(0).toISOString(), updatedBy: "system" };
+}
+
+function filterRuleSetListItems(items: RuleSetListItemDto[], query: RuleSetListQueryDto): RuleSetListItemDto[] {
+  const normalizedQuery = query.q?.trim().toLowerCase() ?? "";
+  const status = query.status && query.status !== "ALL" ? query.status : null;
+  return items.filter((item) => {
+    const matchesQuery = !normalizedQuery
+      || item.name.toLowerCase().includes(normalizedQuery)
+      || item.ruleSetId.toLowerCase().includes(normalizedQuery)
+      || item.version.toLowerCase().includes(normalizedQuery)
+      || item.source.toLowerCase().includes(normalizedQuery);
+    const matchesStatus = !status || item.status === status;
+    return matchesQuery && matchesStatus;
+  });
 }
 
 function assembleRuleSetDetail(item: RuleSetListItemDto, ruleSet: ActivityRuleSetDto, relatedRuns: TraceableRefDto[]): RuleSetDetailDto {

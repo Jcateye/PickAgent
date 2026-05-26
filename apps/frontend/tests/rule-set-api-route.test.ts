@@ -260,6 +260,43 @@ test('rule set simulation run route reads back persisted simulation by rule set'
   assert.equal(deniedGetEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })
 
+test('rule set list route applies query and status filters before pagination', async () => {
+  const stamp = Date.now()
+  const enabledName = `规则筛选启用 ${stamp}`
+  const draftName = `规则筛选草稿 ${stamp}`
+  const unrelatedName = `规则筛选无关 ${stamp}`
+
+  await Promise.all([
+    createRuleSet(new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: enabledName, sourceText: '库存不得低于 20 件。', platform: 'tmall', status: 'ENABLED' }),
+    })),
+    createRuleSet(new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: draftName, sourceText: '好评率不得低于 95%。', platform: 'tmall', status: 'DRAFT' }),
+    })),
+    createRuleSet(new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: unrelatedName, sourceText: '证书状态必须有效。', platform: 'tmall', status: 'ENABLED' }),
+    })),
+  ])
+
+  const response = await listRuleSets(new Request(`http://localhost/api/rule-sets?q=${encodeURIComponent('规则筛选')}&status=ENABLED&page=1&pageSize=1`, { headers: authHeaders }))
+  const envelope = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.equal(envelope.data.page, 1)
+  assert.equal(envelope.data.pageSize, 1)
+  assert.equal(envelope.data.total, 2)
+  assert.equal(envelope.data.items.length, 1)
+  assert.equal(envelope.data.items[0].status, 'ENABLED')
+  assert.match(envelope.data.items[0].name, /规则筛选/)
+})
+
 test('rule set routes consistently return tenant boundary denial', async () => {
   const createdResponse = await createRuleSet(
     new Request('http://localhost/api/rule-sets', {

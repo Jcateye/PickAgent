@@ -32,7 +32,10 @@ export function RuleLibraryPage() {
   const [busy, setBusy] = useState<string | null>(null)
 
   async function loadRules(preferredId?: string | null, nextPage = page) {
-    const loadedPage = await fetchActivityApi<PageDto<RuleSetListItemDto>>(`/api/rule-sets?page=${nextPage}&pageSize=20`)
+    const params = new URLSearchParams({ page: String(nextPage), pageSize: '20' })
+    if (query.trim()) params.set('q', query.trim())
+    if (statusFilter !== 'ALL') params.set('status', statusFilter)
+    const loadedPage = await fetchActivityApi<PageDto<RuleSetListItemDto>>(`/api/rule-sets?${params.toString()}`)
     setRulePage(loadedPage)
     const nextId = preferredId ?? selectedRuleId ?? loadedPage.items[0]?.ruleSetId ?? null
     setSelectedRuleId(nextId)
@@ -67,13 +70,8 @@ export function RuleLibraryPage() {
   }, [selectedRuleId])
 
   const visibleRules = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    return (rulePage?.items ?? []).filter((rule) => {
-      const matchesQuery = !normalizedQuery || rule.name.toLowerCase().includes(normalizedQuery) || rule.ruleSetId.toLowerCase().includes(normalizedQuery)
-      const matchesStatus = statusFilter === 'ALL' || rule.status === statusFilter
-      return matchesQuery && matchesStatus
-    })
-  }, [query, rulePage, statusFilter])
+    return rulePage?.items ?? []
+  }, [rulePage])
   const ruleCount = rulePage?.total ?? 0
   const enabledCount = rulePage?.items.filter((item) => item.status === 'ENABLED').length ?? 0
   const draftCount = rulePage?.items.filter((item) => item.status === 'DRAFT').length ?? 0
