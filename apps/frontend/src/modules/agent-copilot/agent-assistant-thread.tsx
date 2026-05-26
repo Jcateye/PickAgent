@@ -367,7 +367,11 @@ function AgentTurnCards({ turn }: { turn: ChatTurnMeta }) {
       {turn.linkedEntities.length ? (
         <section className="agentLinkedEntities">
           {turn.linkedEntities.map((entity) => (
-            <span key={entity.id}>{entity.label}: {entity.reason}</span>
+            entity.href ? (
+              <Link href={entity.href} key={entity.id}>{entity.label}: {entity.reason}</Link>
+            ) : (
+              <span key={entity.id}>{entity.label}: {entity.reason}</span>
+            )
           ))}
         </section>
       ) : null}

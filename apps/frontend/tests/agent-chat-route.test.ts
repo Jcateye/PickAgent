@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, POST } from '../src/app/api/agent/chat/route'
+import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route'
 import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/recovered-turn'
 import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
+
+test('agent chat linked entities route back to the new workbench pages', () => {
+  assert.equal(linkedEntityHref('sku_profile', 'sku_1'), '/sku-access?skuProfileId=sku_1&drawerTab=evidence')
+  assert.equal(linkedEntityHref('rule_set', 'rule_1'), '/rule-library?ruleSetId=rule_1')
+  assert.equal(linkedEntityHref('review_item', 'review_1'), '/review-approvals?reviewItemId=review_1')
+  assert.equal(linkedEntityHref('report', 'report_1'), '/report-center?reportId=report_1')
+  assert.equal(linkedEntityHref('dashboard', 'connectors'), '/data-sources')
+  assert.equal(linkedEntityHref('dashboard', 'reports'), '/report-center')
+  assert.equal(linkedEntityHref('dashboard', 'reviews'), '/review-approvals')
+  assert.equal(linkedEntityHref('dashboard', 'rule-sets'), '/rule-library')
+})
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
   const previousOpenAiKey = process.env.OPENAI_API_KEY

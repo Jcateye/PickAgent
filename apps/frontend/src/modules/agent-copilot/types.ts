@@ -40,6 +40,7 @@ export interface AgentLinkedEntity {
   reason: string
   sourceType: 'mission' | 'run' | 'message' | 'tool_call' | 'review_gate'
   sourceId: string
+  href?: string
 }
 
 export interface AgentEvidenceRef {

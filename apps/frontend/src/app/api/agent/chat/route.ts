@@ -1457,6 +1457,7 @@ function toLinkedEntity(entity: AgentConversationLinkedEntity): AgentLinkedEntit
     reason: entity.reason,
     sourceType: entity.sourceType,
     sourceId: entity.sourceId,
+    href: linkedEntityHref(entity.entityType, entity.entityId),
   }
 }
 
@@ -1486,15 +1487,54 @@ function toConversationEvidence(toolName: string, item: { type: string; entityId
 }
 
 function toConversationLinkedEntity(toolName: string, entity: { type: string; id: string }): AgentConversationLinkedEntity {
+  const entityType = normalizeLinkedEntityType(entity.type)
   return {
     id: `${toolName}-entity-${entity.id}`,
-    entityType: entity.type === 'report' ? 'workflow_run' : entity.type === 'dashboard' ? 'workflow_run' : entity.type,
+    entityType,
     entityId: entity.id,
-    label: entity.type,
+    label: linkedEntityLabel(entityType, entity.id),
     reason: `由 ${toolName} 工具返回`,
     sourceType: 'tool_call',
     sourceId: toolName,
   }
+}
+
+function normalizeLinkedEntityType(type: string): AgentLinkedEntity['entityType'] {
+  if (type === 'activity_rule_set') return 'rule_set'
+  if (type === 'dashboard') return 'dashboard'
+  if (type === 'report') return 'report'
+  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run') return type
+  return 'dashboard'
+}
+
+function linkedEntityLabel(entityType: string, entityId: string): string {
+  if (entityType === 'sku_profile') return 'SKU 证据'
+  if (entityType === 'rule_set') return '规则库'
+  if (entityType === 'simulation_run') return '规则执行'
+  if (entityType === 'review_item') return 'Review 工作台'
+  if (entityType === 'report') return '报告中心'
+  if (entityType === 'workflow_run') return 'Run Console'
+  if (entityId === 'connectors') return '数据源'
+  if (entityId === 'reports') return '报告中心'
+  if (entityId === 'reviews') return 'Review 工作台'
+  if (entityId === 'rule-sets') return '规则库'
+  return '工作台'
+}
+
+export function linkedEntityHref(entityType: string, entityId: string): string {
+  if (entityType === 'sku_profile') return `/sku-access?${new URLSearchParams({ skuProfileId: entityId, drawerTab: 'evidence' }).toString()}`
+  if (entityType === 'rule_set' || entityType === 'activity_rule_set') return `/rule-library?${new URLSearchParams({ ruleSetId: entityId }).toString()}`
+  if (entityType === 'simulation_run') return `/rule-execution?${new URLSearchParams({ simulationRunId: entityId }).toString()}`
+  if (entityType === 'review_item') return `/review-approvals?${new URLSearchParams({ reviewItemId: entityId }).toString()}`
+  if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
+  if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
+  if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
+  if (entityId === 'reports') return '/report-center'
+  if (entityId === 'reviews') return '/review-approvals'
+  if (entityId === 'rule-sets') return '/rule-library'
+  if (entityId === 'run-console') return '/run-console'
+  if (entityId === 'settings' || entityId === 'tool-policy' || entityId === 'settings-users') return '/settings'
+  return '/overview'
 }
 
 function summarizeToolOutput(value: unknown, fallback = '工具已执行'): string {
