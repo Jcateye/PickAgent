@@ -120,13 +120,18 @@ export function OverviewPage() {
   const primaryConnectorHref = primaryConnector ? dataSourcesHref(primaryConnector.connectorId) : '/data-sources'
   const latestRunHref = latestRun ? runConsoleHref(latestRun.runId) : '/run-console'
   const skuAccessHref = statusFilter === 'ALL' ? '/sku-access' : skuAccessStatusHref(statusFilter)
+  const currentSkuQuery = useMemo(() => ({
+    sortBy: 'updatedAt' as const,
+    sortOrder: 'desc' as const,
+    healthStatus: statusFilter === 'ALL' ? undefined : statusFilter,
+  }), [statusFilter])
   const agentContext = useMemo<WorkbenchContext>(() => ({
     route: '/overview',
     pageTitle: '业务概览',
     selectedEntity: { entityType: 'dashboard', entityId: 'overview', label: '业务概览' },
-    visibleFilters: { statusFilter, page },
+    visibleFilters: { statusFilter, page, currentSkuQuery },
     visibleColumns: ['skuProfileId', 'healthStatus', 'nextAction', 'evidenceCount'],
-  }), [page, statusFilter])
+  }), [currentSkuQuery, page, statusFilter])
 
   async function exportCurrentSkuRows() {
     setExporting(true)
@@ -135,11 +140,7 @@ export function OverviewPage() {
       const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
         method: 'POST',
         body: JSON.stringify({
-          query: {
-            sortBy: 'updatedAt',
-            sortOrder: 'desc',
-            healthStatus: statusFilter === 'ALL' ? undefined : statusFilter,
-          },
+          query: currentSkuQuery,
         }),
       })
       downloadCsv(exported)

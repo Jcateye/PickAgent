@@ -519,7 +519,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('searchSkus', inputJson),
     }),
     exportSkuList: tool({
-      description: '按当前筛选条件创建真实 SKU CSV 导出并写入 workflow audit。支持 query/q、category、platform、healthStatus、eligibilityStatus、库存/销量/评分区间、排序。返回 csv、fileName、rowCount 和 workflowRunId。',
+      description: '按当前筛选条件创建真实 SKU CSV 导出并写入 workflow audit。支持 query/q、category、platform、healthStatus、eligibilityStatus、库存/销量/评分区间、排序。返回 csv、fileName、rowCount 和 workflowRunId；在概览页可使用 workbench context 的 currentSkuQuery 复现“导出当前结果”。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('exportSkuList', inputJson),
     }),
