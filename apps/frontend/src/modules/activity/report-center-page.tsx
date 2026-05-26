@@ -111,6 +111,8 @@ export function ReportCenterPage() {
   }
 
   const selectedSummary = reports.find((report) => report.reportId === selectedReportId)
+  const comparisonBaseReportId = selectedReportId ?? reports[0]?.reportId ?? null
+  const comparisonTargetReportId = reports.find((report) => report.reportId !== comparisonBaseReportId)?.reportId ?? null
   const totalSku = detail?.summary.totalSku ?? 0
   const passRate = totalSku > 0 ? ((detail?.summary.passedSku ?? 0) / totalSku) * 100 : 0
 
@@ -189,8 +191,12 @@ export function ReportCenterPage() {
       setMessage('至少需要两个报告才能对比')
       return
     }
-    const baseId = selectedReportId ?? reports[0].reportId
-    const targetId = reports.find((report) => report.reportId !== baseId)?.reportId
+    const baseId = comparisonBaseReportId
+    const targetId = comparisonTargetReportId
+    if (!baseId) {
+      setMessage('未找到可对比的基准报告')
+      return
+    }
     if (!targetId) {
       setMessage('未找到可对比的第二份报告')
       return
@@ -269,6 +275,8 @@ export function ReportCenterPage() {
     },
     visibleFilters: {
       selectedVersionId,
+      comparisonBaseReportId,
+      comparisonTargetReportId,
       activeTab,
       format,
       includeCharts,
@@ -277,7 +285,7 @@ export function ReportCenterPage() {
       subscriptionRecipientsDraft: subscriptionRecipients,
     },
     visibleColumns: ['section', 'summary', 'risk', 'repairSuggestion', 'version'],
-  }), [activeTab, detail?.reportId, detail?.title, format, includeCharts, includeDetails, selectedReportId, selectedSummary?.title, selectedVersionId, subscriptionFrequency, subscriptionRecipients])
+  }), [activeTab, comparisonBaseReportId, comparisonTargetReportId, detail?.reportId, detail?.title, format, includeCharts, includeDetails, selectedReportId, selectedSummary?.title, selectedVersionId, subscriptionFrequency, subscriptionRecipients])
 
   return (
     <>

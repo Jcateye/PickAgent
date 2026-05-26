@@ -809,7 +809,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getReportVersion', inputJson),
     }),
     compareReports: tool({
-      description: '对比两份真实报告的通过率、通过 SKU、可修复 SKU、阻断 SKU 和证据摘要。需要 baseReportId 和 targetReportId。',
+      description: '对比两份真实报告的通过率、通过 SKU、可修复 SKU、阻断 SKU 和证据摘要。需要 baseReportId 和 targetReportId；在报告中心页面可使用 workbench context 的 comparisonBaseReportId 和 comparisonTargetReportId 复现当前“对比报告”按钮。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('compareReports', inputJson),
     }),
