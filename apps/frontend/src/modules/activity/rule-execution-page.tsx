@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
 import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto, SimulationResultDto } from '../../../../contracts/types/businessFoundation'
+import type { ActivityExecutionPlanDto } from '../../../../contracts/types/activityManagement'
 import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import { fetchActivityApi } from './api-client'
 import styles from './rule-execution.module.css'
@@ -33,8 +34,39 @@ export function RuleExecutionPage() {
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
   useEffect(() => {
+    const activityId = getInitialRuleExecutionParam('activityId')
     const ruleSetId = getInitialRuleExecutionParam('ruleSetId')
     const simulationRunId = getInitialRuleExecutionParam('simulationRunId')
+    if (activityId) {
+      let cancelled = false
+      setBusy(true)
+      fetchActivityApi<ActivityExecutionPlanDto>(`/api/activities/${activityId}/execution-plan`)
+        .then(async (plan) => {
+          if (cancelled) return
+          const rules = plan.ruleSet.rules
+          const restoredRuleSet = activityPlanToRuleSet(plan)
+          setRuleSet(restoredRuleSet)
+          setRuleName(restoredRuleSet.name)
+          setPlatform('activity')
+          setSourceText(rules.map((rule) => rule.message).join('\n') || defaultRuleSourceText)
+          if (plan.ruleSet.ruleSetId && plan.runId) {
+            const run = await fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${plan.ruleSet.ruleSetId}/simulations/${plan.runId}`)
+            if (cancelled) return
+            setSimulationRun(run)
+          }
+          setMessage(`已恢复活动执行计划：${activityId}${plan.runId ? ` / ${plan.runId}` : ''}`)
+          syncRuleExecutionUrl(plan.ruleSet.ruleSetId, plan.runId, activityId)
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) setMessage(error instanceof Error ? error.message : '恢复活动执行计划失败')
+        })
+        .finally(() => {
+          if (!cancelled) setBusy(false)
+        })
+      return () => {
+        cancelled = true
+      }
+    }
     if (!ruleSetId || !simulationRunId) return
     let cancelled = false
     setBusy(true)
@@ -502,12 +534,27 @@ function getInitialRuleExecutionParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name)
 }
 
-function syncRuleExecutionUrl(ruleSetId: string, simulationRunId: string) {
+function syncRuleExecutionUrl(ruleSetId?: string, simulationRunId?: string, activityId?: string) {
   if (typeof window === 'undefined') return
-  const params = new URLSearchParams({ ruleSetId, simulationRunId })
+  const params = new URLSearchParams()
+  if (activityId) params.set('activityId', activityId)
+  if (ruleSetId) params.set('ruleSetId', ruleSetId)
+  if (simulationRunId) params.set('simulationRunId', simulationRunId)
   const nextUrl = `${window.location.pathname}?${params.toString()}`
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
+  }
+}
+
+function activityPlanToRuleSet(plan: ActivityExecutionPlanDto): ActivityRuleSetDto {
+  return {
+    ruleSetId: plan.ruleSet.ruleSetId,
+    name: `活动执行计划 ${plan.activityId}`,
+    sourceText: plan.ruleSet.rules.map((rule) => rule.message).join('\n'),
+    rules: plan.ruleSet.rules,
+    parseStatus: plan.ruleSet.parseStatus,
+    confidence: plan.ruleSet.confidence,
+    errors: [],
   }
 }
 

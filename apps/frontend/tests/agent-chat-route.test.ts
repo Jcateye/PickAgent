@@ -8,6 +8,7 @@ import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_fin
 
 test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('sku_profile', 'sku_1'), '/sku-access?skuProfileId=sku_1&drawerTab=evidence')
+  assert.equal(linkedEntityHref('activity', 'activity_1'), '/rule-execution?activityId=activity_1')
   assert.equal(linkedEntityHref('rule_set', 'rule_1'), '/rule-library?ruleSetId=rule_1')
   assert.equal(linkedEntityHref('review_item', 'review_1'), '/review-approvals?reviewItemId=review_1')
   assert.equal(linkedEntityHref('report', 'report_1'), '/report-center?reportId=report_1')

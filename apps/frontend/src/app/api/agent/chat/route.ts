@@ -1525,6 +1525,7 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
 
 export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'sku_profile') return `/sku-access?${new URLSearchParams({ skuProfileId: entityId, drawerTab: 'evidence' }).toString()}`
+  if (entityType === 'activity') return `/rule-execution?${new URLSearchParams({ activityId: entityId }).toString()}`
   if (entityType === 'rule_set' || entityType === 'activity_rule_set') return `/rule-library?${new URLSearchParams({ ruleSetId: entityId }).toString()}`
   if (entityType === 'simulation_run') {
     const parsed = parseSimulationLinkedEntityId(entityId)
