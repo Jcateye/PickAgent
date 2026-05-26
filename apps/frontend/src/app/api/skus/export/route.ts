@@ -1,5 +1,5 @@
 import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
-import { fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
+import { authFail, fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
 import { parseSkuListQuery } from '../sku-list-query'
 
 export async function POST(request: Request) {
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const boundary = requireApiAuthContext(request, requestId)
     return ok(await finalApiRuntime.skuReadinessQueryService.exportList(query, boundary), requestId)
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, requestId)
+    if (error instanceof P0AuthBoundaryError) return authFail(error, requestId)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU export failed', 400, undefined, requestId)
   }
 }

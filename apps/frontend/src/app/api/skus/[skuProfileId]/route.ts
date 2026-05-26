@@ -1,4 +1,4 @@
-import { fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
+import { authFail, fail, finalApiRuntime, ok, requireApiAuthContext } from '../../_final-api-runtime'
 import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import type { UpdateSkuNextActionInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 
@@ -14,7 +14,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (!detail) return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
     return ok(detail, requestId)
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, requestId)
+    if (error instanceof P0AuthBoundaryError) return authFail(error, requestId)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU detail failed', 400, { skuProfileId }, requestId)
   }
 }
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const detail = await finalApiRuntime.skuReadinessQueryService.updateNextAction(skuProfileId, input, requireApiAuthContext(request, requestId))
     return ok(detail, requestId)
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, requestId)
+    if (error instanceof P0AuthBoundaryError) return authFail(error, requestId)
     if (error instanceof Error && error.message === 'SKU not found') return fail('SKU.NOT_FOUND', 'SKU 不存在', 404, { skuProfileId }, requestId)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU next action update failed', 400, { skuProfileId }, requestId)
   }

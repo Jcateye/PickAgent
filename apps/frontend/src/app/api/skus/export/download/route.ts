@@ -1,5 +1,5 @@
 import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
-import { fail, finalApiRuntime, requireApiAuthContext } from '../../../_final-api-runtime'
+import { authFail, fail, finalApiRuntime, requireApiAuthContext } from '../../../_final-api-runtime'
 import { parseSkuListQuery } from '../../sku-list-query'
 
 const downloadBoundary = {
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'SKU export download failed', 400)
   }
 }

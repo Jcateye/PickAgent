@@ -32,6 +32,29 @@ test('sku list route returns stable auth envelope when P0 context is missing', a
   assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
 })
 
+test('sku detail, next action, and export routes return stable auth envelopes when P0 context is missing', async () => {
+  const skuProfileId = 'missing_auth_sku'
+  const responses = await Promise.all([
+    getSkuDetail(new Request(`http://localhost/api/skus/${skuProfileId}`), { params: Promise.resolve({ skuProfileId }) }),
+    updateSkuNextAction(new Request(`http://localhost/api/skus/${skuProfileId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ nextAction: { type: 'MANUAL_REVIEW', label: '提交人工确认' } }),
+    }), { params: Promise.resolve({ skuProfileId }) }),
+    exportSkus(new Request('http://localhost/api/skus/export', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: { q: 'missing-auth-sku', sortBy: 'updatedAt', sortOrder: 'desc' } }),
+    })),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
+
 test('sku detail and next action routes return stable missing and tenant boundary envelopes', async () => {
   const missingResponse = await getSkuDetail(
     new Request('http://localhost/api/skus/missing_sku_for_route', { headers: tenantAHeaders }),
