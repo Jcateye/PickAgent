@@ -248,7 +248,7 @@ function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ 
 }
 
 function isPlaceholderEntityId(entityId: string): boolean {
-  return ['overview', 'sku-access', 'review-approvals', 'report-center', 'rule-library', 'rule-execution', 'data-sources', 'run-console', 'settings'].includes(entityId)
+  return ['overview', 'sku-access', 'review-approvals', 'report-center', 'rule-library', 'rule-execution', 'data-sources', 'run-console', 'agent-mission', 'settings'].includes(entityId)
 }
 
 function shouldPrefetchDashboardContext(input: AgentModelAdapterInput, userMessage: string): boolean {

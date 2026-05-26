@@ -176,8 +176,8 @@ export function AgentMissionPage() {
     route: '/agent-mission',
     pageTitle: 'Agent Mission',
     selectedEntity: {
-      entityType: 'activityRuleSet' as const,
-      entityId: activeMission?.subjectId ?? 'tmall-618',
+      entityType: 'agentMission' as const,
+      entityId: activeMission?.missionId ?? 'agent-mission',
       label: activeMission?.objective ?? defaultObjective,
     },
     visibleFilters: {
@@ -185,7 +185,7 @@ export function AgentMissionPage() {
       runId,
       objective,
     },
-  }), [activeMission?.missionId, activeMission?.objective, activeMission?.subjectId, objective, runId])
+  }), [activeMission?.missionId, activeMission?.objective, objective, runId])
 
   const loadMissionConsole = useCallback(async () => {
     setLoading(true)
