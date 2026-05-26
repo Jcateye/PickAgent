@@ -273,6 +273,7 @@ test('agent chat settings tools read and update real workspace settings', async 
   const updatedWorkspace = await executeFinalApiTool('updateWorkspaceSettings', { dataFreshnessThresholdHours: 18 })
   assert.equal(updatedWorkspace.status, 'SUCCEEDED')
   assert.equal((updatedWorkspace.result as { dataFreshnessThresholdHours: number }).dataFreshnessThresholdHours, 18)
+  assert.equal(updatedWorkspace.linkedEntity?.type, 'workflow_run')
 
   const policy = await executeFinalApiTool('getToolPolicy', {})
   assert.equal(policy.status, 'SUCCEEDED')
@@ -282,6 +283,7 @@ test('agent chat settings tools read and update real workspace settings', async 
   const updatedPolicy = await executeFinalApiTool('updateToolPolicy', { allowedAgentTools, deniedRuntimeTools: ['customRuntimeDeniedByAgentTest'] })
   assert.equal(updatedPolicy.status, 'SUCCEEDED')
   assert.ok((updatedPolicy.result as { deniedRuntimeTools: string[] }).deniedRuntimeTools.includes('customRuntimeDeniedByAgentTest'))
+  assert.equal(updatedPolicy.linkedEntity?.type, 'workflow_run')
 
   const users = await executeFinalApiTool('listSettingsUsers', {})
   assert.equal(users.status, 'SUCCEEDED')
@@ -290,6 +292,7 @@ test('agent chat settings tools read and update real workspace settings', async 
   const updatedUser = await executeFinalApiTool('updateSettingsUserStatus', { userId: 'qa_reviewer', status: 'ACTIVE' })
   assert.equal(updatedUser.status, 'SUCCEEDED')
   assert.equal((updatedUser.result as { userId: string; status: string }).status, 'ACTIVE')
+  assert.equal(updatedUser.linkedEntity?.type, 'workflow_run')
 })
 
 test('agent chat createReviewItems tool supports batch simulation review creation', async () => {

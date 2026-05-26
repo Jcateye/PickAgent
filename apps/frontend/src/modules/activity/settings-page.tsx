@@ -10,6 +10,7 @@ export function SettingsPage() {
   const [users, setUsers] = useState<SettingsUserDto[]>([])
   const [freshnessHours, setFreshnessHours] = useState(24)
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   async function loadSettings() {
@@ -32,6 +33,7 @@ export function SettingsPage() {
 
   async function saveWorkspace() {
     setBusy('workspace')
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<WorkspaceSettingsDto>('/api/settings/workspace', {
         method: 'PATCH',
@@ -40,6 +42,7 @@ export function SettingsPage() {
       setWorkspace(updated)
       setFreshnessHours(updated.dataFreshnessThresholdHours)
       setMessage(`已更新数据新鲜度阈值：${updated.dataFreshnessThresholdHours} 小时`)
+      setActionLink(settingsRunActionLink(updated.workflowRunId, '查看设置 Run'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '工作区设置保存失败')
     } finally {
@@ -52,6 +55,7 @@ export function SettingsPage() {
       ? Array.from(allowedTools).filter((tool) => tool !== toolName)
       : [...Array.from(allowedTools), toolName]
     setBusy(`tool:${toolName}`)
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<ToolPolicyDto>('/api/settings/tool-policy', {
         method: 'PATCH',
@@ -59,6 +63,7 @@ export function SettingsPage() {
       })
       setToolPolicy(updated)
       setMessage(`已更新 Agent 工具策略：允许 ${updated.allowedAgentTools.length} 个工具`)
+      setActionLink(settingsRunActionLink(updated.workflowRunId, '查看策略 Run'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '工具策略保存失败')
     } finally {
@@ -69,6 +74,7 @@ export function SettingsPage() {
   async function toggleUser(user: SettingsUserDto) {
     const nextStatus = user.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
     setBusy(`user:${user.userId}`)
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<SettingsUserDto>(`/api/settings/users/${user.userId}`, {
         method: 'PATCH',
@@ -76,6 +82,7 @@ export function SettingsPage() {
       })
       setUsers((current) => current.map((item) => (item.userId === updated.userId ? updated : item)))
       setMessage(`已${updated.status === 'ACTIVE' ? '启用' : '停用'}审批角色：${updated.name}`)
+      setActionLink(settingsRunActionLink(updated.workflowRunId, '查看角色 Run'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '审批角色更新失败')
     } finally {
@@ -89,7 +96,12 @@ export function SettingsPage() {
         <div>
           <h1 style={{ fontSize: '24px', marginBottom: '8px' }}>系统设置</h1>
           <p style={{ color: 'var(--muted)', fontSize: '13px' }}>管理工作区阈值、Agent 工具策略与审批角色。所有修改都会写入设置 API 并产生审计记录。</p>
-          {message ? <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>{message}</p> : null}
+          {message ? (
+            <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>
+              {message}
+              {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+            </p>
+          ) : null}
         </div>
         <button className="secondaryButton" type="button" onClick={() => void loadSettings()} disabled={!!busy}>刷新</button>
       </div>
@@ -162,4 +174,10 @@ export function SettingsPage() {
 
 function SettingStat({ label, value }: { label: string; value: string }) {
   return <div style={{ border: '1px solid var(--line)', borderRadius: '8px', padding: '12px' }}><div style={{ color: 'var(--muted)', fontSize: '12px' }}>{label}</div><div style={{ fontWeight: 700, fontSize: '18px', marginTop: '4px' }}>{value}</div></div>
+}
+
+function settingsRunActionLink(workflowRunId: string | undefined, label: string): { href: string; label: string } {
+  if (!workflowRunId) return { href: '/settings', label: '查看设置' }
+  const params = new URLSearchParams({ runId: workflowRunId })
+  return { href: `/run-console?${params.toString()}`, label }
 }

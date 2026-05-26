@@ -2913,12 +2913,13 @@ export class WorkspaceSettingsService {
   async updateWorkspace(input: Partial<WorkspaceSettingsDto>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<WorkspaceSettingsDto> {
     return this.tx.transaction(async (tx) => {
       const settings = await this.repository.updateWorkspace(boundary, input);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "workspace_settings_update",
         subjectType: "workspace_setting",
         input: { fields: Object.keys(input), actorId: boundary.actorId },
         output: { workspaceId: settings.workspaceId, dataFreshnessThresholdHours: settings.dataFreshnessThresholdHours },
       });
+      settings.workflowRunId = audit.workflowRunId;
       return settings;
     });
   }
@@ -2930,12 +2931,13 @@ export class WorkspaceSettingsService {
   async updateToolPolicy(input: Partial<ToolPolicyDto>, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ToolPolicyDto> {
     return this.tx.transaction(async (tx) => {
       const policy = await this.repository.updateToolPolicy(boundary, input);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "tool_policy_update",
         subjectType: "workspace_setting",
         input: { allowedAgentTools: policy.allowedAgentTools, deniedRuntimeTools: policy.deniedRuntimeTools, actorId: boundary.actorId },
         output: { policyVersion: policy.policyVersion, deniedRuntimeTools: policy.deniedRuntimeTools },
       });
+      policy.workflowRunId = audit.workflowRunId;
       return policy;
     });
   }
@@ -2947,13 +2949,14 @@ export class WorkspaceSettingsService {
   async updateUserStatus(userId: string, status: SettingsUserDto["status"], boundary: P0AuthContextDto = explicitDevBoundary): Promise<SettingsUserDto> {
     return this.tx.transaction(async (tx) => {
       const user = await this.repository.updateUserStatus(boundary, userId, status);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "settings_user_status_update",
         subjectType: "settings_user",
         subjectId: userId,
         input: { userId, status, actorId: boundary.actorId },
         output: { userId, status: user.status },
       });
+      user.workflowRunId = audit.workflowRunId;
       return user;
     });
   }

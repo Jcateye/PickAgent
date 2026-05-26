@@ -227,6 +227,7 @@ export interface WorkspaceSettingsDto {
   };
   allowedAgentTools: string[];
   deniedRuntimeTools: string[];
+  workflowRunId?: string;
 }
 
 export interface ToolPolicyDto {
@@ -235,6 +236,7 @@ export interface ToolPolicyDto {
   policyVersion: string;
   updatedAt: string;
   updatedBy: string;
+  workflowRunId?: string;
 }
 
 export const defaultAgentToolNames = [
@@ -316,6 +318,7 @@ export interface SettingsUserDto {
   role: "op_team" | "qa_team" | "compliance_team" | "marketing_team" | string;
   teamName: string;
   status: "ACTIVE" | "DISABLED";
+  workflowRunId?: string;
 }
 
 export interface WhatIfInputDto {
