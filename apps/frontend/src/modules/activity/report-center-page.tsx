@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, RefreshCw } from 'lucide-react'
 import type { ReportComparisonDto, ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto, ReportVersionDto } from '../../../../contracts/types/reviewReportCenter'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './report-center.module.css'
 
@@ -207,8 +209,21 @@ export function ReportCenterPage() {
   const riskRows = detail?.summary.majorRisks ?? []
   const repairRows = detail?.summary.repairSuggestions ?? []
   const visibleTabs: ReportTab[] = detail?.tabs.length ? detail.tabs : ['SUMMARY']
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/report-center',
+    pageTitle: '报告中心',
+    selectedEntity: {
+      entityType: 'report',
+      entityId: detail?.reportId ?? selectedReportId ?? 'report-center',
+      label: detail?.title ?? selectedSummary?.title ?? '报告中心',
+    },
+    visibleFilters: { selectedVersionId, activeTab, format, includeCharts, includeDetails, subscriptionFrequency },
+    visibleColumns: ['section', 'summary', 'risk', 'repairSuggestion', 'version'],
+  }), [activeTab, detail?.reportId, detail?.title, format, includeCharts, includeDetails, selectedReportId, selectedSummary?.title, selectedVersionId, subscriptionFrequency])
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.topBar}>
         <div>
@@ -354,6 +369,7 @@ export function ReportCenterPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 

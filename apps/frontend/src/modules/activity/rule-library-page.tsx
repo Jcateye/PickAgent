@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Braces, ChevronDown, ChevronLeft, ChevronRight, Clock, Copy, Edit2, Plus, Search, Trash2, User } from 'lucide-react'
 import type { RuleSetDetailDto, RuleSetListItemDto, RuleSetStatusDto, RuleSetVersionDto } from '../../../../contracts/types/businessFoundation'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './rule-library.module.css'
 
@@ -83,6 +85,17 @@ export function RuleLibraryPage() {
     summary: selectedRule?.summary,
     rules: selectedRule?.dslJson ?? [],
   }, null, 2)
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/rule-library',
+    pageTitle: '规则库',
+    selectedEntity: {
+      entityType: 'ruleSet',
+      entityId: selectedRule?.ruleSetId ?? selectedRuleId ?? 'rule-library',
+      label: selectedRule?.name ?? visibleRules.find((item) => item.ruleSetId === selectedRuleId)?.name ?? '规则库',
+    },
+    visibleFilters: { query, page, statusFilter, panelTab, ruleFormMode: ruleForm?.mode ?? null },
+    visibleColumns: ['ruleSetId', 'name', 'status', 'source', 'activeRunCount', 'version'],
+  }), [page, panelTab, query, ruleForm?.mode, selectedRule?.name, selectedRule?.ruleSetId, selectedRuleId, statusFilter, visibleRules])
 
   async function createRuleSet() {
     setRuleForm({
@@ -192,6 +205,8 @@ export function RuleLibraryPage() {
   }
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.leftSidebar}>
         <div className={styles.sidebarHeader}>
@@ -295,6 +310,7 @@ export function RuleLibraryPage() {
         {panelTab === 'versions' ? <RuleVersionsPanel versions={versions} selectedRule={selectedRule} /> : null}
       </div>
     </div>
+    </>
   )
 }
 

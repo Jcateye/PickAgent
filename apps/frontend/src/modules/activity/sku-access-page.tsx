@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Wrench, HelpCircle, XCircle, Search, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DashboardSkuListItemDto, DashboardSkuReadinessDetailDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import type { EvidenceLinkDto, ReportPreviewDto, ReviewItemDto } from '../../../../contracts/types/businessFoundation'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './sku-access.module.css'
 
@@ -117,6 +119,17 @@ export function SkuAccessPage() {
   const allVisibleSelected = rows.length > 0 && rows.every((item) => selectedIds.includes(item.skuProfileId))
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 20)))
   const visiblePages = paginationWindow(page, totalPages)
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/sku-access',
+    pageTitle: 'SKU 准入工作台',
+    selectedEntity: {
+      entityType: 'sku',
+      entityId: selectedRow?.skuProfileId ?? selectedId ?? 'sku-access',
+      label: selectedRow?.displaySku ?? selectedRow?.productName ?? 'SKU 准入工作台',
+    },
+    visibleFilters: { page, healthStatus, sourceKind, category, query, drawerTab, selectedIds },
+    visibleColumns: ['displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction'],
+  }), [category, drawerTab, healthStatus, page, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind])
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
     const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length
@@ -313,6 +326,8 @@ export function SkuAccessPage() {
   }
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.mainArea}>
         <div className="pageHeader">
@@ -494,6 +509,7 @@ export function SkuAccessPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
 

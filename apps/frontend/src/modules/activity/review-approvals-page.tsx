@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { AlertOctagon, CheckCircle2, ChevronRight, Edit, FileCheck, HelpCircle, Package, Search, ShieldAlert, SlidersHorizontal, X, XCircle } from 'lucide-react'
 import type { ReviewDetailDto, ReviewListItemDto, ReviewRiskLevel, ReviewWorkbenchStatus, ReviewWorkbenchType } from '../../../../contracts/types/reviewReportCenter'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './review-approvals.module.css'
 
@@ -154,8 +156,21 @@ export function ReviewApprovalsPage() {
   const selectedReview = detail ?? reviews.find((item) => item.reviewItemId === selectedItem) ?? null
   const openCount = activeTab === 'PENDING' ? total : reviews.filter((item) => item.status === 'PENDING').length
   const totalPages = Math.max(1, Math.ceil(total / 20))
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/review-approvals',
+    pageTitle: 'Review 审批工作台',
+    selectedEntity: {
+      entityType: 'reviewItem',
+      entityId: selectedReview?.reviewItemId ?? selectedItem ?? 'review-approvals',
+      label: selectedReview?.title ?? selectedReview?.summary ?? 'Review 审批工作台',
+    },
+    visibleFilters: { activeTab, typeFilter, riskFilter, query, page, detailTab },
+    visibleColumns: ['priority', 'type', 'recommendation', 'status', 'riskLevel', 'owner'],
+  }), [activeTab, detailTab, page, query, riskFilter, selectedItem, selectedReview?.reviewItemId, selectedReview?.summary, selectedReview?.title, typeFilter])
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.mainContent}>
         <div className={styles.pageHeader}>
@@ -314,6 +329,7 @@ export function ReviewApprovalsPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
 

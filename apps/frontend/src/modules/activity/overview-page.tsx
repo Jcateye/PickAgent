@@ -6,6 +6,8 @@ import type { RuleSetListItemDto } from '../../../../contracts/types/businessFou
 import type { ConnectorListItemDto } from '../../../../contracts/types/connectorBackend'
 import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import type { ReviewListItemDto } from '../../../../contracts/types/reviewReportCenter'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type HealthSummaryDto, type PageDto } from './api-client'
 import styles from './overview.module.css'
 
@@ -118,6 +120,13 @@ export function OverviewPage() {
   const primaryConnectorHref = primaryConnector ? dataSourcesHref(primaryConnector.connectorId) : '/data-sources'
   const latestRunHref = latestRun ? runConsoleHref(latestRun.runId) : '/run-console'
   const skuAccessHref = statusFilter === 'ALL' ? '/sku-access' : skuAccessStatusHref(statusFilter)
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/overview',
+    pageTitle: '业务概览',
+    selectedEntity: { entityType: 'dashboard', entityId: 'overview', label: '业务概览' },
+    visibleFilters: { statusFilter, page },
+    visibleColumns: ['skuProfileId', 'healthStatus', 'nextAction', 'evidenceCount'],
+  }), [page, statusFilter])
 
   async function exportCurrentSkuRows() {
     setExporting(true)
@@ -144,6 +153,8 @@ export function OverviewPage() {
   }
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       {/* Left Main Content */}
       <div className={styles.mainContent}>
@@ -428,6 +439,7 @@ export function OverviewPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 

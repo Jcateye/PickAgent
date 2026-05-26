@@ -1811,7 +1811,7 @@ h4 {
   position: fixed;
   right: 22px;
   bottom: 22px;
-  z-index: 40;
+  z-index: 1000;
   min-width: 108px;
   height: 44px;
   border: 1px solid var(--primary);
@@ -1826,7 +1826,7 @@ h4 {
   position: fixed;
   top: 0;
   right: 0;
-  z-index: 50;
+  z-index: 1001;
   width: min(560px, 100vw);
   height: 100vh;
   border-left: 1px solid var(--line);

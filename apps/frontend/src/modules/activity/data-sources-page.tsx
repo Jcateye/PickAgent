@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowDownUp, Check, CheckCircle2, ChevronRight, Database, FileSpreadsheet, Globe, Plus, RefreshCw, X } from 'lucide-react'
 import type { SkuSummaryDto } from '../../../../contracts/types/businessFoundation'
 import type { BrowserScanPreviewDto, ConnectorDetailDto, ConnectorKind, ConnectorListItemDto, ConnectorRunDetailDto, ConnectorRunSummaryDto, ConnectorStatus, CreateConnectorDto, UpdateConnectorDto } from '../../../../contracts/types/connectorBackend'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi, type PageDto } from './api-client'
 import styles from './data-sources.module.css'
 
@@ -223,8 +225,21 @@ export function DataSourcesPage() {
     setDetail(nextDetail)
     setRuns(nextRuns.items)
   }
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/data-sources',
+    pageTitle: '数据源连接器',
+    selectedEntity: {
+      entityType: 'connector',
+      entityId: detail?.connectorId ?? selectedConnector ?? 'data-sources',
+      label: detail?.name ?? connectors.find((item) => item.connectorId === selectedConnector)?.name ?? '数据源连接器',
+    },
+    visibleFilters: { selectedConnector, panelTab, connectorFormMode: connectorForm?.mode ?? null },
+    visibleColumns: ['connectorId', 'name', 'kind', 'status', 'latestRun', 'qualityScore'],
+  }), [connectorForm?.mode, connectors, detail?.connectorId, detail?.name, panelTab, selectedConnector])
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.mainContent}>
         <div className={styles.pageHeader}>数据源 <ChevronRight size={14} /> 连接器与最近采集</div>
@@ -387,6 +402,7 @@ export function DataSourcesPage() {
         </div>
       )}
     </div>
+    </>
   )
 }
 

@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Play, FileText, AlertTriangle, ChevronDown, MoreHorizontal, CheckSquare, RefreshCw } from 'lucide-react'
 import type { ActivityRuleSetDto, CanonicalRuleDto, ReviewItemDto, RuleSetDetailDto, SimulationResultDto } from '../../../../contracts/types/businessFoundation'
 import type { ActivityExecutionPlanDto } from '../../../../contracts/types/activityManagement'
 import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi } from './api-client'
 import styles from './rule-execution.module.css'
 
@@ -221,8 +223,19 @@ export function RuleExecutionPage() {
   const uncertainItems = checklistItems.filter((item) => item.status === 'pending')
   const ruleSourceTitle = formatRuleSourceTitle(ruleSet?.name ?? ruleName, ruleSet?.platform ?? platform)
   const createdByLabel = ruleSet ? '规则解析 API' : '当前编辑草稿'
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/rule-execution',
+    pageTitle: '规则执行',
+    selectedEntity: simulationRun
+      ? { entityType: 'simulationRun', entityId: simulationRun.simulationRunId, label: `模拟运行 ${simulationRun.simulationRunId}` }
+      : { entityType: 'activityRuleSet', entityId: ruleSet?.ruleSetId ?? 'rule-execution', label: ruleSet?.name ?? ruleName },
+    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId },
+    visibleColumns: ['checkItem', 'status', 'owner', 'requiredData', 'method'],
+  }), [platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className="pageStack">
       <div className="pageHeader" style={{ paddingBottom: '16px', borderBottom: '1px solid var(--line)' }}>
         <div>
@@ -452,6 +465,7 @@ export function RuleExecutionPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
