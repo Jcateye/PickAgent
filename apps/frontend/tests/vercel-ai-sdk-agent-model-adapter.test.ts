@@ -120,6 +120,51 @@ test('vercel ai sdk agent model adapter prefetches selected workbench entity det
   assert.deepEqual(executedTools.find((item) => item.toolName === 'getReportDetail')?.inputJson, { reportId: 'report_1' })
 })
 
+test('vercel ai sdk agent model adapter prefetches selected report version detail', async () => {
+  const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
+  const adapter = new VercelAiSdkAgentModelAdapter({
+    apiKey: 'test-key',
+    modelName: 'test-model',
+    model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
+    generateText: (async (input: { messages?: Array<{ content?: string }> }) => {
+      assert.match(input.messages?.at(-1)?.content ?? '', /getReportVersion/)
+      assert.match(input.messages?.at(-1)?.content ?? '', /version_2/)
+      return {
+        text: '已基于当前报告版本回答',
+        usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        totalUsage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        finishReason: 'stop',
+        response: { id: 'response_selected_report_version_prefetch' },
+        providerMetadata: {},
+      }
+    }) as never,
+  })
+
+  const result = await adapter.complete({
+    session: { id: 'session_1', sessionKey: 's', userId: null, surface: 'agent-copilot', piSessionKey: null, piSessionRef: null, title: null, status: 'ACTIVE', configJson: {}, lastActiveAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '解释报告版本', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: 'report', subjectId: 'report_1', constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '解释当前报告版本', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
+    context: { route: '/report-center', selectedEntity: { entityType: 'report', entityId: 'report_1', label: '报告 1' }, visibleFilters: { selectedVersionId: 'version_2' } },
+    executeTool: async (input) => {
+      executedTools.push({ toolName: input.toolName, inputJson: input.inputJson })
+      return {
+        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: 'L1', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+        status: 'SUCCEEDED',
+        summary: input.toolName === 'getReportVersion' ? '读取报告版本：v2' : '读取报告详情：报告 1',
+        data: input.inputJson,
+        evidenceRefs: [],
+        linkedEntities: [],
+        reviewGate: null,
+      }
+    },
+  })
+
+  assert.equal(result.content, '已基于当前报告版本回答')
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['getReportDetail', 'getReportVersion'])
+  assert.deepEqual(executedTools.find((item) => item.toolName === 'getReportVersion')?.inputJson, { reportId: 'report_1', versionId: 'version_2' })
+})
+
 test('vercel ai sdk agent model adapter prefetches selected agent mission detail', async () => {
   const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
   const adapter = new VercelAiSdkAgentModelAdapter({

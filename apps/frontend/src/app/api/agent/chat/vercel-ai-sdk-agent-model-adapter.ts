@@ -230,7 +230,13 @@ function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ 
       { toolName: 'checkDataFreshness', inputJson: { skuProfileId: entityId, maxAgeHours: 24 } },
     ]
   }
-  if (entityType === 'report') return [{ toolName: 'getReportDetail', inputJson: { reportId: entityId } }]
+  if (entityType === 'report') {
+    const selectedVersionId = typeof visibleFilters.selectedVersionId === 'string' ? visibleFilters.selectedVersionId : ''
+    return [
+      { toolName: 'getReportDetail', inputJson: { reportId: entityId } },
+      ...(selectedVersionId ? [{ toolName: 'getReportVersion', inputJson: { reportId: entityId, versionId: selectedVersionId } }] : []),
+    ]
+  }
   if (entityType === 'reviewItem' || entityType === 'review_item') return [{ toolName: 'getReviewDetail', inputJson: { reviewItemId: entityId } }]
   if (entityType === 'connector') return [{ toolName: 'getConnectorDetail', inputJson: { connectorId: entityId } }]
   if (entityType === 'ruleSet' || entityType === 'rule_set' || entityType === 'activityRuleSet') return [{ toolName: 'getRuleSetDetail', inputJson: { ruleSetId: entityId } }]
