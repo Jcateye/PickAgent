@@ -224,10 +224,14 @@ function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ 
   if (!entityType || !entityId || isPlaceholderEntityId(entityId)) return []
   const visibleFilters = objectInput(input.context?.visibleFilters)
   if (entityType === 'sku' || entityType === 'sku_profile') {
+    const selectedIds = stringArray(visibleFilters.selectedIds)
+      .filter((skuProfileId) => skuProfileId !== entityId)
+      .slice(0, 5)
     return [
       { toolName: 'getSkuSummary', inputJson: { skuProfileId: entityId } },
       { toolName: 'diagnoseSkuHealth', inputJson: { skuProfileId: entityId } },
       { toolName: 'checkDataFreshness', inputJson: { skuProfileId: entityId, maxAgeHours: 24 } },
+      ...selectedIds.map((skuProfileId) => ({ toolName: 'getSkuSummary', inputJson: { skuProfileId } })),
     ]
   }
   if (entityType === 'report') {
@@ -848,6 +852,10 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
 
 function objectInput(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
 }
 
 function normalizeRuleParseInput(value: unknown): Record<string, unknown> {

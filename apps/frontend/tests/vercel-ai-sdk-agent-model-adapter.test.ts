@@ -120,6 +120,55 @@ test('vercel ai sdk agent model adapter prefetches selected workbench entity det
   assert.deepEqual(executedTools.find((item) => item.toolName === 'getReportDetail')?.inputJson, { reportId: 'report_1' })
 })
 
+test('vercel ai sdk agent model adapter prefetches selected sku batch context', async () => {
+  const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
+  const adapter = new VercelAiSdkAgentModelAdapter({
+    apiKey: 'test-key',
+    modelName: 'test-model',
+    model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
+    generateText: (async (input: { messages?: Array<{ content?: string }> }) => {
+      assert.match(input.messages?.at(-1)?.content ?? '', /sku_1/)
+      assert.match(input.messages?.at(-1)?.content ?? '', /sku_2/)
+      assert.match(input.messages?.at(-1)?.content ?? '', /sku_3/)
+      return {
+        text: '已基于当前勾选 SKU 回答',
+        usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        totalUsage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        finishReason: 'stop',
+        response: { id: 'response_selected_sku_batch_prefetch' },
+        providerMetadata: {},
+      }
+    }) as never,
+  })
+
+  const result = await adapter.complete({
+    session: { id: 'session_1', sessionKey: 's', userId: null, surface: 'agent-copilot', piSessionKey: null, piSessionRef: null, title: null, status: 'ACTIVE', configJson: {}, lastActiveAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '批量处理 SKU', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: 'sku', subjectId: 'sku_1', constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '把当前勾选的 SKU 批量生成 Review', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
+    context: { route: '/sku-access', selectedEntity: { entityType: 'sku', entityId: 'sku_1', label: 'SKU 1' }, visibleFilters: { selectedIds: ['sku_1', 'sku_2', 'sku_3'] } },
+    executeTool: async (input) => {
+      executedTools.push({ toolName: input.toolName, inputJson: input.inputJson })
+      return {
+        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: 'L1', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+        status: 'SUCCEEDED',
+        summary: `${input.toolName}:${String(input.inputJson.skuProfileId ?? '')}`,
+        data: input.inputJson,
+        evidenceRefs: [],
+        linkedEntities: [],
+        reviewGate: null,
+      }
+    },
+  })
+
+  assert.equal(result.content, '已基于当前勾选 SKU 回答')
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['getDashboardContext', 'getSkuSummary', 'diagnoseSkuHealth', 'checkDataFreshness', 'getSkuSummary', 'getSkuSummary'])
+  assert.deepEqual(
+    executedTools.filter((item) => item.toolName === 'getSkuSummary').map((item) => item.inputJson),
+    [{ skuProfileId: 'sku_1' }, { skuProfileId: 'sku_2' }, { skuProfileId: 'sku_3' }],
+  )
+})
+
 test('vercel ai sdk agent model adapter prefetches selected report version detail', async () => {
   const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
   const adapter = new VercelAiSdkAgentModelAdapter({
