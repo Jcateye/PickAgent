@@ -110,6 +110,11 @@ export function OverviewPage() {
   const reviewRate = overview.total > 0 ? `${((overview.reviewCount / overview.total) * 100).toFixed(1)}%` : '0.0%'
   const totalPages = Math.max(1, Math.ceil((skuPage?.total ?? 0) / (skuPage?.pageSize ?? 5)))
   const visiblePages = paginationWindow(page, totalPages)
+  const latestRuleHref = latestRule ? ruleLibraryHref(latestRule.ruleSetId) : '/rule-library'
+  const primaryConnector = abnormalConnectors[0] ?? healthyConnectors[0] ?? connectors[0] ?? null
+  const primaryConnectorHref = primaryConnector ? dataSourcesHref(primaryConnector.connectorId) : '/data-sources'
+  const latestRunHref = latestRun ? runConsoleHref(latestRun.runId) : '/run-console'
+  const skuAccessHref = statusFilter === 'ALL' ? '/sku-access' : skuAccessStatusHref(statusFilter)
 
   async function exportCurrentSkuRows() {
     setExporting(true)
@@ -164,7 +169,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>规则版本</span>
                     <span className={styles.evidenceData}>{latestRule?.version ?? '暂无规则'}</span>
-                    <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
+                    <a href={latestRuleHref} className={styles.evidenceLink}>查看规则</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -172,7 +177,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>数据源</span>
                     <span className={styles.evidenceData}>{healthyConnectors.length}/{connectors.length} 正常</span>
-                    <a href="/data-sources" className={styles.evidenceLink}>查看数据</a>
+                    <a href={primaryConnectorHref} className={styles.evidenceLink}>查看数据</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -180,7 +185,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>插件任务</span>
                     <span className={styles.evidenceData}>{runs.filter((run) => isSucceeded(run.status)).length}/{runs.length} 成功</span>
-                    <a href="/run-console" className={styles.evidenceLink}>查看 Run</a>
+                    <a href={latestRunHref} className={styles.evidenceLink}>查看 Run</a>
                   </div>
                 </div>
                 <div className={styles.evidenceCard}>
@@ -188,7 +193,7 @@ export function OverviewPage() {
                   <div className={styles.evidenceContent}>
                     <span className={styles.evidenceTitle}>诊断结果</span>
                     <span className={styles.evidenceData}>{overview.total.toLocaleString()} 个 SKU</span>
-                    <a href="/sku-access" className={styles.evidenceLink}>查看证据</a>
+                    <a href={skuAccessHref} className={styles.evidenceLink}>查看证据</a>
                   </div>
                 </div>
               </div>
@@ -224,7 +229,7 @@ export function OverviewPage() {
               <span>启用 <span className={styles.indicatorMetaVal}>{activeRules.length} 个</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="/rule-library" className={styles.evidenceLink}>查看规则</a>
+              <a href={latestRuleHref} className={styles.evidenceLink}>查看规则</a>
             </div>
           </div>
 
@@ -245,7 +250,7 @@ export function OverviewPage() {
               <span className={styles.indicatorMetaVal} style={{ color: '#ef4444' }}>{abnormalConnectors.length} 个</span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="/data-sources" className={styles.evidenceLink}>查看数据详情</a>
+              <a href={primaryConnectorHref} className={styles.evidenceLink}>查看数据详情</a>
             </div>
           </div>
 
@@ -260,7 +265,7 @@ export function OverviewPage() {
               <span>占比 <span className={styles.indicatorMetaVal}>{overview.readyRate}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="/sku-access" className={styles.evidenceLink}>查看清单</a>
+              <a href={skuAccessStatusHref('READY')} className={styles.evidenceLink}>查看清单</a>
             </div>
           </div>
 
@@ -275,7 +280,7 @@ export function OverviewPage() {
               <span>阻塞 <span className={styles.indicatorMetaVal}>{overview.blocked.toLocaleString()}</span></span>
             </div>
             <div className={styles.indicatorFooter}>
-              <a href="/review-approvals" className={styles.evidenceLink}>进入审核</a>
+              <a href="/review-approvals?tab=PENDING" className={styles.evidenceLink}>进入审核</a>
             </div>
           </div>
         </div>
@@ -397,7 +402,7 @@ export function OverviewPage() {
               </div>
             ))}
             {!runs.length ? <div style={{ color: 'var(--muted)', fontSize: '13px' }}>暂无运行记录。</div> : null}
-            <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看全部工具 Run</a>
+            <a href={latestRunHref} className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看全部工具 Run</a>
           </div>
         </div>
 
@@ -408,7 +413,7 @@ export function OverviewPage() {
               <Lock size={14} color="var(--muted)" />
             </div>
             <div className={styles.lockDesc}>{latestRunLogs.length ? latestRunLogs.map((log) => `${log.tag}: ${log.message}`).join('；') : '包含请求/响应、原始字段与日志'}</div>
-            <a href="/run-console" className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看 Trace</a>
+            <a href={latestRunHref} className={styles.evidenceLink} style={{ marginTop: '4px' }}>查看 Trace</a>
           </div>
         </div>
       </div>
@@ -548,6 +553,26 @@ function syncOverviewUrl(state: { page: number; statusFilter: DashboardSkuListIt
 function skuEvidenceHref(skuProfileId: string): string {
   const params = new URLSearchParams({ skuProfileId, drawerTab: 'evidence' })
   return `/sku-access?${params.toString()}`
+}
+
+function skuAccessStatusHref(healthStatus: DashboardSkuListItemDto['healthStatus']): string {
+  const params = new URLSearchParams({ healthStatus })
+  return `/sku-access?${params.toString()}`
+}
+
+function ruleLibraryHref(ruleSetId: string): string {
+  const params = new URLSearchParams({ ruleSetId })
+  return `/rule-library?${params.toString()}`
+}
+
+function dataSourcesHref(connectorId: string): string {
+  const params = new URLSearchParams({ connectorId })
+  return `/data-sources?${params.toString()}`
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
 }
 
 function paginationWindow(currentPage: number, totalPages: number): number[] {
