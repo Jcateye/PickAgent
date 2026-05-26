@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { POST as createReport } from '../src/app/api/reports/route'
 import { POST as compareReports } from '../src/app/api/reports/compare/route'
+import { GET as downloadReportExport } from '../src/app/api/reports/[reportId]/download/route'
 import { POST as exportReport } from '../src/app/api/reports/[reportId]/export/route'
 import { POST as subscribeReport } from '../src/app/api/reports/[reportId]/subscriptions/route'
 import { GET as listReportVersions } from '../src/app/api/reports/[reportId]/versions/route'
@@ -140,4 +141,49 @@ test('report write routes reject invalid export and subscription values before p
   const subscriptionEnvelope = await subscriptionResponse.json()
   assert.equal(subscriptionResponse.status, 400)
   assert.equal(subscriptionEnvelope.code, 'COMMON.VALIDATION_ERROR')
+})
+
+test('report export creates a ready downloadable artifact and updates list status', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+  const created = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const createdEnvelope = await created.json()
+  assert.equal(created.status, 200)
+  const reportId = createdEnvelope.data.reportId
+
+  const exportResponse = await exportReport(
+    new Request(`http://localhost/api/reports/${reportId}/export`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ format: 'EXCEL', includeCharts: true, includeDetails: true, idempotencyKey: 'downloadable-artifact' }),
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const exportEnvelope = await exportResponse.json()
+  assert.equal(exportResponse.status, 200)
+  assert.equal(exportEnvelope.data.status, 'READY')
+  assert.match(exportEnvelope.data.artifactHref, new RegExp(`/api/reports/${reportId}/download\\\\?`))
+  assert.equal(finalApiRuntime.store.reportExports.get(`${reportId}:downloadable-artifact`)?.status, 'READY')
+
+  const list = await finalApiRuntime.reportService.list()
+  const exportedReport = list.items.find((item) => item.reportId === reportId)
+  assert.equal(exportedReport?.exportStatus, 'READY')
+
+  const downloadResponse = await downloadReportExport(
+    new Request(`http://localhost${exportEnvelope.data.artifactHref}`, {
+      method: 'GET',
+      headers: authHeaders,
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  assert.equal(downloadResponse.status, 200)
+  assert.match(downloadResponse.headers.get('content-disposition') ?? '', /attachment/)
+  assert.match(await downloadResponse.text(), /reportId/)
 })

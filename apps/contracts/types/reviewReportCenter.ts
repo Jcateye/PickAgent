@@ -183,11 +183,13 @@ export interface ReportExportRequestDto {
 export interface ReportExportJobDto {
   exportJobId: string;
   reportId: string;
-  status: "PENDING";
+  status: "READY";
   format: ReportExportRequestDto["format"];
   includeCharts: boolean;
   includeDetails: boolean;
   requestedAt: string;
+  artifactHref: string;
+  artifactContentType: string;
   workflowRunId?: string;
 }
 

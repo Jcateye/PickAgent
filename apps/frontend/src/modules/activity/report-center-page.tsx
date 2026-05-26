@@ -37,6 +37,7 @@ export function ReportCenterPage() {
   const [subscriptionRecipients, setSubscriptionRecipients] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [actionLink, setActionLink] = useState<ActionLink | null>(null)
+  const [secondaryActionLink, setSecondaryActionLink] = useState<ActionLink | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const hydratedSelectionRef = useRef<{ reportId: string; versionId: string | null } | null>(null)
 
@@ -87,6 +88,8 @@ export function ReportCenterPage() {
     hydratedSelectionRef.current = { reportId: version.reportId, versionId }
     syncReportUrl(version.reportId, versionId, activeTab)
     setMessage(`已切换报告版本：${version.version}`)
+    setActionLink(null)
+    setSecondaryActionLink(null)
   }
 
   function cycleVersion() {
@@ -107,16 +110,18 @@ export function ReportCenterPage() {
     if (!detail) return
     setBusy('export')
     setActionLink(null)
+    setSecondaryActionLink(null)
     try {
       const job = await fetchActivityApi<ReportExportJobDto>(`/api/reports/${detail.reportId}/export`, {
         method: 'POST',
         body: JSON.stringify({ format, includeCharts, includeDetails, idempotencyKey: `${detail.reportId}:${format}:${includeCharts}:${includeDetails}:${Date.now()}` }),
       })
-      setMessage(`已创建导出任务：${job.exportJobId} / 图表 ${job.includeCharts ? '包含' : '不包含'} / 明细 ${job.includeDetails ? '包含' : '不包含'}`)
+      setMessage(`已生成导出文件：${job.exportJobId} / ${job.status} / 图表 ${job.includeCharts ? '包含' : '不包含'} / 明细 ${job.includeDetails ? '包含' : '不包含'}`)
       setActionLink({
-        href: job.workflowRunId ? runConsoleHref(job.workflowRunId) : reportCenterHref(job.reportId, selectedVersionId, activeTab),
-        label: job.workflowRunId ? '查看导出 Run' : '查看报告',
+        href: job.artifactHref,
+        label: '下载导出文件',
       })
+      setSecondaryActionLink(job.workflowRunId ? { href: runConsoleHref(job.workflowRunId), label: '查看导出 Run' } : null)
       await loadReports(detail.reportId, selectedVersionId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出报告失败')
@@ -134,6 +139,7 @@ export function ReportCenterPage() {
     }
     setBusy('subscribe')
     setActionLink(null)
+    setSecondaryActionLink(null)
     try {
       const subscription = await fetchActivityApi<ReportSubscriptionDto>(`/api/reports/${detail.reportId}/subscriptions`, {
         method: 'POST',
@@ -160,6 +166,8 @@ export function ReportCenterPage() {
     const link = `${window.location.origin}/report-center?${params.toString()}`
     await navigator.clipboard.writeText(link)
     setMessage(`已复制报告链接：${detail.reportId}${selectedVersionId ? ` / ${selectedVersionId}` : ''}`)
+    setActionLink(null)
+    setSecondaryActionLink(null)
   }
 
   async function compareReports() {
@@ -175,6 +183,7 @@ export function ReportCenterPage() {
     }
     setBusy('compare')
     setActionLink(null)
+    setSecondaryActionLink(null)
     try {
       const result = await fetchActivityApi<ReportComparisonDto>('/api/reports/compare', {
         method: 'POST',
@@ -209,6 +218,7 @@ export function ReportCenterPage() {
             <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>
               {message}
               {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+              {secondaryActionLink ? <> · <a href={secondaryActionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{secondaryActionLink.label}</a></> : null}
             </div>
           ) : null}
         </div>

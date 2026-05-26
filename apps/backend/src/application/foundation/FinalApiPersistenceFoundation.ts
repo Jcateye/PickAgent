@@ -998,7 +998,19 @@ export class ReportRepository {
     const existing = key ? this.store.reportExports.get(key) : undefined;
     if (existing) return existing;
     const workflowRunId = nextId("workflow");
-    const job: ReportExportJobDto = { exportJobId: nextId("export"), reportId, status: "PENDING", format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString(), workflowRunId };
+    const exportJobId = nextId("export");
+    const job: ReportExportJobDto = {
+      exportJobId,
+      reportId,
+      status: "READY",
+      format: request.format,
+      includeCharts: request.includeCharts ?? true,
+      includeDetails: request.includeDetails ?? false,
+      requestedAt: new Date().toISOString(),
+      artifactHref: reportExportArtifactHref(reportId, exportJobId, request.format),
+      artifactContentType: reportExportContentType(request.format),
+      workflowRunId,
+    };
     this.store.reportExports.set(key || job.exportJobId, job);
     const audit: WorkflowAuditRecord = {
       workflowRunId,
@@ -1007,7 +1019,7 @@ export class ReportRepository {
       subjectType: "report",
       subjectId: reportId,
       input: { actorId: boundary.actorId, request },
-      output: { exportJobId: job.exportJobId, status: job.status, format: job.format },
+      output: { exportJobId: job.exportJobId, status: job.status, format: job.format, artifactHref: job.artifactHref },
       createdAt: job.requestedAt,
     };
     this.store.workflowAudits.set(audit.workflowRunId, audit);
@@ -2140,10 +2152,22 @@ export class PrismaReportRepository extends ReportRepository {
 
   async createExport(boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
     if (this.prisma.report) {
-      await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "PENDING" } });
+      await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "READY" } });
     }
     const workflowRunId = nextUuid();
-    const job = { exportJobId: request.idempotencyKey ?? nextUuid(), reportId, status: "PENDING" as const, format: request.format, includeCharts: request.includeCharts ?? true, includeDetails: request.includeDetails ?? false, requestedAt: new Date().toISOString(), workflowRunId };
+    const exportJobId = request.idempotencyKey ?? nextUuid();
+    const job: ReportExportJobDto = {
+      exportJobId,
+      reportId,
+      status: "READY",
+      format: request.format,
+      includeCharts: request.includeCharts ?? true,
+      includeDetails: request.includeDetails ?? false,
+      requestedAt: new Date().toISOString(),
+      artifactHref: reportExportArtifactHref(reportId, exportJobId, request.format),
+      artifactContentType: reportExportContentType(request.format),
+      workflowRunId,
+    };
     await this.prisma.workflowRun.create({
       data: {
         id: workflowRunId,
@@ -2152,7 +2176,7 @@ export class PrismaReportRepository extends ReportRepository {
         subjectType: "report",
         subjectId: reportId,
         inputJson: { actorId: boundary.actorId, tenantId: boundary.tenantId, request },
-        outputJson: { exportJobId: job.exportJobId, status: job.status, format: job.format },
+        outputJson: { exportJobId: job.exportJobId, status: job.status, format: job.format, artifactHref: job.artifactHref },
         startedAt: new Date(job.requestedAt),
         completedAt: new Date(job.requestedAt),
       },
@@ -3943,6 +3967,17 @@ function toReportVersionFromRow(row: Record<string, unknown>): ReportVersionDto 
     generatedAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? detail.generatedAt),
     evidenceSummary: asArray(row.evidenceRefsJson) as EvidenceRef[],
   };
+}
+
+function reportExportArtifactHref(reportId: string, exportJobId: string, format: ReportExportRequestDto["format"]): string {
+  const params = new URLSearchParams({ exportJobId, format });
+  return `/api/reports/${encodeURIComponent(reportId)}/download?${params.toString()}`;
+}
+
+function reportExportContentType(format: ReportExportRequestDto["format"]): string {
+  if (format === "EXCEL") return "text/csv; charset=utf-8";
+  if (format === "PPT") return "application/json; charset=utf-8";
+  return "application/json; charset=utf-8";
 }
 
 function normalizeReportSummary(value: Record<string, unknown>): ReportDetailDto["summary"] {
