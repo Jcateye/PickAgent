@@ -16,6 +16,10 @@ interface SkuExportDto {
   rowCount: number
   workflowRunId?: string
 }
+interface ActionLink {
+  href: string
+  label: string
+}
 
 const skuDrawerTabs: Array<{ value: SkuDrawerTab; label: string }> = [
   { value: 'overview', label: '概览' },
@@ -47,6 +51,7 @@ export function SkuAccessPage() {
   const [drawerTab, setDrawerTab] = useState<SkuDrawerTab>(() => getInitialDrawerTab())
   const [nextActionType, setNextActionType] = useState<SkuNextAction['type']>('MANUAL_REVIEW')
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<ActionLink | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
@@ -140,6 +145,7 @@ export function SkuAccessPage() {
     }
     const busyKey = items.length === 1 ? items[0].skuProfileId : 'bulk-review'
     setBusy(busyKey)
+    setActionLink(null)
     try {
       const details = await Promise.all(items.map((item) => fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`)))
       const created = await fetchActivityApi<ReviewItemDto[]>('/api/reviews', {
@@ -168,6 +174,12 @@ export function SkuAccessPage() {
         }),
       })
       setMessage(`已生成 Review：${created.map((item) => item.reviewItemId).join(', ')}`)
+      if (created[0]) {
+        setActionLink({
+          href: reviewApprovalHref(created[0].reviewItemId),
+          label: created.length > 1 ? `查看首个 Review（共 ${created.length} 个）` : '查看 Review',
+        })
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '生成 Review 失败')
     } finally {
@@ -187,6 +199,7 @@ export function SkuAccessPage() {
     const nextAction = nextActionOptions.find((option) => option.type === nextActionType) ?? nextActionOptions[0]
     if (items.length > 1) {
       setBusy('bulk-next')
+      setActionLink(null)
       try {
         const details = await Promise.all(items.map((item) => fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
           method: 'PATCH',
@@ -212,6 +225,7 @@ export function SkuAccessPage() {
     }
     const item = items[0]
     setBusy(`next:${item.skuProfileId}`)
+    setActionLink(null)
     try {
       const detail = await fetchActivityApi<DashboardSkuReadinessDetailDto>(`/api/skus/${item.skuProfileId}`, {
         method: 'PATCH',
@@ -240,6 +254,7 @@ export function SkuAccessPage() {
       return
     }
     setBusy('report')
+    setActionLink(null)
     try {
       const report = await fetchActivityApi<ReportPreviewDto>('/api/reports', {
         method: 'POST',
@@ -249,6 +264,10 @@ export function SkuAccessPage() {
         }),
       })
       setMessage(`已生成健康报告：${report.reportId}`)
+      setActionLink({
+        href: reportCenterHref(report.reportId),
+        label: '查看健康报告',
+      })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '生成健康报告失败')
     } finally {
@@ -258,6 +277,7 @@ export function SkuAccessPage() {
 
   async function exportCurrentRows() {
     setBusy('export')
+    setActionLink(null)
     try {
       const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
         method: 'POST',
@@ -274,6 +294,12 @@ export function SkuAccessPage() {
       })
       downloadCsv(exported)
       setMessage(`已导出 SKU 当前筛选结果：${exported.rowCount} 行${exported.workflowRunId ? ` / Run ${exported.workflowRunId}` : ''}`)
+      if (exported.workflowRunId) {
+        setActionLink({
+          href: runConsoleHref(exported.workflowRunId),
+          label: '查看导出 Run',
+        })
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出 SKU 失败')
     } finally {
@@ -296,7 +322,12 @@ export function SkuAccessPage() {
           <div>
             <h1 style={{ fontSize: '24px', marginBottom: '8px' }}>SKU 准入工作台</h1>
             <p style={{ color: 'var(--muted)', fontSize: '13px' }}>按 SKU 维度查看准入状态、核心原因与下一步建议，可批量处理并生成 Review。</p>
-            {message ? <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>{message}</p> : null}
+            {message ? (
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '8px' }}>
+                {message}
+                {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -678,6 +709,21 @@ function getInitialDrawerTab(): SkuDrawerTab {
 function skuAccessEvidenceHref(skuProfileId: string): string {
   const params = new URLSearchParams({ skuProfileId, drawerTab: 'evidence' })
   return `/sku-access?${params.toString()}`
+}
+
+function reviewApprovalHref(reviewItemId: string): string {
+  const params = new URLSearchParams({ reviewItemId })
+  return `/review-approvals?${params.toString()}`
+}
+
+function reportCenterHref(reportId: string): string {
+  const params = new URLSearchParams({ reportId })
+  return `/report-center?${params.toString()}`
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
 }
 
 function syncSkuUrl(state: {
