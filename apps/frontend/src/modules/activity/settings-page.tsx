@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { defaultAgentToolNames, type SettingsUserDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../contracts/types/businessFoundation'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi } from './api-client'
 
 export function SettingsPage() {
@@ -30,6 +32,22 @@ export function SettingsPage() {
   }, [])
 
   const allowedTools = useMemo(() => new Set(toolPolicy?.allowedAgentTools ?? workspace?.allowedAgentTools ?? []), [toolPolicy, workspace])
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/settings',
+    pageTitle: '系统设置',
+    selectedEntity: {
+      entityType: 'settings',
+      entityId: workspace?.workspaceId ?? 'settings',
+      label: workspace?.name ?? '系统设置',
+    },
+    visibleFilters: {
+      freshnessHours,
+      allowedToolCount: allowedTools.size,
+      deniedRuntimeTools: toolPolicy?.deniedRuntimeTools ?? workspace?.deniedRuntimeTools ?? [],
+      activeUserCount: users.filter((user) => user.status === 'ACTIVE').length,
+    },
+    visibleColumns: ['workspace', 'toolPolicy', 'reviewUsers', 'workflowRunId'],
+  }), [allowedTools.size, freshnessHours, toolPolicy?.deniedRuntimeTools, users, workspace?.deniedRuntimeTools, workspace?.name, workspace?.workspaceId])
 
   async function saveWorkspace() {
     setBusy('workspace')
@@ -91,6 +109,8 @@ export function SettingsPage() {
   }
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className="pageStack">
       <div className="pageHeader">
         <div>
@@ -169,6 +189,7 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-export type WorkbenchEntityType = 'dashboard' | 'sku' | 'activityRuleSet' | 'simulationRun' | 'reviewItem' | 'report' | 'connector' | 'ruleSet'
+export type WorkbenchEntityType = 'dashboard' | 'sku' | 'activityRuleSet' | 'simulationRun' | 'reviewItem' | 'report' | 'connector' | 'ruleSet' | 'workflowRun' | 'settings'
 
 export interface WorkbenchContext {
   route: string

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Download, ExternalLink, RotateCcw } from 'lucide-react'
+import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
+import type { WorkbenchContext } from '@/modules/agent-copilot/types'
 import { fetchActivityApi } from './api-client'
 import styles from './run-console.module.css'
 
@@ -76,6 +78,17 @@ export function RunConsolePage() {
   }, [])
 
   const selectedRun = useMemo(() => runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null, [runs, selectedRunId])
+  const agentContext = useMemo<WorkbenchContext>(() => ({
+    route: '/run-console',
+    pageTitle: 'Run Console',
+    selectedEntity: {
+      entityType: 'workflowRun',
+      entityId: selectedRun?.runId ?? selectedRunId ?? 'run-console',
+      label: selectedRun ? `${selectedRun.type} / ${selectedRun.subject}` : 'Run Console',
+    },
+    visibleFilters: { activeTab, selectedRunId: selectedRun?.runId ?? selectedRunId },
+    visibleColumns: ['runId', 'type', 'status', 'subject', 'startedAt', 'completedAt'],
+  }), [activeTab, selectedRun, selectedRunId])
 
   useEffect(() => {
     syncRunConsoleUrl(selectedRun?.runId ?? selectedRunId, activeTab)
@@ -160,6 +173,8 @@ export function RunConsolePage() {
   }
 
   return (
+    <>
+    <WorkbenchContextRegistration context={agentContext} />
     <div className={styles.layout}>
       <div className={styles.sidebar}>
         <div className={styles.sidebarHeader}>
@@ -223,6 +238,7 @@ export function RunConsolePage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
