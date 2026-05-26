@@ -44,6 +44,13 @@ test('agent chat mission tools link back to the mission console', async () => {
   assert.ok(started.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
   assert.ok(started.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === startedRun.id))
 
+  const detail = await executeFinalApiTool('getAgentRunDetail', { runId: startedRun.id })
+  assert.equal(detail.status, 'SUCCEEDED')
+  assert.equal(detail.linkedEntity?.type, 'workflow_run')
+  assert.equal(detail.linkedEntity.id, startedRun.id)
+  assert.ok(detail.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+  assert.ok(detail.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === startedRun.id))
+
   const answered = await executeFinalApiTool('answerAgentRunQuestion', { runId: startedRun.id, question: '当前任务状态是什么？' })
   assert.equal(answered.status, 'SUCCEEDED')
   assert.equal(answered.linkedEntity?.type, 'workflow_run')

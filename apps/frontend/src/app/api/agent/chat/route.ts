@@ -844,7 +844,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const runId = String(input.runId ?? '')
       if (!runId) throw new Error('runId is required')
       const result = finalAgentRuntime.agentService.getRun(runId)
-      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run', summary: `读取 Agent Run：${result.run.status}` }], `读取 Agent Run：${result.run.status}`, { type: 'workflow_run', id: runId })
+      const runEntity = { type: 'workflow_run', id: runId }
+      const missionEntity = { type: 'agent_mission', id: result.run.missionId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: runId, label: 'Agent Run', summary: `读取 Agent Run：${result.run.status}` }], `读取 Agent Run：${result.run.status}`, runEntity, [missionEntity, runEntity])
     }
 
     if (toolName === 'pauseAgentRun') {
