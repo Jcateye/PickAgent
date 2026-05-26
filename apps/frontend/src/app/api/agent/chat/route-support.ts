@@ -712,8 +712,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!connectorId) throw new Error('connectorId is required')
       const result = await finalApiRuntime.connectorService.listRuns(connectorId, numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
       const connectorEntity = { type: 'connector', id: connectorId }
-      const runEntity = result.items[0] ? { type: 'workflow_run', id: result.items[0].workflowRunRef?.entityId ?? result.items[0].connectorRunId } : connectorEntity
-      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.connectorRunId, label: '连接器运行', summary: `${item.status} / ${item.rowCount} 行 / 质量 ${item.qualityScore ?? '-'}` })), `读取连接器运行列表：${result.total} 条`, runEntity, runEntity.type === 'workflow_run' ? [connectorEntity, runEntity] : undefined)
+      const runEntities = result.items.map((item) => ({ type: 'workflow_run', id: item.workflowRunRef?.entityId ?? item.connectorRunId }))
+      const runEntity = runEntities[0] ?? connectorEntity
+      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.connectorRunId, label: '连接器运行', summary: `${item.status} / ${item.rowCount} 行 / 质量 ${item.qualityScore ?? '-'}` })), `读取连接器运行列表：${result.total} 条`, runEntity, runEntities.length ? [connectorEntity, ...runEntities] : [connectorEntity])
     }
 
     if (toolName === 'getConnectorRunDetail') {
