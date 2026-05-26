@@ -221,6 +221,73 @@ test('rule execution page runs real parsing and simulation then saves the rule s
   await expect(page.getByText(/已保存到规则库/)).toBeVisible()
 })
 
+test('rule execution page keeps activity candidate SKU scope when rerunning checks', async ({ page }) => {
+  const stamp = Date.now()
+  const candidateExternalSkuId = `pw_activity_candidate_${stamp}`
+  const otherExternalSkuId = `pw_activity_other_${stamp}`
+
+  const candidateIngest = await apiPost(page.request, '/api/ingest', {
+    collectedAt: new Date().toISOString(),
+    rows: [{
+      platform: 'tmall',
+      storeId: 'pw_activity_scope_store',
+      externalSkuId: candidateExternalSkuId,
+      productName: '活动候选范围 SKU',
+      stock: 12,
+      sales30d: 120,
+      positiveRate: 0.94,
+      raw: { externalSkuId: candidateExternalSkuId },
+    }],
+  })
+  const otherIngest = await apiPost(page.request, '/api/ingest', {
+    collectedAt: new Date().toISOString(),
+    rows: [{
+      platform: 'tmall',
+      storeId: 'pw_activity_scope_store',
+      externalSkuId: otherExternalSkuId,
+      productName: '非活动候选 SKU',
+      stock: 3,
+      sales30d: 30,
+      positiveRate: 0.91,
+      raw: { externalSkuId: otherExternalSkuId },
+    }],
+  })
+  const candidateSkuProfileId = candidateIngest.summaries[0].skuProfileId
+  const otherSkuProfileId = otherIngest.summaries[0].skuProfileId
+  const activity = await apiPost(page.request, '/api/activities', {
+    name: `活动候选范围验收 ${stamp}`,
+    platform: 'tmall',
+    status: 'DRAFT',
+  })
+  await apiPost(page.request, `/api/activities/${activity.activityId}/candidate-skus`, {
+    skuProfileIds: [candidateSkuProfileId],
+    reasonCode: 'playwright',
+    comment: 'Only this SKU should be simulated from the activity execution page.',
+  })
+  await apiPost(page.request, `/api/activities/${activity.activityId}/rule-sets/parse`, {
+    sourceText: '库存不得低于 20 件。',
+  })
+
+  await page.goto(`${baseURL}/rule-execution?activityId=${activity.activityId}`, { waitUntil: 'networkidle' })
+  await expect(page.getByText('候选清单: 1 个 SKU')).toBeVisible()
+
+  const simulationResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return /\/api\/rule-sets\/[^/]+\/simulations$/.test(url.pathname) && response.request().method() === 'POST'
+  })
+  await page.getByRole('button', { name: /运行检查/ }).first().click()
+  const simulationHttpResponse = await simulationResponse
+  const simulationRequestBody = simulationHttpResponse.request().postDataJSON()
+  const simulationEnvelope = await simulationHttpResponse.json()
+
+  expect(simulationEnvelope.code).toBe('OK')
+  expect(simulationRequestBody.skuProfileIds).toEqual([candidateSkuProfileId])
+  expect(simulationRequestBody.skuProfileIds).not.toContain(otherSkuProfileId)
+  expect(simulationEnvelope.data.results.map((item) => item.skuProfileId)).toEqual([candidateSkuProfileId])
+  await expect(page).toHaveURL(new RegExp(`activityId=${activity.activityId}`))
+  await expect(page.getByText(/运行检查已完成/)).toBeVisible()
+})
+
 test('overview page filters SKU rows and exports the filtered result through real APIs', async ({ page }) => {
   const stamp = Date.now()
   const externalSkuId = `pw_overview_blocked_${stamp}`

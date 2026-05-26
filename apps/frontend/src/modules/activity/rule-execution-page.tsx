@@ -113,8 +113,9 @@ export function RuleExecutionPage() {
           sourceText: sourceText.trim(),
         }),
       })
-      const skuPage = await fetchActivityApi<DashboardSkuPageDto>('/api/skus?page=1&pageSize=8')
-      const skuProfileIds = skuPage.items.map((item) => item.skuProfileId)
+      const skuProfileIds = candidateSkuProfileIds.length
+        ? candidateSkuProfileIds
+        : (await fetchActivityApi<DashboardSkuPageDto>('/api/skus?page=1&pageSize=8')).items.map((item) => item.skuProfileId)
       if (!skuProfileIds.length) throw new Error('没有可模拟的 SKU 数据')
       const run = await fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${encodeURIComponent(parsedRuleSet.ruleSetId)}/simulations`, {
         method: 'POST',
@@ -122,7 +123,7 @@ export function RuleExecutionPage() {
       })
       setRuleSet(parsedRuleSet)
       setSimulationRun(run)
-      syncRuleExecutionUrl(parsedRuleSet.ruleSetId, run.simulationRunId)
+      syncRuleExecutionUrl(parsedRuleSet.ruleSetId, run.simulationRunId, activityId ?? undefined)
       setMessage(`运行检查已完成：${run.simulationRunId}，模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((item) => item.eligibility === 'BLOCKED').length} 个。`)
       setActionLink({ href: runConsoleHref(run.workflowRunId ?? run.simulationRunId), label: '查看模拟 Run' })
     } catch (error) {
