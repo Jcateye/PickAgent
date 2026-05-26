@@ -694,12 +694,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getConnectorRunDetail', inputJson),
     }),
     createConnector: tool({
-      description: '创建真实数据源连接器。需要 name，可选 code、connectorKind=platform_api/browser_extension/report_import、platform、status、config。',
+      description: '创建真实数据源连接器。需要 name，可选 code、connectorKind=platform_api/browser_extension/report_import、platform、status、config；在数据源页面可使用 workbench context 的 connectorFormDraft 作为当前创建表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createConnector', inputJson),
     }),
     updateConnector: tool({
-      description: '更新真实数据源连接器配置。需要 connectorId，可修改 name、platform、status、config。',
+      description: '更新真实数据源连接器配置。需要 connectorId，可修改 name、platform、status、config；在数据源页面可使用 workbench context 的 connectorFormDraft 作为当前编辑表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateConnector', inputJson),
     }),

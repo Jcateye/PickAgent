@@ -263,9 +263,24 @@ export function DataSourcesPage() {
       entityId: detail?.connectorId ?? selectedConnector ?? 'data-sources',
       label: detail?.name ?? connectors.find((item) => item.connectorId === selectedConnector)?.name ?? '数据源连接器',
     },
-    visibleFilters: { selectedConnector, panelTab, connectorFormMode: connectorForm?.mode ?? null },
+    visibleFilters: {
+      selectedConnector,
+      panelTab,
+      connectorFormMode: connectorForm?.mode ?? null,
+      connectorFormDraft: connectorForm
+        ? {
+          mode: connectorForm.mode,
+          code: connectorForm.mode === 'create' ? connectorForm.code : undefined,
+          name: connectorForm.name,
+          kind: connectorForm.mode === 'create' ? connectorForm.kind : detail?.kind,
+          platform: connectorForm.platform,
+          status: connectorForm.status,
+          configText: connectorForm.configText,
+        }
+        : null,
+    },
     visibleColumns: ['connectorId', 'name', 'kind', 'status', 'latestRun', 'qualityScore'],
-  }), [connectorForm?.mode, connectors, detail?.connectorId, detail?.name, panelTab, selectedConnector])
+  }), [connectorForm, connectors, detail?.connectorId, detail?.kind, detail?.name, panelTab, selectedConnector])
 
   return (
     <>
