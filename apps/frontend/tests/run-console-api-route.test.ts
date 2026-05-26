@@ -124,3 +124,51 @@ test('run console links settings audits back to settings workbench', async () =>
   assert.equal(workspaceRun?.sourceHref, '/settings')
   assert.equal(userRun?.sourceHref, '/settings')
 })
+
+test('run console exposes workflow audit input and output as structured payloads', async () => {
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T14:00:00.000Z',
+    rows: [{
+      platform: 'tmall',
+      storeId: 'run_console_candidate_store',
+      externalSkuId: `run_console_candidate_${Date.now()}`,
+      productName: 'Run Console 候选清单 SKU',
+      stock: 55,
+      positiveRate: 0.98,
+      raw: {},
+    }],
+  }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_candidate_ingest',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+  const activity = await finalApiRuntime.activityService.create({ name: `Run Console Candidate ${Date.now()}`, platform: 'tmall' }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_candidate_activity',
+  })
+  const candidate = await finalApiRuntime.activityService.addCandidateSkus(activity.activityId, [skuProfileId], {
+    reasonCode: 'run-console-test',
+    comment: 'verify payload',
+  }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_candidate_add',
+  })
+
+  const response = await listRuns(new Request('http://localhost/api/run-console?pageSize=100', { headers: authHeaders }))
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  const run = envelope.data.items.find((item: { runId: string }) => item.runId === candidate.workflowRunId)
+  assert.equal(run?.type, 'activity_candidate_skus')
+  assert.equal(run?.sourceHref, `/rule-execution?activityId=${activity.activityId}`)
+  assert.deepEqual(run?.logs[0]?.payload.skuProfileIds, [skuProfileId])
+  assert.deepEqual(run?.logs[1]?.payload.addedSkuProfileIds, [skuProfileId])
+})

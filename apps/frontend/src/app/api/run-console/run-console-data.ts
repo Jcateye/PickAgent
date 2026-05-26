@@ -104,8 +104,8 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
     completedAt: audit.createdAt,
     summary: `${audit.workflowType} -> ${audit.subjectType ?? 'workflow'}`,
     logs: [
-      { time: audit.createdAt, tag: 'Workflow', message: `输入：${JSON.stringify(audit.input).slice(0, 240)}` },
-      { time: audit.createdAt, tag: 'Workflow', message: `输出：${JSON.stringify(audit.output).slice(0, 240)}` },
+      { time: audit.createdAt, tag: 'Workflow', message: `输入：${JSON.stringify(audit.input).slice(0, 240)}`, payload: audit.input },
+      { time: audit.createdAt, tag: 'Workflow', message: `输出：${JSON.stringify(audit.output).slice(0, 240)}`, payload: audit.output },
     ],
   })))
 
