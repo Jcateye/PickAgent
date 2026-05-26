@@ -68,14 +68,9 @@ test('run console page restores a real workflow run, exports logs, switches tabs
   await expect(page.getByText(new RegExp(`已导出 Run 日志：${escapeRegExp(runId)}`))).toBeVisible()
   await expect(page.getByRole('link', { name: '查看 Raw Logs' })).toHaveAttribute('href', `/run-console?runId=${runId}&tab=raw`)
 
-  const retryRequests = []
-  await page.route(`**/api/run-console/${runId}/retry`, async (route) => {
-    retryRequests.push(route.request().url())
-    await route.continue()
-  })
-  await page.getByRole('button', { name: /重试失败项/ }).click()
-  expect(retryRequests).toHaveLength(0)
-  await expect(page.getByText('当前 Run 状态为 SUCCEEDED，不需要重试。')).toBeVisible()
+  const retryButton = page.getByRole('button', { name: /重试失败项/ })
+  await expect(retryButton).toBeDisabled()
+  await expect(retryButton).toHaveAttribute('title', '当前 Run 状态为 SUCCEEDED，不需要重试。')
 })
 
 function escapeRegExp(value) {

@@ -17,6 +17,8 @@ interface RunConsoleItemDto {
   startedAt?: string
   completedAt?: string
   summary: string
+  retryable: boolean
+  retryDisabledReason?: string
   logs: Array<{ time?: string; tag: string; message: string; payload?: unknown }>
 }
 
@@ -122,6 +124,10 @@ export function RunConsolePage() {
       setMessage(`当前 Run 状态为 ${selectedRun.status}，不需要重试。`)
       return
     }
+    if (!selectedRun.retryable) {
+      setMessage(selectedRun.retryDisabledReason ?? `当前 ${selectedRun.type} 运行暂不支持自动重试。`)
+      return
+    }
     setBusy('retry')
     setActionLink(null)
     try {
@@ -178,7 +184,7 @@ export function RunConsolePage() {
             ) : null}
           </div>
           <div className={styles.headerActions}>
-            <button className="secondaryButton" type="button" onClick={() => void retryRun()} disabled={!selectedRun || busy === 'retry'} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
+            <button className="secondaryButton" type="button" onClick={() => void retryRun()} disabled={!selectedRun || !selectedRun.retryable || busy === 'retry'} title={selectedRun?.retryDisabledReason ?? '重试失败项'} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
             <button className="secondaryButton" type="button" onClick={() => void exportLogs()} disabled={!selectedRun || busy === 'export'} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
             <a className="iconButton" href={selectedRun?.sourceHref ?? '/agent-mission'} aria-label="打开来源对象" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>

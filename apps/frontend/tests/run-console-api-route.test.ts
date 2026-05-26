@@ -258,3 +258,40 @@ test('run console retry route replays failed sku export audits as real workflow 
   assert.equal(retried?.status, 'SUCCEEDED')
   assert.equal(retried?.output.rowCount, 1)
 })
+
+test('run console marks unsafe workflow audits as not retryable', async () => {
+  const failedRunId = `workflow_failed_review_update_${Date.now()}`
+  finalApiRuntime.store.workflowAudits.set(failedRunId, {
+    workflowRunId: failedRunId,
+    workflowType: 'review_update',
+    status: 'FAILED',
+    subjectType: 'review_item',
+    subjectId: 'review_item_failed_retry_guard',
+    input: {
+      actorId: authHeaders['x-p0-actor-id'],
+      tenantId: authHeaders['x-p0-tenant-id'],
+      sessionId: authHeaders['x-p0-session-id'],
+      surface: authHeaders['x-p0-surface'],
+      recommendation: 'do not replay blindly',
+    },
+    output: { error: 'forced failure for unsafe retry guard' },
+    createdAt: new Date().toISOString(),
+  })
+  finalApiRuntime.store.tenantByEntityId.set(failedRunId, authHeaders['x-p0-tenant-id'])
+
+  const listResponse = await listRuns(new Request('http://localhost/api/run-console?pageSize=100', { headers: authHeaders }))
+  const listEnvelope = await listResponse.json()
+  assert.equal(listResponse.status, 200)
+  const run = listEnvelope.data.items.find((item: { runId: string }) => item.runId === failedRunId)
+  assert.equal(run?.retryable, false)
+  assert.match(run?.retryDisabledReason, /不可安全重放/)
+
+  const retryResponse = await retryRun(
+    new Request(`http://localhost/api/run-console/${failedRunId}/retry`, { method: 'POST', headers: authHeaders }),
+    { params: Promise.resolve({ runId: failedRunId }) },
+  )
+  const retryEnvelope = await retryResponse.json()
+  assert.equal(retryResponse.status, 409)
+  assert.equal(retryEnvelope.code, 'RUN.NOT_RETRYABLE')
+  assert.match(retryEnvelope.message, /不可安全重放/)
+})

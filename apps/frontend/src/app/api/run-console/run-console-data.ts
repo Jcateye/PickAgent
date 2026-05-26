@@ -12,6 +12,8 @@ export interface RunConsoleItemDto {
   startedAt?: string
   completedAt?: string
   summary: string
+  retryable: boolean
+  retryDisabledReason?: string
   logs: Array<{ time?: string; tag: string; message: string; payload?: unknown }>
 }
 
@@ -36,7 +38,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
   const connectors = await finalApiRuntime.connectorService.list(1, 20, boundary)
   for (const connector of connectors.items) {
     const connectorRuns = await finalApiRuntime.connectorService.listRuns(connector.connectorId, 1, 5, boundary)
-    runs.push(...connectorRuns.items.map((run) => ({
+    runs.push(...connectorRuns.items.map((run) => withRetryability({
       runId: run.connectorRunId,
       type: 'connector_sync',
       status: run.status,
@@ -56,7 +58,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
   const missions = finalAgentRuntime.agentService.listMissions({ page: 1, pageSize: 20 })
   for (const mission of missions.items) {
     const detail = finalAgentRuntime.agentService.getMission(mission.missionId)
-    runs.push(...detail.runs.map((run) => ({
+    runs.push(...detail.runs.map((run) => withRetryability({
       runId: run.runId,
       type: 'agent_run',
       status: run.status,
@@ -76,7 +78,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
   }
 
   const simulationRuns = await finalApiRuntime.activityService.listRecentSimulationRuns(boundary, 20)
-  runs.push(...simulationRuns.map((run) => ({
+  runs.push(...simulationRuns.map((run) => withRetryability({
     runId: run.simulationRunId,
     type: 'activity_simulation',
     status: run.status,
@@ -93,7 +95,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
   })))
 
   const workflowAudits = await finalApiRuntime.workflowAuditService.list(boundary, limit)
-  runs.push(...workflowAudits.map((audit) => ({
+  runs.push(...workflowAudits.map((audit) => withRetryability({
     runId: audit.workflowRunId,
     type: audit.workflowType,
     status: audit.status,
@@ -111,6 +113,41 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
 
   const sorted = runs.sort((left, right) => Date.parse(right.startedAt ?? right.completedAt ?? '') - Date.parse(left.startedAt ?? left.completedAt ?? ''))
   return { items: sorted.slice(0, limit), total: sorted.length, page: 1, pageSize: limit }
+}
+
+const retryableRunConsoleTypes = new Set([
+  'connector_sync',
+  'agent_run',
+  'activity_simulation',
+  'sku_export',
+  'report_generate',
+  'report_export',
+  'rule_set_version_create',
+  'rule_set_status_update',
+  'activity_candidate_skus',
+])
+
+export function isRetryableRunConsoleType(type: string): boolean {
+  return retryableRunConsoleTypes.has(type)
+}
+
+export function runConsoleRetryDisabledReason(run: Pick<RunConsoleItemDto, 'type' | 'status'>): string | undefined {
+  if (!isFailedRunConsoleStatus(run.status)) return `当前 Run 状态为 ${run.status}，不需要重试。`
+  if (!isRetryableRunConsoleType(run.type)) return `当前 ${run.type} 运行存在不可安全重放的副作用，请回到来源对象重新执行。`
+  return undefined
+}
+
+function withRetryability(run: Omit<RunConsoleItemDto, 'retryable' | 'retryDisabledReason'>): RunConsoleItemDto {
+  const retryDisabledReason = runConsoleRetryDisabledReason(run)
+  return {
+    ...run,
+    retryable: !retryDisabledReason,
+    retryDisabledReason,
+  }
+}
+
+function isFailedRunConsoleStatus(status: string): boolean {
+  return ['FAILED', 'ERROR', 'CANCELED'].includes(status.toUpperCase())
 }
 
 function workflowAuditSourceHref(audit: { workflowType: string; subjectType?: string; subjectId?: string; output?: Record<string, unknown> }): string | undefined {

@@ -1,6 +1,6 @@
 import { authContextFromRequest, authFail, fail, finalAgentRuntime, finalApiRuntime, ok } from '../../../_final-api-runtime'
 import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
-import { buildRunConsolePage, type RunConsoleItemDto } from '../../run-console-data'
+import { buildRunConsolePage, runConsoleRetryDisabledReason, type RunConsoleItemDto } from '../../run-console-data'
 
 interface RouteContext {
   params: Promise<{ runId: string }>
@@ -21,7 +21,8 @@ export async function POST(request: Request, context: RouteContext) {
     const page = await buildRunConsolePage(boundary, 200)
     const run = page.items.find((item) => item.runId === runId)
     if (!run) return fail('RUN.NOT_FOUND', `Run not found: ${runId}`, 404, { runId }, requestId)
-    if (!isFailed(run.status)) return fail('RUN.NOT_RETRYABLE', `当前 Run 状态为 ${run.status}，不需要重试。`, 409, { runId, status: run.status }, requestId)
+    const retryDisabledReason = runConsoleRetryDisabledReason(run)
+    if (retryDisabledReason) return fail('RUN.NOT_RETRYABLE', retryDisabledReason, 409, { runId, status: run.status, type: run.type }, requestId)
     return ok(await retryRun(run, boundary), requestId)
   } catch (error) {
     if (error instanceof P0AuthBoundaryError) return authFail(error)
@@ -121,10 +122,6 @@ function simulationSkuProfileIds(run: RunConsoleItemDto): string[] {
   const resultPayload = run.logs.find((log) => isRecord(log.payload) && Array.isArray((log.payload as Record<string, unknown>).results))?.payload
   if (!isRecord(resultPayload) || !Array.isArray(resultPayload.results)) return []
   return resultPayload.results.flatMap((item) => isRecord(item) && typeof item.skuProfileId === 'string' ? [item.skuProfileId] : [])
-}
-
-function isFailed(status: string): boolean {
-  return ['FAILED', 'ERROR', 'CANCELED'].includes(status.toUpperCase())
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
