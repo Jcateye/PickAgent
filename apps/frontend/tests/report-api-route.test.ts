@@ -96,11 +96,13 @@ test('report create route records generation audit for run console', async () =>
   )
   const envelope = await response.json()
   assert.equal(response.status, 200)
+  assert.match(envelope.data.workflowRunId, /^workflow_/)
 
   const newAudits = Array.from(finalApiRuntime.store.workflowAudits.entries())
     .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
     .map(([, audit]) => audit)
   assert.ok(newAudits.some((audit) => audit.workflowType === 'report_generate' && audit.subjectId === envelope.data.reportId && audit.input.actorId === 'report_route_tester'))
+  assert.ok(newAudits.some((audit) => audit.workflowRunId === envelope.data.workflowRunId && audit.subjectId === envelope.data.reportId))
 })
 
 test('report write routes reject invalid export and subscription values before persistence', async () => {

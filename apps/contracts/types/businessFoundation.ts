@@ -365,6 +365,7 @@ export interface ReportPreviewDto {
   type: ReportType;
   status: "PREVIEW";
   title: string;
+  workflowRunId?: string;
   sections: Array<{ id: string; title: string; summary: string; evidence: EvidenceLinkDto[] }>;
   evidenceSummary: EvidenceLinkDto[];
 }

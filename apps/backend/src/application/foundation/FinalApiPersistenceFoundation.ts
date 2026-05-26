@@ -938,7 +938,7 @@ export class ReportRepository {
     return detail;
   }
 
-  recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): void | Promise<void> {
+  recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): string | Promise<string> {
     const audit: WorkflowAuditRecord = {
       workflowRunId: nextId("workflow"),
       workflowType: "report_generate",
@@ -962,6 +962,7 @@ export class ReportRepository {
     };
     this.store.workflowAudits.set(audit.workflowRunId, audit);
     this.store.tenantByEntityId.set(audit.workflowRunId, boundary.tenantId);
+    return audit.workflowRunId;
   }
 
   list(boundary: P0AuthContextDto): ReportDetailDto[] | Promise<ReportDetailDto[]> {
@@ -2092,10 +2093,11 @@ export class PrismaReportRepository extends ReportRepository {
     return detail;
   }
 
-  async recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): Promise<void> {
+  async recordGeneration(boundary: P0AuthContextDto, input: ReportRequestDto, report: ReportPreviewDto): Promise<string> {
+    const workflowRunId = nextUuid();
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "report_generate",
         status: "SUCCEEDED",
         subjectType: "report",
@@ -2117,6 +2119,7 @@ export class PrismaReportRepository extends ReportRepository {
         completedAt: new Date(),
       },
     });
+    return workflowRunId;
   }
 
   async list(_boundary: P0AuthContextDto): Promise<ReportDetailDto[]> {
@@ -2680,7 +2683,7 @@ export class FinalReportService {
     };
     await this.repository.save(boundary, report);
     await this.repository.saveDetail(boundary, toReportDetail(report, details, simulations, []));
-    await this.repository.recordGeneration(boundary, input, report);
+    report.workflowRunId = await this.repository.recordGeneration(boundary, input, report);
     return report;
   }
 

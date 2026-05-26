@@ -280,8 +280,8 @@ export function SkuAccessPage() {
       })
       setMessage(`已生成健康报告：${report.reportId}`)
       setActionLink({
-        href: reportCenterHref(report.reportId),
-        label: '查看健康报告',
+        href: report.workflowRunId ? runConsoleHref(report.workflowRunId) : reportCenterHref(report.reportId),
+        label: report.workflowRunId ? '查看生成 Run' : '查看健康报告',
       })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '生成健康报告失败')

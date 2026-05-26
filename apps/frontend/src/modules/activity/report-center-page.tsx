@@ -223,6 +223,7 @@ export function ReportCenterPage() {
       })
       setMessage(`已基于当前 SKU 数据生成健康报告：${report.reportId}`)
       setActionLink({ href: reportCenterHref(report.reportId, null, 'SUMMARY'), label: '查看新报告' })
+      setSecondaryActionLink(report.workflowRunId ? { href: runConsoleHref(report.workflowRunId), label: '查看生成 Run' } : null)
       await loadReports(report.reportId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '生成报告失败')
