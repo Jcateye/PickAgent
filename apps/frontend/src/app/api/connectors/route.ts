@@ -7,7 +7,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     return ok(await finalApiRuntime.connectorService.list(parsePositiveInt(url.searchParams.get('page'), 1), parsePositiveInt(url.searchParams.get('pageSize'), 20), boundary))
   } catch (error) {
-    return authFail(error)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector list failed', 400)
   }
 }
 

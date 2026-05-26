@@ -6,6 +6,7 @@ import { GET as getConnector, DELETE as disableConnector, PATCH as updateConnect
 import { GET as listConnectorRuns, POST as createConnectorRun } from '../src/app/api/connectors/[connectorId]/sync-runs/route'
 import { GET as getConnectorRun } from '../src/app/api/connector-runs/[connectorRunId]/route'
 import { POST as ingestBrowserScan } from '../src/app/api/connectors/browser/scan-ingest/route'
+import { POST as previewBrowserScan } from '../src/app/api/connectors/browser/scan-preview/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
@@ -25,6 +26,49 @@ const otherTenantHeaders = {
   'x-p0-surface': 'route-test',
   'x-request-id': 'connector_route_other_request',
 }
+
+test('connector routes return stable auth envelopes when P0 context is missing', async () => {
+  const connectorId = 'missing_auth_connector'
+  const connectorRunId = 'missing_auth_connector_run'
+
+  const responses = await Promise.all([
+    createConnector(new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Connector', kind: 'platform_api' }),
+    })),
+    getConnector(new Request(`http://localhost/api/connectors/${connectorId}`), { params: Promise.resolve({ connectorId }) }),
+    updateConnector(new Request(`http://localhost/api/connectors/${connectorId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Rename' }),
+    }), { params: Promise.resolve({ connectorId }) }),
+    disableConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { method: 'DELETE' }), { params: Promise.resolve({ connectorId }) }),
+    listConnectorRuns(new Request(`http://localhost/api/connectors/${connectorId}/sync-runs`), { params: Promise.resolve({ connectorId }) }),
+    createConnectorRun(new Request(`http://localhost/api/connectors/${connectorId}/sync-runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rowCount: 10 }),
+    }), { params: Promise.resolve({ connectorId }) }),
+    getConnectorRun(new Request(`http://localhost/api/connector-runs/${connectorRunId}`), { params: Promise.resolve({ connectorRunId }) }),
+    previewBrowserScan(new Request('http://localhost/api/connectors/browser/scan-preview', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://tmall.example.test/sku-list', rows: [] }),
+    })),
+    ingestBrowserScan(new Request('http://localhost/api/connectors/browser/scan-ingest', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://tmall.example.test/sku-list', rows: [] }),
+    })),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
 
 test('connector write and run routes return not found for missing connector', async () => {
   const params = { params: Promise.resolve({ connectorId: 'missing_connector' }) }

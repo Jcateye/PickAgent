@@ -1,3 +1,4 @@
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
 
 export async function POST(request: Request) {
@@ -7,6 +8,7 @@ export async function POST(request: Request) {
     if (!payload?.url || !Array.isArray(payload.rows)) return fail('COMMON.VALIDATION_ERROR', 'url and rows are required', 400)
     return ok(finalApiRuntime.browserConnectorService.scanPreview(payload))
   } catch (error) {
-    return authFail(error)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Browser scan preview failed', 400)
   }
 }

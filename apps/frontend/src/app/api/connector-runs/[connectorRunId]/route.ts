@@ -1,3 +1,4 @@
+import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 interface RouteContext {
@@ -12,6 +13,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (!run) return fail('CONNECTOR_RUN.NOT_FOUND', 'ConnectorRun 不存在', 404, { connectorRunId })
     return ok(run)
   } catch (error) {
-    return authFail(error)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'ConnectorRun detail failed', 400)
   }
 }

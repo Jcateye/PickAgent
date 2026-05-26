@@ -17,7 +17,8 @@ export async function GET(request: Request, context: RouteContext) {
       throw error
     }
   } catch (error) {
-    return authFail(error)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector sync runs failed', 400)
   }
 }
 

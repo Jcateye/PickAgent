@@ -13,7 +13,8 @@ export async function GET(request: Request, context: RouteContext) {
     if (!connector) return fail('CONNECTOR.NOT_FOUND', 'Connector 不存在', 404, { connectorId })
     return ok(connector)
   } catch (error) {
-    return authFail(error)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Connector detail failed', 400)
   }
 }
 
