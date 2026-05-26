@@ -215,7 +215,7 @@ export function RuleLibraryPage() {
               <Search size={14} color="var(--muted)" />
               <input type="text" placeholder="搜索规则集名称..." value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
             </div>
-            <button className={styles.btnAdd} type="button" onClick={() => void createRuleSet()} disabled={!!busy}><Plus size={16} /></button>
+            <button className={styles.btnAdd} type="button" aria-label="创建规则集" onClick={() => void createRuleSet()} disabled={!!busy}><Plus size={16} /></button>
           </div>
           <div className={styles.tabs}>
             <button className={`${styles.tab} ${statusFilter === 'ALL' ? styles.active : ''}`} type="button" onClick={() => { setStatusFilter('ALL'); setPage(1) }}>所有 ({ruleCount})</button>
