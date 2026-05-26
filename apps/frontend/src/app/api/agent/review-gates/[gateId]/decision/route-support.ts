@@ -11,20 +11,21 @@ interface RouteContext {
 
 export async function POST(request: Request, context: RouteContext) {
   const { gateId } = await context.params
-  const payload = (await request.json().catch(() => null)) as { decision?: 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'; decidedBy?: string; decisionComment?: string } | null
+  const payload = (await request.json().catch(() => null)) as { decision?: string; decidedBy?: string; decisionComment?: string } | null
   if (!payload?.decision || !payload.decidedBy) return fail('COMMON.VALIDATION_ERROR', 'decision and decidedBy are required', 400)
+  const decision = normalizeReviewGateDecision(payload.decision)
   try {
     const repository = isUuid(gateId) ? createConversationRepository() : null
     if (repository) {
       try {
-        const decision = await repository.decideReviewGate(gateId, { decision: payload.decision, decidedBy: payload.decidedBy, decisionComment: payload.decisionComment })
-        return ok(await executeApprovedChatReviewGateTool(repository, decision))
+        const gateDecision = await repository.decideReviewGate(gateId, { decision, decidedBy: payload.decidedBy, decisionComment: payload.decisionComment })
+        return ok(await executeApprovedChatReviewGateTool(repository, gateDecision))
       } catch (error) {
         const message = error instanceof Error ? error.message : ''
         if (!message.includes('Agent review gate not found')) throw error
       }
     }
-    return ok(finalAgentRuntime.agentService.decideReviewGate(gateId, { decision: payload.decision, decidedBy: payload.decidedBy, decisionComment: payload.decisionComment }))
+    return ok(finalAgentRuntime.agentService.decideReviewGate(gateId, { decision, decidedBy: payload.decidedBy, decisionComment: payload.decisionComment }))
   } catch (error) {
     if (error instanceof Error && error.message.includes('Agent review gate not found')) {
       return fail('AGENT_REVIEW_GATE.NOT_FOUND', error.message, 404, { gateId })
@@ -50,4 +51,10 @@ function createConversationRepository() {
   } catch {
     return undefined
   }
+}
+
+function normalizeReviewGateDecision(value: string): 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES' {
+  if (value === 'REJECT') return 'REJECT'
+  if (value === 'REQUEST_CHANGES' || value === 'MODIFIED' || value === 'CHANGES_REQUESTED') return 'REQUEST_CHANGES'
+  return 'APPROVE'
 }

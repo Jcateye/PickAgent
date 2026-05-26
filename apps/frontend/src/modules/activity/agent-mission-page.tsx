@@ -13,6 +13,7 @@ type MissionStatus = 'DRAFT' | 'ACTIVE' | 'PLANNING' | 'RUNNING' | 'WAITING_FOR_
 type RunStatus = 'IDLE' | 'QUEUED' | 'PREPARING_CONTEXT' | 'RUNNING' | 'STREAMING' | 'CALLING_TOOL' | 'PAUSED' | 'TIMEOUT' | 'FAILED' | 'DONE' | 'CANCELED' | 'WAITING_REVIEW' | 'SUCCEEDED'
 type ToolStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'BLOCKED_BY_POLICY' | 'REVIEW_REQUIRED' | 'WAITING_FOR_APPROVAL'
 type GateStatus = 'NOT_REQUIRED' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'MODIFIED' | 'CANCELED'
+type GateDecision = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'
 
 interface MissionListResponse {
   items: MissionListItem[]
@@ -141,7 +142,7 @@ export function AgentMissionPage() {
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null)
   const [objective, setObjective] = useState(defaultObjective)
   const [loading, setLoading] = useState(true)
-  const [actionBusy, setActionBusy] = useState<'approve' | 'pause' | 'cancel' | null>(null)
+  const [actionBusy, setActionBusy] = useState<'approve' | 'modify' | 'reject' | 'pause' | 'cancel' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
@@ -304,18 +305,19 @@ export function AgentMissionPage() {
     }
   }
 
-  async function approvePendingGates() {
+  async function decidePendingGates(decision: GateDecision) {
     const pendingGates = gates.filter((gate) => gate.status === 'PENDING')
     if (!pendingGates.length) return
-    setActionBusy('approve')
+    const decisionMeta = gateDecisionMeta(decision)
+    setActionBusy(decisionMeta.busy)
     setError(null)
     setMessage(null)
     setActionLink(null)
     try {
       const decisions = await Promise.all(pendingGates.map((gate) => apiPost<GateDecisionResponse>(`/api/agent/review-gates/${encodeURIComponent(gate.gateId)}/decision`, {
-        decision: 'APPROVE',
+        decision,
         decidedBy: 'agent-mission-console',
-        decisionComment: '从 Agent Mission 控制台批准继续。',
+        decisionComment: decisionMeta.comment,
       })))
       const continuationRunId = decisions.map((decision) => runIdFromAgentRun(decision.continuationRun ?? null)).find(Boolean) ?? runId
       if (continuationRunId) {
@@ -325,10 +327,10 @@ export function AgentMissionPage() {
       }
       await loadMissionConsole()
       if (continuationRunId) setRunId(continuationRunId)
-      setMessage(`已批准 ${pendingGates.length} 个 Review Gate${continuationRunId ? `，继续 Run ${continuationRunId}` : ''}`)
-      setActionLink(continuationRunId ? { href: runConsoleHref(continuationRunId), label: '查看继续 Run' } : { href: '/review-approvals', label: '查看审批台' })
+      setMessage(`已${decisionMeta.doneLabel} ${pendingGates.length} 个 Review Gate${continuationRunId ? `，继续 Run ${continuationRunId}` : ''}`)
+      setActionLink(continuationRunId ? { href: runConsoleHref(continuationRunId), label: decision === 'APPROVE' ? '查看继续 Run' : '查看决策 Run' } : { href: '/review-approvals', label: '查看审批台' })
     } catch (approveError) {
-      setError(approveError instanceof Error ? approveError.message : 'Review Gate 批准失败')
+      setError(approveError instanceof Error ? approveError.message : `Review Gate ${decisionMeta.doneLabel}失败`)
     } finally {
       setActionBusy(null)
     }
@@ -559,9 +561,11 @@ export function AgentMissionPage() {
           </section>
 
           <div className={styles.monitorActions}>
-            <button className="primaryButton" type="button" onClick={() => void approvePendingGates()} disabled={actionBusy === 'approve' || !gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
-            <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={actionBusy === 'pause' || !runId || runIsTerminal}>暂停任务</button>
-            <button className="secondaryButton" type="button" onClick={() => void cancelCurrentRun()} disabled={actionBusy === 'cancel' || !runId || runIsTerminal}>取消任务</button>
+            <button className="primaryButton" type="button" onClick={() => void decidePendingGates('APPROVE')} disabled={!!actionBusy || !gates.some((gate) => gate.status === 'PENDING')}>批准任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void decidePendingGates('REQUEST_CHANGES')} disabled={!!actionBusy || !gates.some((gate) => gate.status === 'PENDING')}>要求修改</button>
+            <button className="secondaryButton" type="button" onClick={() => void decidePendingGates('REJECT')} disabled={!!actionBusy || !gates.some((gate) => gate.status === 'PENDING')}>驳回任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void pauseCurrentRun()} disabled={!!actionBusy || !runId || runIsTerminal}>暂停任务</button>
+            <button className="secondaryButton" type="button" onClick={() => void cancelCurrentRun()} disabled={!!actionBusy || !runId || runIsTerminal}>取消任务</button>
           </div>
         </aside>
       </main>
@@ -618,6 +622,28 @@ function agentMissionHref(missionId: string, runId?: string | null): string {
   const params = new URLSearchParams({ missionId })
   if (runId) params.set('runId', runId)
   return `/agent-mission?${params.toString()}`
+}
+
+function gateDecisionMeta(decision: GateDecision): { busy: 'approve' | 'modify' | 'reject'; comment: string; doneLabel: string } {
+  if (decision === 'REJECT') {
+    return {
+      busy: 'reject',
+      comment: '从 Agent Mission 控制台驳回当前 Review Gate。',
+      doneLabel: '驳回',
+    }
+  }
+  if (decision === 'REQUEST_CHANGES') {
+    return {
+      busy: 'modify',
+      comment: '从 Agent Mission 控制台要求修改后再继续。',
+      doneLabel: '要求修改',
+    }
+  }
+  return {
+    busy: 'approve',
+    comment: '从 Agent Mission 控制台批准继续。',
+    doneLabel: '批准',
+  }
 }
 
 async function apiGet<T>(url: string): Promise<T> {

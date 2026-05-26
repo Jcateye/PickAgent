@@ -9,6 +9,7 @@ import { GET as getRunEvents } from '../src/app/api/agent/runs/[runId]/events/ro
 import { POST as pauseRun } from '../src/app/api/agent/runs/[runId]/pause/route'
 import { POST as answerQuestion } from '../src/app/api/agent/runs/[runId]/questions/route'
 import { GET as getRun } from '../src/app/api/agent/runs/[runId]/route'
+import { finalAgentRuntime } from '../src/app/api/_final-api-runtime'
 
 const jsonHeaders = { 'content-type': 'application/json' }
 
@@ -82,4 +83,41 @@ test('agent review gate route returns stable not found code for missing gate', a
 
   assert.equal(response.status, 404)
   assert.equal(envelope.code, 'AGENT_REVIEW_GATE.NOT_FOUND')
+})
+
+test('agent review gate route accepts modified aliases as request changes', async () => {
+  const mission = finalAgentRuntime.agentService.createMission({
+    sessionKey: `agent-control-route-${Date.now()}`,
+    objective: '验证 Agent Gate 修改决策别名',
+    sourceSurface: 'agent-control-route-test',
+  })
+  const run = finalAgentRuntime.agentService.startRun(mission.mission.id, {
+    inputJson: { source: 'agent-control-route-test' },
+  })
+  const gate = finalAgentRuntime.agentService.createReviewGateForTest({
+    missionId: mission.mission.id,
+    runId: run.id,
+    toolCallId: null,
+    reasonCode: 'agent-control-route-modified',
+    question: '是否要求修改后继续？',
+    agentRecommendation: '建议修改后继续。',
+    riskIfApproved: '会继续执行。',
+    riskIfRejected: '会停留在当前运行。',
+    evidenceRefs: [],
+  })
+
+  const response = await decideGate(
+    new Request(`http://localhost/api/agent/review-gates/${gate.id}/decision`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ decision: 'CHANGES_REQUESTED', decidedBy: 'ops@example.test', decisionComment: '需要修改后再继续' }),
+    }),
+    { params: Promise.resolve({ gateId: gate.id }) },
+  )
+  const envelope = await response.json()
+
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.equal(envelope.data.gate.status, 'MODIFIED')
+  assert.equal(envelope.data.gate.decision, 'REQUEST_CHANGES')
 })
