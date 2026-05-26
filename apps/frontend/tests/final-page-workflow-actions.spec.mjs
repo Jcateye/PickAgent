@@ -256,9 +256,9 @@ test('sku access page creates reviews, updates next actions, exports rows, and g
   await expect(page.getByText(/已生成健康报告/)).toBeVisible()
 })
 
-test('review approvals page approves a real pending review item', async ({ page }) => {
+test('review approvals page edits recommendations and applies approve, reject, and request-changes decisions', async ({ page }) => {
   const stamp = Date.now()
-  const created = await apiPost(page.request, '/api/reviews', {
+  const approveCreated = await apiPost(page.request, '/api/reviews', {
     items: [{
       sourceType: 'agent',
       sourceId: `pw_review_source_${stamp}`,
@@ -268,18 +268,71 @@ test('review approvals page approves a real pending review item', async ({ page 
       evidence: [{ type: 'tool_trace', entityId: `pw_review_source_${stamp}`, label: '页面验收证据', summary: 'Playwright seeded review' }],
     }],
   })
-  const reviewItemId = created[0].reviewItemId
+  const rejectCreated = await apiPost(page.request, '/api/reviews', {
+    items: [{
+      sourceType: 'agent',
+      sourceId: `pw_review_reject_source_${stamp}`,
+      question: `页面驳回验收 ${stamp}`,
+      recommendation: '通过页面驳回按钮验证真实 Review 决策。',
+      riskLevel: 'L1',
+      evidence: [{ type: 'tool_trace', entityId: `pw_review_reject_source_${stamp}`, label: '页面驳回证据', summary: 'Playwright seeded rejected review' }],
+    }],
+  })
+  const modifyCreated = await apiPost(page.request, '/api/reviews', {
+    items: [{
+      sourceType: 'agent',
+      sourceId: `pw_review_modify_source_${stamp}`,
+      question: `页面修改后批准验收 ${stamp}`,
+      recommendation: '通过页面修改后批准按钮验证真实 Review 决策。',
+      riskLevel: 'L2',
+      evidence: [{ type: 'tool_trace', entityId: `pw_review_modify_source_${stamp}`, label: '页面修改证据', summary: 'Playwright seeded modified review' }],
+    }],
+  })
+  const approveReviewItemId = approveCreated[0].reviewItemId
+  const rejectReviewItemId = rejectCreated[0].reviewItemId
+  const modifyReviewItemId = modifyCreated[0].reviewItemId
 
-  await page.goto(`${baseURL}/review-approvals?reviewItemId=${reviewItemId}`, { waitUntil: 'networkidle' })
+  await page.goto(`${baseURL}/review-approvals?reviewItemId=${approveReviewItemId}`, { waitUntil: 'networkidle' })
   await expect(page.getByText(`页面审批验收 ${stamp}`).first()).toBeVisible()
+  await page.locator('textarea').first().fill(`已编辑建议 ${stamp}`)
+  const saveResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reviews/${approveReviewItemId}`) && response.request().method() === 'PATCH')
+  await page.getByRole('button', { name: '保存建议修改' }).click()
+  const saveEnvelope = await (await saveResponse).json()
+  expect(saveEnvelope.code).toBe('OK')
+  expect(saveEnvelope.data.recommendation.content).toBe(`已编辑建议 ${stamp}`)
+  await expect(page.getByText(`已保存 Review 建议：${approveReviewItemId}`)).toBeVisible()
+
   await page.getByPlaceholder('请输入审批备注，便于后续追溯...').fill('页面验收批准')
 
-  const decisionResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reviews/${reviewItemId}/decision`) && response.request().method() === 'POST')
+  const decisionResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reviews/${approveReviewItemId}/decision`) && response.request().method() === 'POST')
   await page.getByRole('button', { name: '批准', exact: true }).click()
   const decisionEnvelope = await (await decisionResponse).json()
   expect(decisionEnvelope.code).toBe('OK')
   expect(decisionEnvelope.data.status).toBe('APPROVED')
-  await expect(page.getByText(new RegExp(`${reviewItemId} 已批准`))).toBeVisible()
+  await expect(page.getByText(new RegExp(`${approveReviewItemId} 已批准`))).toBeVisible()
+
+  await page.goto(`${baseURL}/review-approvals?reviewItemId=${rejectReviewItemId}`, { waitUntil: 'networkidle' })
+  await expect(page.getByText(`页面驳回验收 ${stamp}`).first()).toBeVisible()
+  await page.getByPlaceholder('请输入审批备注，便于后续追溯...').fill('页面验收驳回')
+  const rejectResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reviews/${rejectReviewItemId}/decision`) && response.request().method() === 'POST')
+  await page.getByRole('button', { name: '驳回', exact: true }).click()
+  const rejectEnvelope = await (await rejectResponse).json()
+  expect(rejectEnvelope.code).toBe('OK')
+  expect(rejectEnvelope.data.status).toBe('REJECTED')
+  await expect(page.getByText(new RegExp(`${rejectReviewItemId} 已驳回`))).toBeVisible()
+
+  await page.goto(`${baseURL}/review-approvals?reviewItemId=${modifyReviewItemId}`, { waitUntil: 'networkidle' })
+  await expect(page.getByText(`页面修改后批准验收 ${stamp}`).first()).toBeVisible()
+  await page.getByPlaceholder('请输入审批备注，便于后续追溯...').fill('页面验收修改后批准')
+  const modifyResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reviews/${modifyReviewItemId}/decision`) && response.request().method() === 'POST')
+  await page.getByRole('button', { name: '修改后批准', exact: true }).click()
+  const modifyHttpResponse = await modifyResponse
+  const modifyRequestBody = modifyHttpResponse.request().postDataJSON()
+  const modifyEnvelope = await modifyHttpResponse.json()
+  expect(modifyEnvelope.code).toBe('OK')
+  expect(modifyEnvelope.data.status).toBe('MODIFIED')
+  expect(modifyRequestBody.modifiedPayload.requestedFrom).toBe('review-approvals')
+  await expect(page.getByText(new RegExp(`${modifyReviewItemId} 已修改后批准`))).toBeVisible()
 })
 
 test('report center page exports, subscribes, and compares real reports', async ({ page }) => {
