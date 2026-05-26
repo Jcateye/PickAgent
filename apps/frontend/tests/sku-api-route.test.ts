@@ -25,6 +25,13 @@ const tenantBHeaders = {
   'x-request-id': 'sku_route_request_b',
 }
 
+test('sku list route returns stable auth envelope when P0 context is missing', async () => {
+  const response = await listSkus(new Request('http://localhost/api/skus'))
+  const envelope = await response.json()
+  assert.equal(response.status, 401)
+  assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+})
+
 test('sku detail and next action routes return stable missing and tenant boundary envelopes', async () => {
   const missingResponse = await getSkuDetail(
     new Request('http://localhost/api/skus/missing_sku_for_route', { headers: tenantAHeaders }),
@@ -233,4 +240,11 @@ test('sku export route returns backend csv and workflow audit', async () => {
   assert.equal(downloadResponse.status, 200)
   assert.match(downloadResponse.headers.get('content-disposition') ?? '', /attachment/)
   assert.match(await downloadResponse.text(), new RegExp(ingest.summaries[0].skuProfileId))
+
+  const tenantBDownloadResponse = await downloadSkuExport(new Request(`http://localhost${envelope.data.artifactHref}`, {
+    method: 'GET',
+    headers: tenantBHeaders,
+  }))
+  assert.equal(tenantBDownloadResponse.status, 200)
+  assert.doesNotMatch(await tenantBDownloadResponse.text(), new RegExp(ingest.summaries[0].skuProfileId))
 })
