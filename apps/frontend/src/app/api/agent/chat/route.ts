@@ -523,7 +523,10 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
       }, agentToolAuthContext())
       const evidence = result.results.flatMap((item) => item.evidence)
-      return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, result.simulationRunId) })
+      const simulationEntity = { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, result.simulationRunId) }
+      const ruleSetEntity = { type: 'rule_set', id: ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, simulationEntity)
+      return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, workflowEntity, workflowEntity.type === 'workflow_run' ? [simulationEntity, ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'explainDecisionWithEvidence') {

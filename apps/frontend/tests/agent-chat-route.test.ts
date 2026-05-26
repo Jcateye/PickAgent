@@ -110,10 +110,16 @@ test('agent chat activity simulation links back to restorable rule execution res
 
   const simulated = await executeFinalApiTool('simulateActivityReadiness', { ruleSetId, skuProfileIds: [skuProfileId] })
   assert.equal(simulated.status, 'SUCCEEDED')
-  const simulationRunId = (simulated.result as { simulationRunId: string }).simulationRunId
+  const simulatedResult = simulated.result as { simulationRunId: string; workflowRunId?: string }
+  const simulationRunId = simulatedResult.simulationRunId
   assert.ok(simulationRunId)
-  assert.equal(simulated.linkedEntity?.type, 'simulation_run')
-  assert.equal(linkedEntityHref(simulated.linkedEntity.type, simulated.linkedEntity.id), `/rule-execution?simulationRunId=${simulationRunId}&ruleSetId=${ruleSetId}`)
+  assert.ok(simulatedResult.workflowRunId)
+  assert.equal(simulated.linkedEntity?.type, 'workflow_run')
+  assert.equal(simulated.linkedEntity.id, simulatedResult.workflowRunId)
+  assert.ok(simulated.linkedEntities?.some((entity) => entity.type === 'simulation_run' && entity.id === `${ruleSetId}:${simulationRunId}`))
+  assert.ok(simulated.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(simulated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === simulatedResult.workflowRunId))
+  assert.equal(linkedEntityHref('simulation_run', `${ruleSetId}:${simulationRunId}`), `/rule-execution?simulationRunId=${simulationRunId}&ruleSetId=${ruleSetId}`)
 })
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {
