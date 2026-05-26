@@ -309,14 +309,15 @@ export function SkuAccessPage() {
   }
 
   async function generateHealthReport() {
-    const skuProfileIds = rows.map((item) => item.skuProfileId)
-    if (!skuProfileIds.length) {
-      setMessage('当前筛选结果为空，无法生成报告')
-      return
-    }
     setBusy('report')
     setActionLink(null)
     try {
+      const allFilteredRows = await loadAllFilteredSkuRows()
+      const skuProfileIds = allFilteredRows.map((item) => item.skuProfileId)
+      if (!skuProfileIds.length) {
+        setMessage('当前筛选结果为空，无法生成报告')
+        return
+      }
       const report = await fetchActivityApi<ReportPreviewDto>('/api/reports', {
         method: 'POST',
         body: JSON.stringify({
@@ -343,16 +344,7 @@ export function SkuAccessPage() {
       const exported = await fetchActivityApi<SkuExportDto>('/api/skus/export', {
         method: 'POST',
         body: JSON.stringify({
-          query: {
-            sortBy: 'updatedAt',
-            sortOrder: 'desc',
-            q: query.trim() || undefined,
-            healthStatus: healthStatus === 'ALL' ? undefined : healthStatus,
-            sourceKind: sourceKind === 'ALL' ? undefined : sourceKind,
-            category: category === 'ALL' ? undefined : category,
-            platform: platform === 'ALL' ? undefined : platform,
-            storeId: storeId.trim() || undefined,
-          },
+          query: currentSkuListQuery(),
         }),
       })
       downloadCsv(exported)
@@ -363,6 +355,31 @@ export function SkuAccessPage() {
     } finally {
       setBusy(null)
     }
+  }
+
+  function currentSkuListQuery() {
+    return {
+      sortBy: 'updatedAt' as const,
+      sortOrder: 'desc' as const,
+      q: query.trim() || undefined,
+      healthStatus: healthStatus === 'ALL' ? undefined : healthStatus,
+      sourceKind: sourceKind === 'ALL' ? undefined : sourceKind,
+      category: category === 'ALL' ? undefined : category,
+      platform: platform === 'ALL' ? undefined : platform,
+      storeId: storeId.trim() || undefined,
+    }
+  }
+
+  async function loadAllFilteredSkuRows() {
+    const firstPage = await fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${skuListSearchParams({ ...currentSkuListQuery(), page: 1, pageSize: 100 }).toString()}`)
+    const pageSize = firstPage.pageSize || 100
+    const totalPagesForReport = Math.max(1, Math.ceil(firstPage.total / pageSize))
+    if (totalPagesForReport <= 1) return firstPage.items
+    const restPages = await Promise.all(Array.from({ length: totalPagesForReport - 1 }, (_, index) => {
+      const nextPage = index + 2
+      return fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?${skuListSearchParams({ ...currentSkuListQuery(), page: nextPage, pageSize }).toString()}`)
+    }))
+    return [...firstPage.items, ...restPages.flatMap((item) => item.items)]
   }
 
   function toggleAllRows() {
@@ -515,7 +532,7 @@ export function SkuAccessPage() {
         </table>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', fontSize: '13px', color: 'var(--muted)' }}>
-          <span>共 {stats.total.toLocaleString()} 条</span>
+          <span>共 {(skuPage?.total ?? stats.total).toLocaleString()} 条</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>{skuPage?.pageSize ?? 20} 条/页</span>
             <button className="iconButton" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} style={{ width: '28px', height: '28px' }}><ChevronLeft size={16} /></button>
@@ -798,6 +815,14 @@ function reportCenterHref(reportId: string): string {
 function runConsoleHref(runId: string): string {
   const params = new URLSearchParams({ runId })
   return `/run-console?${params.toString()}`
+}
+
+function skuListSearchParams(query: Record<string, string | number | undefined>): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  }
+  return params
 }
 
 function syncSkuUrl(state: {
