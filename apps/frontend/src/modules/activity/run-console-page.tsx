@@ -40,8 +40,8 @@ const runConsoleTabs: Array<{ value: RunConsoleTab; label: string }> = [
 
 export function RunConsolePage() {
   const [runs, setRuns] = useState<RunConsoleItemDto[]>([])
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<RunConsoleTab>('timeline')
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(() => getInitialRunConsoleParam('runId'))
+  const [activeTab, setActiveTab] = useState<RunConsoleTab>(() => getInitialRunConsoleTab())
   const [message, setMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -49,9 +49,14 @@ export function RunConsolePage() {
   async function loadRuns() {
     setLoading(true)
     try {
-      const page = await fetchActivityApi<RunConsolePageDto>('/api/run-console')
+      const page = await fetchActivityApi<RunConsolePageDto>('/api/run-console?pageSize=100')
       setRuns(page.items)
-      setSelectedRunId((current) => current && page.items.some((item) => item.runId === current) ? current : page.items[0]?.runId ?? null)
+      setSelectedRunId((current) => {
+        const preferredRunId = current ?? getInitialRunConsoleParam('runId')
+        if (preferredRunId && page.items.some((item) => item.runId === preferredRunId)) return preferredRunId
+        if (preferredRunId) setMessage(`未在最近 ${page.items.length} 条运行记录中找到 Run：${preferredRunId}`)
+        return page.items[0]?.runId ?? null
+      })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Run Console 加载失败')
     } finally {
@@ -64,6 +69,10 @@ export function RunConsolePage() {
   }, [])
 
   const selectedRun = useMemo(() => runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null, [runs, selectedRunId])
+
+  useEffect(() => {
+    syncRunConsoleUrl(selectedRun?.runId ?? selectedRunId, activeTab)
+  }, [selectedRun?.runId, selectedRunId, activeTab])
 
   async function exportLogs() {
     if (!selectedRun) return
@@ -269,6 +278,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFailed(status: string): boolean {
   return ['FAILED', 'failed', 'ERROR', 'CANCELED'].includes(status)
+}
+
+function getInitialRunConsoleParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function getInitialRunConsoleTab(): RunConsoleTab {
+  const value = getInitialRunConsoleParam('tab')
+  return value === 'raw' || value === 'tools' || value === 'timeline' ? value : 'timeline'
+}
+
+function syncRunConsoleUrl(runId: string | null | undefined, tab: RunConsoleTab) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (runId) params.set('runId', runId)
+  if (tab !== 'timeline') params.set('tab', tab)
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
 
 function statusClass(status: string, styleMap: typeof styles): string {
