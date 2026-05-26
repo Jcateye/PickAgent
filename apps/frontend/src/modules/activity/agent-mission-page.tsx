@@ -74,6 +74,13 @@ interface AgentRun {
   updatedAt?: string
 }
 
+interface GateDecisionResponse {
+  gate: {
+    status: GateStatus
+  }
+  continuationRun?: AgentRun | null
+}
+
 interface RunDetailResponse {
   run: {
     runId: string
@@ -141,6 +148,8 @@ export function AgentMissionPage() {
   const [loading, setLoading] = useState(true)
   const [actionBusy, setActionBusy] = useState<'approve' | 'pause' | 'cancel' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
   const runEvents = useAgentRunEvents(runId)
 
   const activeMission = useMemo(() => {
@@ -266,6 +275,8 @@ export function AgentMissionPage() {
   async function startMission() {
     setLoading(true)
     setError(null)
+    setMessage(null)
+    setActionLink(null)
     try {
       const created = await apiPost<MissionCreatedResponse>('/api/agent/missions', {
         sessionKey,
@@ -279,9 +290,12 @@ export function AgentMissionPage() {
         modelName: 'sku-ready-agent',
         inputJson: { source: 'agent-mission-console', objective },
       })
+      const startedRunId = runIdFromAgentRun(started)
       await loadMissionConsole()
       setActiveMissionId(created.mission.id)
-      setRunId(started.id ?? started.runId ?? null)
+      setRunId(startedRunId)
+      setMessage(`已启动 Mission：${created.mission.id}${startedRunId ? ` / Run ${startedRunId}` : ''}`)
+      setActionLink(startedRunId ? { href: runConsoleHref(startedRunId), label: '查看新 Run' } : { href: agentMissionHref(created.mission.id), label: '查看 Mission' })
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : 'Mission 发起失败')
       setLoading(false)
@@ -293,17 +307,24 @@ export function AgentMissionPage() {
     if (!pendingGates.length) return
     setActionBusy('approve')
     setError(null)
+    setMessage(null)
+    setActionLink(null)
     try {
-      await Promise.all(pendingGates.map((gate) => apiPost(`/api/agent/review-gates/${encodeURIComponent(gate.gateId)}/decision`, {
+      const decisions = await Promise.all(pendingGates.map((gate) => apiPost<GateDecisionResponse>(`/api/agent/review-gates/${encodeURIComponent(gate.gateId)}/decision`, {
         decision: 'APPROVE',
         decidedBy: 'agent-mission-console',
         decisionComment: '从 Agent Mission 控制台批准继续。',
       })))
-      if (runId) {
-        const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+      const continuationRunId = decisions.map((decision) => runIdFromAgentRun(decision.continuationRun ?? null)).find(Boolean) ?? runId
+      if (continuationRunId) {
+        const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(continuationRunId)}`)
         setRunDetail(detail)
+        setRunId(continuationRunId)
       }
       await loadMissionConsole()
+      if (continuationRunId) setRunId(continuationRunId)
+      setMessage(`已批准 ${pendingGates.length} 个 Review Gate${continuationRunId ? `，继续 Run ${continuationRunId}` : ''}`)
+      setActionLink(continuationRunId ? { href: runConsoleHref(continuationRunId), label: '查看继续 Run' } : { href: '/review-approvals', label: '查看审批台' })
     } catch (approveError) {
       setError(approveError instanceof Error ? approveError.message : 'Review Gate 批准失败')
     } finally {
@@ -315,13 +336,19 @@ export function AgentMissionPage() {
     if (!runId) return
     setActionBusy('pause')
     setError(null)
+    setMessage(null)
+    setActionLink(null)
     try {
-      await apiPost(`/api/agent/runs/${encodeURIComponent(runId)}/pause`, {
+      const paused = await apiPost<AgentRun>(`/api/agent/runs/${encodeURIComponent(runId)}/pause`, {
         pausedBy: 'agent-mission-console',
       })
-      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+      const pausedRunId = runIdFromAgentRun(paused) ?? runId
+      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(pausedRunId)}`)
       setRunDetail(detail)
       await loadMissionConsole()
+      setRunId(pausedRunId)
+      setMessage(`已暂停 Run：${pausedRunId}`)
+      setActionLink({ href: runConsoleHref(pausedRunId), label: '查看暂停 Run' })
     } catch (pauseError) {
       setError(pauseError instanceof Error ? pauseError.message : 'Run 暂停失败')
     } finally {
@@ -333,14 +360,20 @@ export function AgentMissionPage() {
     if (!runId) return
     setActionBusy('cancel')
     setError(null)
+    setMessage(null)
+    setActionLink(null)
     try {
-      await apiPost(`/api/agent/runs/${encodeURIComponent(runId)}/cancel`, {
+      const canceled = await apiPost<AgentRun>(`/api/agent/runs/${encodeURIComponent(runId)}/cancel`, {
         canceledBy: 'agent-mission-console',
         reason: '从 Agent Mission 控制台取消当前运行。',
       })
-      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(runId)}`)
+      const canceledRunId = runIdFromAgentRun(canceled) ?? runId
+      const detail = await apiGet<RunDetailResponse>(`/api/agent/runs/${encodeURIComponent(canceledRunId)}`)
       setRunDetail(detail)
       await loadMissionConsole()
+      setRunId(canceledRunId)
+      setMessage(`已取消 Run：${canceledRunId}`)
+      setActionLink({ href: runConsoleHref(canceledRunId), label: '查看取消 Run' })
     } catch (cancelError) {
       setError(cancelError instanceof Error ? cancelError.message : 'Run 取消失败')
     } finally {
@@ -443,11 +476,17 @@ export function AgentMissionPage() {
           </div>
 
           {error ? <div className={styles.errorBox}>{error}</div> : null}
+          {message ? (
+            <div className={styles.resultBox}>
+              <span>{message}</span>
+              {actionLink ? <a href={actionLink.href}>{actionLink.label}</a> : null}
+            </div>
+          ) : null}
 
           <section className={styles.monitorSection}>
             <div className={styles.sectionTitle}>
               <strong>任务进度</strong>
-              <span>{runId ? `Run ${runId}` : '新 Mission 草案'}</span>
+              <span>{runId ? <a href={runConsoleHref(runId)}>Run {runId}</a> : '新 Mission 草案'}</span>
             </div>
             <div className={styles.runSummary}>
               <div>
@@ -563,6 +602,20 @@ function syncAgentMissionUrl(missionId: string | null | undefined, runId: string
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
+}
+
+function runIdFromAgentRun(run: AgentRun | null | undefined): string | null {
+  return run?.id ?? run?.runId ?? null
+}
+
+function runConsoleHref(runId: string): string {
+  return `/run-console?${new URLSearchParams({ runId }).toString()}`
+}
+
+function agentMissionHref(missionId: string, runId?: string | null): string {
+  const params = new URLSearchParams({ missionId })
+  if (runId) params.set('runId', runId)
+  return `/agent-mission?${params.toString()}`
 }
 
 async function apiGet<T>(url: string): Promise<T> {
