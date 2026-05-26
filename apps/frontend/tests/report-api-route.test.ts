@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { POST as createReport } from '../src/app/api/reports/route'
+import { GET as listReports, POST as createReport } from '../src/app/api/reports/route'
 import { POST as compareReports } from '../src/app/api/reports/compare/route'
 import { GET as downloadReportExport } from '../src/app/api/reports/[reportId]/download/route'
 import { POST as exportReport } from '../src/app/api/reports/[reportId]/export/route'
@@ -114,6 +114,39 @@ test('report create route records generation audit for run console', async () =>
     .map(([, audit]) => audit)
   assert.ok(newAudits.some((audit) => audit.workflowType === 'report_generate' && audit.subjectId === envelope.data.reportId && audit.input.actorId === 'report_route_tester'))
   assert.ok(newAudits.some((audit) => audit.workflowRunId === envelope.data.workflowRunId && audit.subjectId === envelope.data.reportId))
+})
+
+test('report list and create routes return stable auth and tenant boundary envelopes', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+
+  const missingAuthList = await listReports(new Request('http://localhost/api/reports'))
+  const missingAuthListEnvelope = await missingAuthList.json()
+  assert.equal(missingAuthList.status, 401)
+  assert.equal(missingAuthListEnvelope.code, 'COMMON.VALIDATION_ERROR')
+
+  const missingAuthCreate = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const missingAuthCreateEnvelope = await missingAuthCreate.json()
+  assert.equal(missingAuthCreate.status, 401)
+  assert.equal(missingAuthCreateEnvelope.code, 'COMMON.VALIDATION_ERROR')
+
+  const crossTenantCreate = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: otherTenantHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const crossTenantCreateEnvelope = await crossTenantCreate.json()
+  assert.equal(crossTenantCreate.status, 403)
+  assert.equal(crossTenantCreateEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })
 
 test('report write routes reject invalid export and subscription values before persistence', async () => {
