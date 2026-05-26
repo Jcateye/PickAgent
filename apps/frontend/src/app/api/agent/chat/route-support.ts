@@ -1895,6 +1895,9 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
   if (entityType === 'connector') return '数据源'
   if (entityType === 'agent_mission') return 'Agent Mission'
   if (entityType === 'download_artifact') return '下载产物'
+  if (entityId === 'sku-search' || entityId === 'sku-export' || entityId === 'sku-ingest') return 'SKU 准入'
+  if (entityId === 'activities') return '规则执行'
+  if (entityId === 'dashboard' || entityId === 'health-summary') return 'Overview'
   if (entityId === 'connectors') return '数据源'
   if (entityId === 'reports') return '报告中心'
   if (entityId === 'reviews') return 'Review 工作台'
@@ -1918,6 +1921,9 @@ export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
   if (entityType === 'agent_mission') return `/agent-mission?${new URLSearchParams({ missionId: entityId }).toString()}`
   if (entityType === 'download_artifact') return entityId.startsWith('/api/') ? entityId : '/overview'
+  if (entityId === 'sku-search' || entityId === 'sku-export' || entityId === 'sku-ingest') return '/sku-access'
+  if (entityId === 'activities') return '/rule-execution'
+  if (entityId === 'dashboard' || entityId === 'health-summary') return '/overview'
   if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
   if (entityId === 'reports') return '/report-center'
   if (entityId === 'reviews') return '/review-approvals'
