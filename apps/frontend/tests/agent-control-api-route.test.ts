@@ -5,6 +5,7 @@ import { GET as getMission } from '../src/app/api/agent/missions/[missionId]/rou
 import { POST as startRun } from '../src/app/api/agent/missions/[missionId]/runs/route'
 import { POST as decideGate } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { POST as cancelRun } from '../src/app/api/agent/runs/[runId]/cancel/route'
+import { GET as getRunEvents } from '../src/app/api/agent/runs/[runId]/events/route'
 import { POST as pauseRun } from '../src/app/api/agent/runs/[runId]/pause/route'
 import { POST as answerQuestion } from '../src/app/api/agent/runs/[runId]/questions/route'
 import { GET as getRun } from '../src/app/api/agent/runs/[runId]/route'
@@ -61,6 +62,11 @@ test('agent run routes return stable not found codes for missing runs', async ()
   const questionEnvelope = await questionResponse.json()
   assert.equal(questionResponse.status, 404)
   assert.equal(questionEnvelope.code, 'AGENT_RUN.NOT_FOUND')
+
+  const eventsResponse = await getRunEvents(new Request('http://localhost/api/agent/runs/missing_run/events'), params)
+  const eventsEnvelope = await eventsResponse.json()
+  assert.equal(eventsResponse.status, 404)
+  assert.equal(eventsEnvelope.code, 'AGENT_RUN.NOT_FOUND')
 })
 
 test('agent review gate route returns stable not found code for missing gate', async () => {

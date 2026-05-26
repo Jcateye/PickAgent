@@ -12,6 +12,7 @@ export async function GET(request: Request, context: RouteContext) {
   const url = new URL(request.url)
   const after = parsePositiveInt(url.searchParams.get('after'), 0)
   try {
+    finalAgentRuntime.agentService.getRun(runId)
     const repository = createConversationRepository()
     const listEvents = async (cursor: number) => {
       if (!repository) return finalAgentRuntime.agentService.listEvents(runId, cursor)
@@ -59,6 +60,9 @@ export async function GET(request: Request, context: RouteContext) {
     }
     return ok({ items, after })
   } catch (error) {
+    if (error instanceof Error && error.message.includes('Agent run not found')) {
+      return fail('AGENT_RUN.NOT_FOUND', error.message, 404, { runId, after })
+    }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'Agent event replay failed', 400, { runId, after })
   }
 }
