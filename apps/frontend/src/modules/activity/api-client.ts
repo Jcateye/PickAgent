@@ -34,9 +34,40 @@ export async function fetchActivityApi<T>(path: string, init?: RequestInit): Pro
       ...(init?.headers ?? {}),
     },
   })
-  const envelope = (await response.json()) as ApiEnvelope<T>
+  const envelope = await readApiEnvelope<T>(response, path)
   if (!response.ok || envelope.code !== 'OK' || envelope.data === null) {
     throw new Error(envelope.message || `API request failed: ${path}`)
   }
   return envelope.data
+}
+
+async function readApiEnvelope<T>(response: Response, path: string): Promise<ApiEnvelope<T>> {
+  const contentType = response.headers.get('content-type') ?? ''
+  const body = await response.text()
+  if (!body.trim()) {
+    return {
+      code: response.ok ? 'OK' : `HTTP.${response.status}`,
+      message: response.ok ? '' : `API request failed: ${path} (${response.status})`,
+      data: null,
+      requestId: response.headers.get('x-request-id') ?? '',
+    }
+  }
+  if (contentType.includes('application/json')) {
+    try {
+      return JSON.parse(body) as ApiEnvelope<T>
+    } catch {
+      return {
+        code: `HTTP.${response.status}`,
+        message: `API returned invalid JSON: ${path}`,
+        data: null,
+        requestId: response.headers.get('x-request-id') ?? '',
+      }
+    }
+  }
+  return {
+    code: `HTTP.${response.status}`,
+    message: response.ok ? `API returned non-JSON response: ${path}` : body.slice(0, 240) || `API request failed: ${path} (${response.status})`,
+    data: null,
+    requestId: response.headers.get('x-request-id') ?? '',
+  }
 }
