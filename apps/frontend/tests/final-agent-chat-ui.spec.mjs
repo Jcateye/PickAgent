@@ -188,6 +188,15 @@ test('agent chat page restores historical evidence and workbench links after rel
                 sourceType: 'tool_call',
                 sourceId: 'tool_call_report_1',
                 href: '/report-center?reportId=report_1',
+              }, {
+                id: 'entity_simulation_1',
+                entityType: 'simulation_run',
+                entityId: 'rule_1:simulation_1',
+                label: '历史模拟',
+                reason: '查看恢复后的模拟结果',
+                sourceType: 'tool_call',
+                sourceId: 'tool_call_report_1',
+                href: '/rule-execution?simulationRunId=simulation_1&ruleSetId=rule_1',
               }],
               reviewGate: null,
             },
@@ -213,5 +222,6 @@ test('agent chat page restores historical evidence and workbench links after rel
   await expect(main.getByText('报告生成输入')).toBeVisible()
   await expect(main.getByText('恢复后的报告生成证据摘要')).toBeVisible()
   await expect(main.getByRole('link', { name: /历史报告: 查看恢复后的报告/ })).toHaveAttribute('href', '/report-center?reportId=report_1')
+  await expect(main.getByRole('link', { name: /历史模拟: 查看恢复后的模拟结果/ })).toHaveAttribute('href', '/rule-execution?simulationRunId=simulation_1&ruleSetId=rule_1')
   await expect(main.getByText(/runId: run-recovered-ui/)).toBeVisible()
 })

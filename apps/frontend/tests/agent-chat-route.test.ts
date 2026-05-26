@@ -1708,6 +1708,14 @@ test('agent chat session recovery preserves review gate turns', () => {
           sourceType: 'tool_call',
           sourceId: 'tool_call_review_1',
           href: '/report-center?reportId=report_1',
+        }, {
+          id: 'entity_simulation_1',
+          entityType: 'simulation_run',
+          entityId: 'rule_1:simulation_1',
+          label: '历史模拟',
+          reason: '查看恢复后的模拟结果',
+          sourceType: 'tool_call',
+          sourceId: 'tool_call_review_1',
         }],
         reviewGateId: 'gate_review_1',
       },
@@ -1722,6 +1730,7 @@ test('agent chat session recovery preserves review gate turns', () => {
   assert.equal(turn?.evidenceRefs[0]?.entityId, 'report_1')
   assert.equal(turn?.linkedEntities[0]?.href, '/report-center?reportId=report_1')
   assert.equal(turn?.linkedEntities[0]?.reason, '查看恢复后的报告')
+  assert.equal(turn?.linkedEntities[1]?.href, '/rule-execution?simulationRunId=simulation_1&ruleSetId=rule_1')
   assert.equal(turn?.reviewGate?.id, 'gate_review_1')
   assert.equal(turn?.reviewGate?.status, 'PENDING')
 })

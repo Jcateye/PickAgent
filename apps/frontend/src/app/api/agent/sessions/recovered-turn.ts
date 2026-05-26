@@ -94,6 +94,12 @@ function recoveredLinkedEntityHref(entityType: string, entityId: string): string
   if (entityType === 'sku_profile') return `/sku-access?${new URLSearchParams({ skuProfileId: entityId, drawerTab: 'evidence' }).toString()}`
   if (entityType === 'activity') return `/rule-execution?${new URLSearchParams({ activityId: entityId }).toString()}`
   if (entityType === 'rule_set' || entityType === 'activity_rule_set') return `/rule-library?${new URLSearchParams({ ruleSetId: entityId }).toString()}`
+  if (entityType === 'simulation_run') {
+    const [ruleSetId, simulationRunId] = entityId.includes(':') ? entityId.split(':', 2) : ['', entityId]
+    const params = new URLSearchParams({ simulationRunId: decodeURIComponent(simulationRunId) })
+    if (ruleSetId) params.set('ruleSetId', decodeURIComponent(ruleSetId))
+    return `/rule-execution?${params.toString()}`
+  }
   if (entityType === 'review_item') return `/review-approvals?${new URLSearchParams({ reviewItemId: entityId }).toString()}`
   if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
   if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
