@@ -641,7 +641,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const connectorId = String(input.connectorId ?? '')
       if (!connectorId) throw new Error('connectorId is required')
       const result = await finalApiRuntime.connectorService.listRuns(connectorId, numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
-      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.connectorRunId, label: '连接器运行', summary: `${item.status} / ${item.rowCount} 行 / 质量 ${item.qualityScore ?? '-'}` })), `读取连接器运行列表：${result.total} 条`, result.items[0] ? { type: 'workflow_run', id: result.items[0].workflowRunRef?.entityId ?? result.items[0].connectorRunId } : { type: 'connector', id: connectorId })
+      const connectorEntity = { type: 'connector', id: connectorId }
+      const runEntity = result.items[0] ? { type: 'workflow_run', id: result.items[0].workflowRunRef?.entityId ?? result.items[0].connectorRunId } : connectorEntity
+      return succeeded(result, result.items.slice(0, 5).map((item) => ({ type: 'tool_trace', entityId: item.connectorRunId, label: '连接器运行', summary: `${item.status} / ${item.rowCount} 行 / 质量 ${item.qualityScore ?? '-'}` })), `读取连接器运行列表：${result.total} 条`, runEntity, runEntity.type === 'workflow_run' ? [connectorEntity, runEntity] : undefined)
     }
 
     if (toolName === 'getConnectorRunDetail') {
@@ -649,7 +651,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!connectorRunId) throw new Error('connectorRunId is required')
       const result = await finalApiRuntime.connectorService.getRun(connectorRunId, agentToolAuthContext())
       if (!result) throw new Error(`Connector run not found: ${connectorRunId}`)
-      return succeeded(result, [{ type: 'tool_trace', entityId: connectorRunId, label: '连接器运行详情', summary: `${result.status} / ${result.rowCount} 行 / 质量 ${result.qualityScore ?? '-'}` }], `读取连接器运行：${connectorRunId}`, { type: 'workflow_run', id: result.workflowRunRef?.entityId ?? connectorRunId })
+      const connectorEntity = { type: 'connector', id: result.connectorId }
+      const runEntity = { type: 'workflow_run', id: result.workflowRunRef?.entityId ?? connectorRunId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: connectorRunId, label: '连接器运行详情', summary: `${result.status} / ${result.rowCount} 行 / 质量 ${result.qualityScore ?? '-'}` }], `读取连接器运行：${connectorRunId}`, runEntity, [connectorEntity, runEntity])
     }
 
     if (toolName === 'createConnector') {

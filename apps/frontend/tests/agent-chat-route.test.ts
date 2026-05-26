@@ -808,10 +808,16 @@ test('agent chat reads connector run and activity simulation run details', async
   const connectorRuns = await executeFinalApiTool('listConnectorRuns', { connectorId, pageSize: 5 })
   assert.equal(connectorRuns.status, 'SUCCEEDED')
   assert.ok((connectorRuns.result as { items: Array<{ connectorRunId: string }> }).items.some((item) => item.connectorRunId === connectorRunId))
+  assert.equal(connectorRuns.linkedEntity?.type, 'workflow_run')
+  assert.ok(connectorRuns.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(connectorRuns.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === connectorRunResult.workflowRunRef?.entityId))
   const connectorRunDetail = await executeFinalApiTool('getConnectorRunDetail', { connectorRunId })
   assert.equal(connectorRunDetail.status, 'SUCCEEDED')
   assert.equal((connectorRunDetail.result as { connectorRunId: string; rowCount: number }).connectorRunId, connectorRunId)
   assert.equal((connectorRunDetail.result as { rowCount: number }).rowCount, 17)
+  assert.equal(connectorRunDetail.linkedEntity?.type, 'workflow_run')
+  assert.ok(connectorRunDetail.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(connectorRunDetail.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === connectorRunResult.workflowRunRef?.entityId))
 
   const skuExternalId = `agent_sim_detail_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {
