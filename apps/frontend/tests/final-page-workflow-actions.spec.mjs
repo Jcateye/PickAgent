@@ -23,6 +23,10 @@ async function apiPost(request, path, body) {
   return envelope.data
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 test('rule library page performs real create, update, version, and disable actions', async ({ page }) => {
   const stamp = Date.now()
   const ruleName = `验收规则集 ${stamp}`
@@ -120,6 +124,41 @@ test('data sources page creates a browser connector and writes scanned SKU data 
   await expect(page.getByText(/已写入 1 个 SKU/)).toBeVisible()
   await expect(page.getByRole('link', { name: '查看采集 Run' })).toBeVisible()
   await expect(page.getByRole('link', { name: '查看写入 SKU' })).toBeVisible()
+
+  await page.getByRole('button', { name: '配置' }).click()
+  await page.getByRole('button', { name: '编辑配置' }).click()
+  await page.getByLabel('名称').fill(`${connectorName} 已编辑`)
+  await page.getByLabel('配置 JSON').fill(JSON.stringify({ storeId: 'pw_store', source: 'playwright', edited: true }, null, 2))
+  const updateResponse = page.waitForResponse((response) => response.url().endsWith(`/api/connectors/${connectorId}`) && response.request().method() === 'PATCH')
+  await page.locator('form').getByRole('button', { name: '保存配置' }).click()
+  const updateEnvelope = await (await updateResponse).json()
+  expect(updateEnvelope.code).toBe('OK')
+  expect(updateEnvelope.data.name).toBe(`${connectorName} 已编辑`)
+  expect(updateEnvelope.data.config.edited).toBe(true)
+  await expect(page.getByText(`已更新连接器配置：${connectorName} 已编辑`)).toBeVisible()
+
+  const editedConnectorCard = page.getByRole('button', { name: new RegExp(`${escapeRegExp(connectorName)} 已编辑`) }).first()
+  const runResponse = page.waitForResponse((response) => response.url().endsWith(`/api/connectors/${connectorId}/sync-runs`) && response.request().method() === 'POST')
+  await editedConnectorCard.getByRole('button', { name: '新建运行' }).click({ force: true })
+  const runEnvelope = await (await runResponse).json()
+  expect(runEnvelope.code).toBe('OK')
+  expect(runEnvelope.data.connectorId).toBe(connectorId)
+  expect(runEnvelope.data.rowCount).toBe(256)
+  await expect(page.getByText(new RegExp(`已创建采集运行：${runEnvelope.data.connectorRunId}`))).toBeVisible()
+
+  const disableResponse = page.waitForResponse((response) => response.url().endsWith(`/api/connectors/${connectorId}`) && response.request().method() === 'DELETE')
+  await editedConnectorCard.getByRole('button', { name: '停用' }).click({ force: true })
+  const disableEnvelope = await (await disableResponse).json()
+  expect(disableEnvelope.code).toBe('OK')
+  expect(disableEnvelope.data.status).toBe('DISABLED')
+  await expect(page.getByText(`${connectorName} 已编辑 已停用`)).toBeVisible()
+
+  const enableResponse = page.waitForResponse((response) => response.url().endsWith(`/api/connectors/${connectorId}`) && response.request().method() === 'PATCH')
+  await editedConnectorCard.getByRole('button', { name: '启用' }).click({ force: true })
+  const enableEnvelope = await (await enableResponse).json()
+  expect(enableEnvelope.code).toBe('OK')
+  expect(enableEnvelope.data.status).toBe('ACTIVE')
+  await expect(page.getByText(`${connectorName} 已编辑 已启用`)).toBeVisible()
 })
 
 test('rule execution page runs real parsing and simulation then saves the rule set', async ({ page }) => {
