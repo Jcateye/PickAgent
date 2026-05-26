@@ -439,12 +439,16 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         const result = await finalApiRuntime.activityService.simulationRunForRuleSet(ruleSetId, simulationRunId, agentToolAuthContext())
         if (!result) throw new Error(`Rule set simulation run not found: ${ruleSetId}/${simulationRunId}`)
         const evidence = result.results.flatMap((item) => item.evidence)
-        return succeeded(result, evidence, `读取规则集模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, simulationRunId) })
+        const simulationEntity = { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, simulationRunId) }
+        const ruleSetEntity = { type: 'rule_set', id: ruleSetId }
+        return succeeded(result, evidence, `读取规则集模拟详情：${result.results.length} 个 SKU`, simulationEntity, [ruleSetEntity, simulationEntity])
       }
       const result = await finalApiRuntime.activityService.simulationDetail(activityId, simulationRunId, agentToolAuthContext())
       if (!result) throw new Error(`Activity simulation run not found: ${activityId}/${simulationRunId}`)
       const evidence = result.results.flatMap((item) => item.evidence)
-      return succeeded(result, evidence, `读取活动模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationRunId })
+      const simulationEntity = { type: 'simulation_run', id: simulationRunId }
+      const activityEntity = { type: 'activity', id: activityId }
+      return succeeded(result, evidence, `读取活动模拟详情：${result.results.length} 个 SKU`, simulationEntity, [activityEntity, simulationEntity])
     }
 
     if (toolName === 'startActivityRun') {

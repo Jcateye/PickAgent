@@ -847,6 +847,10 @@ test('agent chat reads connector run and activity simulation run details', async
   const detail = simulationDetail.result as { simulationRunId: string; results: Array<{ skuProfileId: string }> }
   assert.equal(detail.simulationRunId, simulation.simulationRunId)
   assert.deepEqual(detail.results.map((item) => item.skuProfileId), [skuProfileId])
+  assert.equal(simulationDetail.linkedEntity?.type, 'simulation_run')
+  assert.equal(simulationDetail.linkedEntity.id, simulation.simulationRunId)
+  assert.ok(simulationDetail.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === activity.activityId))
+  assert.ok(simulationDetail.linkedEntities?.some((entity) => entity.type === 'simulation_run' && entity.id === simulation.simulationRunId))
 
   const ruleSet = await executeFinalApiTool('createRuleSet', {
     name: 'Agent 规则执行详情规则',
@@ -872,6 +876,9 @@ test('agent chat reads connector run and activity simulation run details', async
   assert.equal(ruleSetDetail.simulationRunId, ruleSetSimulationRunId)
   assert.equal(ruleSetDetail.activityRuleSetId, ruleSetId)
   assert.deepEqual(ruleSetDetail.results.map((item) => item.skuProfileId), [skuProfileId])
+  assert.equal(ruleSetSimulationDetail.linkedEntity?.type, 'simulation_run')
+  assert.ok(ruleSetSimulationDetail.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(ruleSetSimulationDetail.linkedEntities?.some((entity) => entity.type === 'simulation_run' && entity.id === `${ruleSetId}:${ruleSetSimulationRunId}`))
 })
 
 test('agent chat exportSkuList tool creates auditable sku csv export', async () => {
