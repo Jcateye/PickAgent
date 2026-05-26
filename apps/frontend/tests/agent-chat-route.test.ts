@@ -448,6 +448,34 @@ test('agent chat activity write tools link audited runs and activity object', as
   assert.equal(started.linkedEntity?.type, 'workflow_run')
   assert.equal(started.linkedEntity.id, startedPlan.runId)
   assert.ok(started.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
+
+  const ingested = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_activity_candidate_store',
+      externalSkuId: `agent_activity_candidate_${Date.now()}`,
+      productName: 'Agent 活动候选 SKU',
+      stock: 60,
+      positiveRate: 0.98,
+      raw: {},
+    }],
+  })
+  assert.equal(ingested.status, 'SUCCEEDED')
+  const skuProfileId = (ingested.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0].skuProfileId
+  const candidate = await executeFinalApiTool('addActivityCandidateSkus', {
+    activityId: createdActivity.activityId,
+    skuProfileIds: [skuProfileId],
+    comment: 'agent-chat-candidate-test',
+  })
+  assert.equal(candidate.status, 'SUCCEEDED')
+  const candidateResult = candidate.result as { activityId: string; skuProfileIds: string[]; addedSkuProfileIds: string[]; workflowRunId: string }
+  assert.equal(candidateResult.activityId, createdActivity.activityId)
+  assert.deepEqual(candidateResult.addedSkuProfileIds, [skuProfileId])
+  assert.deepEqual(candidateResult.skuProfileIds, [skuProfileId])
+  assert.equal(candidate.linkedEntity?.type, 'workflow_run')
+  assert.equal(candidate.linkedEntity.id, candidateResult.workflowRunId)
+  assert.ok(candidate.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
+  assert.ok(candidate.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === candidateResult.workflowRunId))
 })
 
 test('agent chat settings tools read and update real workspace settings', async () => {

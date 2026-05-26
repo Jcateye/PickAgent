@@ -498,6 +498,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('startActivityRun', inputJson),
     }),
+    addActivityCandidateSkus: tool({
+      description: '把 SKU 加入活动候选清单，不执行外部平台报名。需要 activityId 和 skuProfileIds，可选 reasonCode/comment。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('addActivityCandidateSkus', inputJson),
+    }),
     parseActivityRules: tool({
       description: '把活动或平台规则文本解析为 Canonical Rule DSL。需要 sourceText，可选 name/platform。用于规则结构化、歧义识别和 manual_review 提示。',
       inputSchema: objectSchema,

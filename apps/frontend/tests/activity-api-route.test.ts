@@ -4,6 +4,7 @@ import test from 'node:test'
 import { POST as createActivity } from '../src/app/api/activities/route'
 import { GET as getActivity, PATCH as updateActivity } from '../src/app/api/activities/[activityId]/route'
 import { GET as getExecutionPlan } from '../src/app/api/activities/[activityId]/execution-plan/route'
+import { POST as addCandidateSkus } from '../src/app/api/activities/[activityId]/candidate-skus/route'
 import { POST as startActivityRun } from '../src/app/api/activities/[activityId]/runs/route'
 import { POST as parseActivityRuleSet } from '../src/app/api/activities/[activityId]/rule-sets/parse/route'
 import { GET as getSimulationRun } from '../src/app/api/activities/[activityId]/simulations/[simulationRunId]/route'
@@ -131,4 +132,72 @@ test('activity simulation detail route returns simulation not found code', async
 
   assert.equal(response.status, 404)
   assert.equal(envelope.code, 'ACTIVITY_SIMULATION.NOT_FOUND')
+})
+
+test('activity candidate sku route persists candidate list and workflow audit', async () => {
+  const externalSkuId = `activity_candidate_sku_${Date.now()}`
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T12:00:00.000Z',
+    rows: [{
+      platform: 'tmall',
+      storeId: 'activity_candidate_store',
+      externalSkuId,
+      productName: '活动候选 SKU',
+      stock: 50,
+      positiveRate: 0.98,
+      raw: { externalSkuId },
+    }],
+  }, {
+    actorId: 'activity_route_tester',
+    tenantId: 'dev_tenant',
+    sessionId: 'activity_route_session',
+    surface: 'route-test',
+    requestId: 'activity_candidate_ingest',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+  const createdResponse = await createActivity(
+    new Request('http://localhost/api/activities', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: `Activity Candidate ${Date.now()}`, platform: 'tmall' }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  const activityId = createdEnvelope.data.activityId
+
+  const response = await addCandidateSkus(
+    new Request(`http://localhost/api/activities/${activityId}/candidate-skus`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ skuProfileIds: [skuProfileId], reasonCode: 'route-test', comment: '加入候选清单，不执行平台报名' }),
+    }),
+    { params: Promise.resolve({ activityId }) },
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.deepEqual(envelope.data.addedSkuProfileIds, [skuProfileId])
+  assert.deepEqual(envelope.data.skuProfileIds, [skuProfileId])
+  assert.match(envelope.data.workflowRunId, /^workflow_/)
+
+  const page = await finalApiRuntime.activityService.list(1, 20, {
+    actorId: 'activity_route_tester',
+    tenantId: 'dev_tenant',
+    sessionId: 'activity_route_session',
+    surface: 'route-test',
+    requestId: 'activity_candidate_list',
+  })
+  const activity = page.items.find((item) => item.activityId === activityId)
+  assert.deepEqual(activity?.candidateSkuProfileIds, [skuProfileId])
+
+  const audits = await finalApiRuntime.workflowAuditService.list({
+    actorId: 'activity_route_tester',
+    tenantId: 'dev_tenant',
+    sessionId: 'activity_route_session',
+    surface: 'route-test',
+    requestId: 'activity_candidate_audit',
+  }, 20)
+  const audit = audits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
+  assert.equal(audit?.workflowType, 'activity_candidate_skus')
+  assert.equal(audit?.subjectId, activityId)
 })

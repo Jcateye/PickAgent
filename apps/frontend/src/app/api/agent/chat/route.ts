@@ -115,8 +115,8 @@ function createConversationRepository(): AgentConversationRepository | undefined
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
-const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'addActivityCandidateSkus', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
+const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'addActivityCandidateSkus', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 export function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -458,6 +458,19 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const activityEntity = { type: 'activity', id: activityId }
       const workflowEntity = result.runId ? { type: 'workflow_run', id: result.runId } : activityEntity
       return succeeded(result, [{ type: 'tool_trace', entityId: result.runId ?? activityId, label: '活动运行', summary: `活动运行已启动：${result.runId ?? '-'}` }], `启动活动运行：${result.runId ?? activityId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, workflowEntity] : undefined)
+    }
+
+    if (toolName === 'addActivityCandidateSkus') {
+      const activityId = String(input.activityId ?? '')
+      const skuProfileIds = stringArray(input.skuProfileIds)
+      if (!activityId || !skuProfileIds.length) throw new Error('activityId and skuProfileIds are required')
+      const result = await finalApiRuntime.activityService.addCandidateSkus(activityId, skuProfileIds, {
+        reasonCode: optionalString(input.reasonCode),
+        comment: optionalString(input.comment),
+      }, agentToolAuthContext())
+      const activityEntity = { type: 'activity', id: activityId }
+      const workflowEntity = { type: 'workflow_run', id: result.workflowRunId }
+      return succeeded(result, [{ type: 'tool_trace', entityId: activityId, label: '活动候选清单', summary: `新增 ${result.addedSkuProfileIds.length} 个 SKU，候选共 ${result.skuProfileIds.length} 个` }], `加入活动候选清单：${result.addedSkuProfileIds.length} 个`, workflowEntity, [activityEntity, workflowEntity])
     }
 
     if (toolName === 'getSkuSummary') {

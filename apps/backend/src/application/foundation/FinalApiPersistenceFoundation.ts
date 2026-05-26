@@ -37,6 +37,7 @@ import type {
 } from "../../../../contracts/types/dashboardSkuReadModels";
 import {
   type ActivityDto,
+  type ActivityCandidateSkuResponseDto,
   type ActivityExecutionPlanDto,
   type ActivitySimulationRunDetailDto,
   type CreateActivityRequestDto,
@@ -525,6 +526,7 @@ export class ActivityRepository {
       platform: input.platform,
       categoryScope: input.categoryScope,
       productScopeText: input.productScopeText ?? "全部当前 SKU",
+      candidateSkuProfileIds: [],
       status: "DRAFT",
       startAt: input.startAt,
       endAt: input.endAt,
@@ -560,6 +562,23 @@ export class ActivityRepository {
     const audited = { ...updated, latestRunId: audit.entityId };
     this.store.activities.set(activityId, audited);
     return audited;
+  }
+
+  async addCandidateSkus(boundary: P0AuthContextDto, activityId: string, skuProfileIds: string[], metadata: { reasonCode?: string; comment?: string } = {}): Promise<ActivityCandidateSkuResponseDto> {
+    const current = this.getActivity(boundary, activityId) as ActivityDto | null;
+    if (!current) throw new Error(`Activity not found: ${activityId}`);
+    const normalizedIds = uniqueStrings(skuProfileIds);
+    if (!normalizedIds.length) throw new Error("skuProfileIds are required");
+    for (const skuProfileId of normalizedIds) assertTenantBoundary(boundary, this.store.tenantByEntityId.get(skuProfileId), skuProfileId);
+    const existing = new Set(current.candidateSkuProfileIds ?? []);
+    const addedSkuProfileIds = normalizedIds.filter((skuProfileId) => !existing.has(skuProfileId));
+    const nextCandidateSkuProfileIds = Array.from(new Set([...(current.candidateSkuProfileIds ?? []), ...normalizedIds]));
+    const updated = { ...current, candidateSkuProfileIds: nextCandidateSkuProfileIds, updatedAt: new Date().toISOString() };
+    this.store.activities.set(activityId, updated);
+    const audit = await this.recordWorkflowAudit(boundary, "activity_candidate_skus", activityId, { skuProfileIds: normalizedIds, ...metadata }, { activityId, skuProfileIds: nextCandidateSkuProfileIds, addedSkuProfileIds });
+    const audited = { ...updated, latestRunId: audit.entityId };
+    this.store.activities.set(activityId, audited);
+    return { activityId, skuProfileIds: nextCandidateSkuProfileIds, addedSkuProfileIds, workflowRunId: audit.entityId, updatedAt: audited.updatedAt };
   }
 
   bindRuleSetToActivity(boundary: P0AuthContextDto, activityId: string, ruleSetId: string): ActivityDto | Promise<ActivityDto> {
@@ -1558,7 +1577,7 @@ export class PrismaActivityRepository extends ActivityRepository {
         id: activityId,
         name: input.name,
         platform: input.platform,
-        scopeJson: { categoryScope: input.categoryScope ?? [], productScopeText: input.productScopeText ?? "全部当前 SKU" },
+        scopeJson: { categoryScope: input.categoryScope ?? [], productScopeText: input.productScopeText ?? "全部当前 SKU", candidateSkuProfileIds: [] },
         status: "draft",
         startsAt: input.startAt ? new Date(input.startAt) : undefined,
         endsAt: input.endAt ? new Date(input.endAt) : undefined,
@@ -1579,7 +1598,7 @@ export class PrismaActivityRepository extends ActivityRepository {
         name: input.name,
         platform: input.platform,
         status: input.status?.toLowerCase(),
-        scopeJson: input.categoryScope || input.productScopeText ? { categoryScope: input.categoryScope ?? current.categoryScope ?? [], productScopeText: input.productScopeText ?? current.productScopeText } : undefined,
+        scopeJson: input.categoryScope || input.productScopeText ? { categoryScope: input.categoryScope ?? current.categoryScope ?? [], productScopeText: input.productScopeText ?? current.productScopeText, candidateSkuProfileIds: current.candidateSkuProfileIds ?? [] } : undefined,
         startsAt: input.startAt ? new Date(input.startAt) : input.startAt === null ? null : undefined,
         endsAt: input.endAt ? new Date(input.endAt) : input.endAt === null ? null : undefined,
       }),
@@ -1587,6 +1606,22 @@ export class PrismaActivityRepository extends ActivityRepository {
     const audit = await this.recordWorkflowAudit(boundary, "activity_update", activityId, { input }, { activityId });
     await this.prisma.activity.update({ where: { id: activityId }, data: { latestWorkflowRunId: audit.entityId } });
     return { ...toActivityDto(row), latestRunId: audit.entityId };
+  }
+
+  async addCandidateSkus(boundary: P0AuthContextDto, activityId: string, skuProfileIds: string[], metadata: { reasonCode?: string; comment?: string } = {}): Promise<ActivityCandidateSkuResponseDto> {
+    const currentRow = await this.prisma.activity.findUnique({ where: { id: activityId } });
+    if (!currentRow) throw new Error(`Activity not found: ${activityId}`);
+    const normalizedIds = uniqueStrings(skuProfileIds);
+    if (!normalizedIds.length) throw new Error("skuProfileIds are required");
+    const currentScope = isRecord(currentRow.scopeJson) ? currentRow.scopeJson : {};
+    const currentCandidateSkuProfileIds = asArray(currentScope.candidateSkuProfileIds).map(String);
+    const addedSkuProfileIds = normalizedIds.filter((skuProfileId) => !currentCandidateSkuProfileIds.includes(skuProfileId));
+    const nextCandidateSkuProfileIds = Array.from(new Set([...currentCandidateSkuProfileIds, ...normalizedIds]));
+    const nextScope = { ...currentScope, candidateSkuProfileIds: nextCandidateSkuProfileIds };
+    const row = await this.prisma.activity.update({ where: { id: activityId }, data: { scopeJson: nextScope, updatedAt: new Date() } });
+    const audit = await this.recordWorkflowAudit(boundary, "activity_candidate_skus", activityId, { skuProfileIds: normalizedIds, ...metadata }, { activityId, skuProfileIds: nextCandidateSkuProfileIds, addedSkuProfileIds });
+    await this.prisma.activity.update({ where: { id: activityId }, data: { latestWorkflowRunId: audit.entityId } });
+    return { activityId, skuProfileIds: nextCandidateSkuProfileIds, addedSkuProfileIds, workflowRunId: audit.entityId, updatedAt: toActivityDto(row).updatedAt };
   }
 
   async bindRuleSetToActivity(boundary: P0AuthContextDto, activityId: string, ruleSetId: string): Promise<ActivityDto> {
@@ -2465,6 +2500,10 @@ export class FinalActivityService {
 
   update(activityId: string, input: UpdateActivityRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityDto> {
     return Promise.resolve(this.repository.updateActivity(boundary, activityId, input));
+  }
+
+  addCandidateSkus(activityId: string, skuProfileIds: string[], metadata: { reasonCode?: string; comment?: string } = {}, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityCandidateSkuResponseDto> {
+    return Promise.resolve(this.repository.addCandidateSkus(boundary, activityId, skuProfileIds, metadata));
   }
 
   async parseForActivity(activityId: string, input: ParseActivityRuleSetRequestDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto> {
@@ -3960,6 +3999,7 @@ function toActivityDto(row: Record<string, unknown>): ActivityDto {
     platform: typeof row.platform === "string" ? row.platform : undefined,
     categoryScope: asArray(scope.categoryScope).map(String),
     productScopeText: typeof scope.productScopeText === "string" ? scope.productScopeText : "全部当前 SKU",
+    candidateSkuProfileIds: asArray(scope.candidateSkuProfileIds).map(String),
     status: String(row.status ?? "draft").toUpperCase() as ActivityDto["status"],
     startAt: row.startsAt instanceof Date ? row.startsAt.toISOString() : typeof row.startsAt === "string" ? row.startsAt : undefined,
     endAt: row.endsAt instanceof Date ? row.endsAt.toISOString() : typeof row.endsAt === "string" ? row.endsAt : undefined,
@@ -3977,6 +4017,10 @@ function asScope(value: unknown): ActivitySimulationRunDto["scope"] {
 
 function stripUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function toReportDetailFromRow(row: Record<string, unknown>): ReportDetailDto {

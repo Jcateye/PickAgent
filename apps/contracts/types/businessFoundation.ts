@@ -259,6 +259,7 @@ export const defaultAgentToolNames = [
   "getActivityExecutionPlan",
   "getActivitySimulationRunDetail",
   "startActivityRun",
+  "addActivityCandidateSkus",
   "getSkuSummary",
   "ingestSkus",
   "parseActivityRules",

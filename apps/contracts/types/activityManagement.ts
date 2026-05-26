@@ -47,6 +47,7 @@ export interface ActivityDto {
   platform?: string;
   categoryScope?: string[];
   productScopeText: string;
+  candidateSkuProfileIds?: string[];
   status: ActivityStatus;
   startAt?: string;
   endAt?: string;
@@ -73,6 +74,20 @@ export interface UpdateActivityRequestDto {
   status?: ActivityStatus;
   startAt?: string | null;
   endAt?: string | null;
+}
+
+export interface ActivityCandidateSkuRequestDto {
+  skuProfileIds: string[];
+  reasonCode?: string;
+  comment?: string;
+}
+
+export interface ActivityCandidateSkuResponseDto {
+  activityId: string;
+  skuProfileIds: string[];
+  addedSkuProfileIds: string[];
+  workflowRunId: string;
+  updatedAt: string;
 }
 
 export interface ParseActivityRuleSetRequestDto {
