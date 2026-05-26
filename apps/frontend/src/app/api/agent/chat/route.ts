@@ -690,7 +690,17 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         }, agentToolAuthContext())
         : null
       const result = { preview, ingest, run }
-      return succeeded(result, ingest.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `浏览器扫描写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `浏览器扫描写入 SKU：${ingest.summaries.length} 条`, ingest.summaries[0] ? { type: 'sku_profile', id: ingest.summaries[0].skuProfileId } : { type: 'dashboard', id: 'browser-scan-ingest' })
+      const skuEntities = ingest.summaries.map((item) => ({ type: 'sku_profile', id: item.skuProfileId }))
+      const ingestWorkflowEntity = workflowLinkedEntity(ingest, skuEntities[0] ?? { type: 'dashboard', id: 'browser-scan-ingest' })
+      const connectorEntity = request.connectorId ? { type: 'connector', id: request.connectorId } : undefined
+      const runWorkflowEntity = run ? connectorRunWorkflowEntity(run, connectorEntity ?? ingestWorkflowEntity) : ingestWorkflowEntity
+      const linkedEntities = [
+        ...skuEntities,
+        ...(connectorEntity ? [connectorEntity] : []),
+        ...(ingestWorkflowEntity.type === 'workflow_run' ? [ingestWorkflowEntity] : []),
+        ...(runWorkflowEntity.type === 'workflow_run' && runWorkflowEntity.id !== ingestWorkflowEntity.id ? [runWorkflowEntity] : []),
+      ]
+      return succeeded(result, ingest.summaries.map((item) => ({ type: 'tool_trace', entityId: item.skuProfileId, label: item.productName, summary: `浏览器扫描写入 SKU：${item.healthStatus} / ${item.healthScore}` })), `浏览器扫描写入 SKU：${ingest.summaries.length} 条`, runWorkflowEntity, linkedEntities.length ? linkedEntities : undefined)
     }
 
     if (toolName === 'runConnectorSync') {

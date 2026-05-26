@@ -532,12 +532,64 @@ test('agent chat ingestBrowserScan tool writes browser scan rows to SKU projecti
   })
 
   assert.equal(execution.status, 'SUCCEEDED')
-  const summary = (execution.result as { ingest: { summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> } }).ingest.summaries[0]
+  const result = execution.result as { ingest: { workflowRunId: string; summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> } }
+  const summary = result.ingest.summaries[0]
   assert.equal(summary.canonicalSkuKey, `tmall:agent_browser_store:${externalSkuId}`)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.equal(execution.linkedEntity.id, result.ingest.workflowRunId)
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === summary.skuProfileId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.ingest.workflowRunId))
 
   const detail = await finalApiRuntime.ingestService.getSkuDetail(summary.skuProfileId)
   assert.equal(detail?.productName, 'Agent 浏览器扫描 SKU')
   assert.equal(detail?.latestSnapshot?.stock, 51)
+})
+
+test('agent chat ingestBrowserScan links connector run and written sku objects', async () => {
+  const connector = await executeFinalApiTool('createConnector', {
+    name: 'Agent 浏览器扫描连接器',
+    code: `agent_browser_scan_connector_${Date.now()}`,
+    connectorKind: 'browser_extension',
+    platform: 'tmall',
+    status: 'ACTIVE',
+    config: { source: 'agent-browser-scan-test' },
+  })
+  assert.equal(connector.status, 'SUCCEEDED')
+  const connectorId = (connector.result as { connectorId: string }).connectorId
+  const externalSkuId = `agent_browser_scan_connector_${Date.now()}`
+
+  const execution = await executeFinalApiTool('ingestBrowserScan', {
+    connectorId,
+    url: 'https://tmall.example.test/sku-list',
+    storeId: 'agent_browser_connector_store',
+    rows: [
+      {
+        sku: externalSkuId,
+        title: 'Agent 浏览器连接器扫描 SKU',
+        stock: 73,
+        sales: 321,
+        positiveRate: 0.97,
+      },
+    ],
+  })
+
+  assert.equal(execution.status, 'SUCCEEDED')
+  const result = execution.result as {
+    ingest: { workflowRunId: string; summaries: Array<{ skuProfileId: string; canonicalSkuKey: string }> }
+    run: { connectorRunId: string; workflowRunRef?: { entityId: string } } | null
+  }
+  const summary = result.ingest.summaries[0]
+  assert.equal(summary.canonicalSkuKey, `tmall:agent_browser_connector_store:${externalSkuId}`)
+  assert.ok(result.run?.workflowRunRef?.entityId)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.equal(execution.linkedEntity.id, result.run.workflowRunRef.entityId)
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'connector' && entity.id === connectorId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'sku_profile' && entity.id === summary.skuProfileId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.ingest.workflowRunId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.run?.workflowRunRef?.entityId))
+
+  const connectorRun = await finalApiRuntime.connectorService.getRun(result.run.connectorRunId)
+  assert.equal(connectorRun?.workflowRunRef?.entityId, result.run.workflowRunRef.entityId)
 })
 
 test('agent chat ingestBrowserScan tool rejects preview rows that are not ingest ready', async () => {
