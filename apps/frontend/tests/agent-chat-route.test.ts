@@ -989,6 +989,38 @@ test('agent chat retryRun tool supports activity simulation retries', async () =
   assert.deepEqual(result.results.map((item) => item.skuProfileId), [skuProfileId])
 })
 
+test('agent chat retryRun tool replays sku export retries through workflow audit', async () => {
+  const skuExternalId = `agent_retry_export_sku_${Date.now()}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'agent_retry_export_store',
+        externalSkuId: skuExternalId,
+        productName: 'Agent 导出重试 SKU',
+        stock: 33,
+        positiveRate: 0.96,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const retry = await executeFinalApiTool('retryRun', {
+    runType: 'sku_export',
+    runId: 'failed_sku_export_for_agent_test',
+    query: { q: skuExternalId, sortBy: 'updatedAt', sortOrder: 'desc' },
+  })
+
+  assert.equal(retry.status, 'SUCCEEDED')
+  const result = retry.result as { workflowRunId?: string; rowCount: number; artifactHref: string }
+  assert.ok(result.workflowRunId)
+  assert.equal(result.rowCount, 1)
+  assert.match(result.artifactHref, /^\/api\/skus\/export\/download/)
+  assert.equal(retry.linkedEntity?.type, 'workflow_run')
+  assert.equal(retry.linkedEntity?.id, result.workflowRunId)
+  assert.ok(retry.evidence.some((item) => item.type === 'tool_trace' && item.entityId === result.workflowRunId))
+})
+
 test('agent chat setSkuNextAction links audited run and sku object', async () => {
   const ingest = await executeFinalApiTool('ingestSkus', {
     rows: [
