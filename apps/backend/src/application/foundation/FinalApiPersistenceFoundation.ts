@@ -840,11 +840,7 @@ export class ReviewRepository {
     return Array.from(this.store.reviews.values()).filter((item) => {
       if (this.store.tenantByEntityId.get(item.reviewItemId) !== boundary.tenantId) return false;
       const assembled = toReviewListItem(item);
-      if (query.tab && assembled.status !== query.tab) return false;
-      if (query.type && assembled.type !== query.type) return false;
-      if (query.riskLevel && assembled.riskLevel !== query.riskLevel) return false;
-      if (query.status && assembled.status !== query.status) return false;
-      if (q && !`${assembled.title} ${assembled.summary} ${item.question}`.toLowerCase().includes(q)) return false;
+      if (!matchesReviewListQuery(assembled, item, query, q)) return false;
       return true;
     });
   }
@@ -1962,11 +1958,7 @@ export class PrismaReviewRepository extends ReviewRepository {
     const q = query.q?.trim().toLowerCase();
     return rows.map(toReviewItemDto).filter((item) => {
       const assembled = toReviewListItem(item);
-      if (query.tab && assembled.status !== query.tab) return false;
-      if (query.type && assembled.type !== query.type) return false;
-      if (query.riskLevel && assembled.riskLevel !== query.riskLevel) return false;
-      if (query.status && assembled.status !== query.status) return false;
-      if (q && !`${assembled.title} ${assembled.summary} ${item.question}`.toLowerCase().includes(q)) return false;
+      if (!matchesReviewListQuery(assembled, item, query, q)) return false;
       return true;
     });
   }
@@ -3693,6 +3685,33 @@ function toReviewListItem(item: ReviewItemDto): ReviewListItemDto {
     dueAt: item.decidedAt,
     evidenceSummary: item.evidence.map((ref) => ref.label).filter(Boolean).join(" / ") || "已关联可追溯证据",
   };
+}
+
+function matchesReviewListQuery(assembled: ReviewListItemDto, item: ReviewItemDto, query: ReviewListQueryDto, normalizedQ?: string): boolean {
+  if (query.tab && assembled.status !== query.tab) return false;
+  if (query.type && assembled.type !== query.type) return false;
+  if (query.riskLevel && assembled.riskLevel !== query.riskLevel) return false;
+  if (query.status && assembled.status !== query.status) return false;
+  const assigneeRole = query.assigneeRole?.trim().toLowerCase();
+  if (assigneeRole) {
+    const assigneeText = `${assembled.assignee.userId ?? ""} ${assembled.assignee.name} ${assembled.assignee.team}`.toLowerCase();
+    if (!assigneeText.includes(assigneeRole)) return false;
+  }
+  if (!matchesDateWindow(assembled.dueAt, query.dueFrom, query.dueTo)) return false;
+  if (normalizedQ && !`${assembled.title} ${assembled.summary} ${item.question}`.toLowerCase().includes(normalizedQ)) return false;
+  return true;
+}
+
+function matchesDateWindow(value: string | undefined, from: string | undefined, to: string | undefined): boolean {
+  if (!from && !to) return true;
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return false;
+  const fromTimestamp = from ? Date.parse(from) : undefined;
+  const toTimestamp = to ? Date.parse(to) : undefined;
+  if (fromTimestamp !== undefined && Number.isFinite(fromTimestamp) && timestamp < fromTimestamp) return false;
+  if (toTimestamp !== undefined && Number.isFinite(toTimestamp) && timestamp > toTimestamp) return false;
+  return true;
 }
 
 function toReviewDetail(item: ReviewItemDto, approvalHistory: ReviewDetailDto["approvalHistory"]): ReviewDetailDto {

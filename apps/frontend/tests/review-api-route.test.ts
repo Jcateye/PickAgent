@@ -148,6 +148,57 @@ test('review route creates then approves item that appears in approved workbench
   assert.ok(approvedEnvelope.data.items.some((item: { reviewItemId: string; status: string }) => item.reviewItemId === reviewItemId && item.status === 'APPROVED'))
 })
 
+test('review list route applies assignee role and due date filters', async () => {
+  const sourceId = `review_route_due_filter_${Date.now()}`
+  const createResponse = await createReviews(
+    new Request('http://localhost/api/reviews', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        items: [
+          {
+            sourceType: 'agent',
+            sourceId,
+            question: '筛选后的审批项是否可复现？',
+            recommendation: '该审批项用于验证负责人和时间窗口过滤。',
+            riskLevel: 'L1',
+            evidence: [],
+          },
+        ],
+      }),
+    }),
+  )
+  const createEnvelope = await createResponse.json()
+  assert.equal(createResponse.status, 200)
+  const reviewItemId = createEnvelope.data[0].reviewItemId
+
+  const beforeDecision = new Date(Date.now() - 1000).toISOString()
+  const decisionResponse = await decideReview(
+    new Request(`http://localhost/api/reviews/${reviewItemId}/decision`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ decision: 'REQUEST_CHANGES', decisionBy: boundary.actorId, decisionComment: '路由测试修改后批准' }),
+    }),
+    { params: Promise.resolve({ reviewItemId }) },
+  )
+  assert.equal(decisionResponse.status, 200)
+  const afterDecision = new Date(Date.now() + 1000).toISOString()
+
+  const matchedResponse = await listReviews(
+    new Request(`http://localhost/api/reviews?assigneeRole=${encodeURIComponent('Ops Review')}&dueFrom=${encodeURIComponent(beforeDecision)}&dueTo=${encodeURIComponent(afterDecision)}&q=${encodeURIComponent('筛选后的审批项')}&pageSize=50`, { headers: authHeaders }),
+  )
+  const matchedEnvelope = await matchedResponse.json()
+  assert.equal(matchedResponse.status, 200)
+  assert.ok(matchedEnvelope.data.items.some((item: { reviewItemId: string; status: string }) => item.reviewItemId === reviewItemId && item.status === 'MODIFIED'))
+
+  const missedResponse = await listReviews(
+    new Request(`http://localhost/api/reviews?assigneeRole=${encodeURIComponent('Finance')}&dueFrom=${encodeURIComponent(beforeDecision)}&dueTo=${encodeURIComponent(afterDecision)}&q=${encodeURIComponent('筛选后的审批项')}&pageSize=50`, { headers: authHeaders }),
+  )
+  const missedEnvelope = await missedResponse.json()
+  assert.equal(missedResponse.status, 200)
+  assert.ok(!missedEnvelope.data.items.some((item: { reviewItemId: string }) => item.reviewItemId === reviewItemId))
+})
+
 test('review routes consistently return tenant boundary denial', async () => {
   const [review] = await finalApiRuntime.reviewService.create([
     {
