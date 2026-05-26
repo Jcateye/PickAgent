@@ -901,6 +901,7 @@ export class ReviewRepository {
         action: audit.workflowType,
         comment: typeof audit.input.decision === "string" ? String(audit.input.decision) : undefined,
         createdAt: audit.createdAt,
+        workflowRunId: audit.workflowRunId,
       }));
   }
 }
@@ -1469,9 +1470,10 @@ export class PrismaDashboardSkuReadModelRepository extends DashboardSkuReadModel
       include: { skuProfile: true, latestSnapshot: true, latestDiagnosis: true },
     });
     if (!row) throw new Error("SKU not found");
+    const workflowRunId = nextUuid();
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "sku_next_action_update",
         status: "SUCCEEDED",
         subjectType: "sku_profile",
@@ -1962,9 +1964,10 @@ export class PrismaReviewRepository extends ReviewRepository {
         riskLevel: patch.riskLevel,
       },
     });
+    const workflowRunId = nextUuid();
     await this.prisma.workflowRun.create({
       data: {
-        id: nextUuid(),
+        id: workflowRunId,
         workflowType: "review_update",
         status: "SUCCEEDED",
         subjectType: "review_item",
@@ -2017,6 +2020,7 @@ export class PrismaReviewRepository extends ReviewRepository {
       action: String(row.workflowType),
       comment: typeof (row.inputJson as Record<string, unknown> | undefined)?.decision === "string" ? String((row.inputJson as Record<string, unknown>).decision) : undefined,
       createdAt: row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? ""),
+      workflowRunId: String(row.id),
     }));
   }
 }

@@ -83,6 +83,7 @@ export interface ReviewDetailDto extends ReviewListItemDto {
     action: string;
     comment?: string;
     createdAt: string;
+    workflowRunId?: string;
   }>;
 }
 

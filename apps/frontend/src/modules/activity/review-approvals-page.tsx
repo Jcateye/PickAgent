@@ -9,6 +9,10 @@ import styles from './review-approvals.module.css'
 type ReviewDecision = 'APPROVE' | 'REJECT' | 'REQUEST_CHANGES'
 type ReviewTab = 'all' | ReviewWorkbenchStatus
 type ReviewDetailTab = 'recommendation' | 'risk' | 'evidence' | 'rules' | 'history'
+interface ActionLink {
+  href: string
+  label: string
+}
 
 const tabCopy: Array<{ value: ReviewTab; label: string }> = [
   { value: 'PENDING', label: '待审批建议' },
@@ -48,6 +52,7 @@ export function ReviewApprovalsPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<ActionLink | null>(null)
 
   const loadReviews = async () => {
     setLoading(true)
@@ -101,6 +106,7 @@ export function ReviewApprovalsPage() {
     const target = detail ?? reviews.find((item) => item.reviewItemId === selectedItem)
     if (!target) return
     setBusy(decision)
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<ReviewDetailDto>(`/api/reviews/${target.reviewItemId}/decision`, {
         method: 'POST',
@@ -113,6 +119,7 @@ export function ReviewApprovalsPage() {
       })
       setDetail(updated)
       setMessage(`${updated.reviewItemId} 已${decisionStatusCopy[decision]}`)
+      setActionLink(reviewActionLink(updated, '查看审批 Run'))
       setRemark('')
       await loadReviews()
     } catch (error) {
@@ -125,6 +132,7 @@ export function ReviewApprovalsPage() {
   async function saveRecommendation() {
     if (!detail) return
     setBusy('save')
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<ReviewDetailDto>(`/api/reviews/${detail.reviewItemId}`, {
         method: 'PATCH',
@@ -135,6 +143,7 @@ export function ReviewApprovalsPage() {
       setDetail(updated)
       setReviews((current) => current.map((item) => (item.reviewItemId === updated.reviewItemId ? listItemFromDetail(updated) : item)))
       setMessage(`已保存 Review 建议：${updated.reviewItemId}`)
+      setActionLink(reviewActionLink(updated, '查看保存 Run'))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存建议失败')
     } finally {
@@ -193,7 +202,12 @@ export function ReviewApprovalsPage() {
           </div>
         </div>
 
-        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>{message}</div> : null}
+        {message ? (
+          <div style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {message}
+            {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+          </div>
+        ) : null}
 
         <div className={styles.tableContainer}>
           <div className={styles.tableHeader}>
@@ -438,6 +452,7 @@ function HistoryTab({ selectedReview }: { selectedReview: ReviewDetailDto | Revi
             <div className={styles.detailCardTitle}>{item.action}</div>
             <div className={styles.detailCardMeta}>{item.actor} / {new Date(item.createdAt).toLocaleString('zh-CN')}</div>
             {item.comment ? <div>{item.comment}</div> : null}
+            {item.workflowRunId ? <a href={runConsoleHref(item.workflowRunId)} style={{ color: 'var(--primary)' }}>查看 Run</a> : null}
           </div>
         )) : <div className={styles.emptyState}>暂无审批记录。</div>}
       </div>
@@ -462,6 +477,23 @@ function listItemFromDetail(detail: ReviewDetailDto): ReviewListItemDto {
 
 function isReviewDetail(item: ReviewDetailDto | ReviewListItemDto): item is ReviewDetailDto {
   return 'evidenceRefs' in item
+}
+
+function reviewActionLink(detail: ReviewDetailDto, label: string): ActionLink {
+  const latestRunId = [...detail.approvalHistory].reverse().find((item) => item.workflowRunId)?.workflowRunId
+  return latestRunId
+    ? { href: runConsoleHref(latestRunId), label }
+    : { href: reviewApprovalHref(detail.reviewItemId), label: '查看 Review' }
+}
+
+function reviewApprovalHref(reviewItemId: string): string {
+  const params = new URLSearchParams({ reviewItemId })
+  return `/review-approvals?${params.toString()}`
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
 }
 
 function getInitialReviewItemId(): string | null {
