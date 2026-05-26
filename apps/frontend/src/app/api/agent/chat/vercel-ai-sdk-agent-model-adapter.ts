@@ -589,12 +589,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('addActivityCandidateSkus', inputJson),
     }),
     parseActivityRules: tool({
-      description: '把活动或平台规则文本解析为 Canonical Rule DSL。需要 sourceText，可选 name/platform。用于规则结构化、歧义识别和 manual_review 提示。',
+      description: '把活动或平台规则文本解析为 Canonical Rule DSL。需要 sourceText，可选 name/platform；在规则执行页可使用 workbench context 的 ruleDraft 作为当前编辑草稿。用于规则结构化、歧义识别和 manual_review 提示。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('parseActivityRules', normalizeRuleParseInput(inputJson)),
     }),
     parseActivityRuleSetForActivity: tool({
-      description: '把规则文本解析为 Canonical Rule DSL，并绑定到指定活动执行计划。需要 activityId 和 sourceText，可选 name/rules。用于完成创建活动后的规则绑定流转。',
+      description: '把规则文本解析为 Canonical Rule DSL，并绑定到指定活动执行计划。需要 activityId 和 sourceText，可选 name/rules；在规则执行页可使用 workbench context 的 ruleDraft 作为当前编辑草稿。用于完成创建活动后的规则绑定流转。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('parseActivityRuleSetForActivity', inputJson),
     }),
@@ -619,12 +619,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('diagnoseSkuHealth', inputJson),
     }),
     simulateActivityReadiness: tool({
-      description: '执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds。',
+      description: '执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds；如果用户刚编辑了规则原文，应先用 ruleDraft 调用 parseActivityRules 或 parseActivityRuleSetForActivity 生成最新 ruleSetId。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('simulateActivityReadiness', inputJson),
     }),
     runSimulation: tool({
-      description: 'simulateActivityReadiness 的兼容别名。执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds。',
+      description: 'simulateActivityReadiness 的兼容别名。执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds；如果用户刚编辑了规则原文，应先用 ruleDraft 调用 parseActivityRules 或 parseActivityRuleSetForActivity 生成最新 ruleSetId。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('runSimulation', inputJson),
     }),

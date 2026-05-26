@@ -246,9 +246,21 @@ export function RuleExecutionPage() {
     selectedEntity: simulationRun
       ? { entityType: 'simulationRun', entityId: simulationRun.simulationRunId, label: `模拟运行 ${simulationRun.simulationRunId}` }
       : { entityType: 'activityRuleSet', entityId: ruleSet?.ruleSetId ?? 'rule-execution', label: ruleSet?.name ?? ruleName },
-    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId, activityId, candidateSkuCount: candidateSkuProfileIds.length },
+    visibleFilters: {
+      platform,
+      selectedChecks,
+      hasSimulationRun: Boolean(simulationRun),
+      ruleSetId: ruleSet?.ruleSetId,
+      activityId,
+      candidateSkuCount: candidateSkuProfileIds.length,
+      ruleDraft: {
+        name: ruleName,
+        platform,
+        sourceText,
+      },
+    },
     visibleColumns: ['checkItem', 'status', 'owner', 'requiredData', 'method'],
-  }), [activityId, candidateSkuProfileIds.length, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
+  }), [activityId, candidateSkuProfileIds.length, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun, sourceText])
 
   return (
     <>
