@@ -1,5 +1,6 @@
 import { fail, finalApiRuntime, ok, p0AuthContext } from '../../../_final-api-runtime'
 
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import type { ActivityCandidateSkuRequestDto } from '../../../../../../../contracts/types/activityManagement'
 
 interface RouteContext {
@@ -17,11 +18,11 @@ export async function POST(request: Request, context: RouteContext) {
       comment: payload.comment,
     }, boundary), boundary.requestId)
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) {
+      return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit, boundary.requestId)
+    }
     if (error instanceof Error && error.message.includes('Activity not found')) {
       return fail('ACTIVITY.NOT_FOUND', 'activity not found', 404, { activityId }, boundary.requestId)
-    }
-    if (error instanceof Error && error.message.includes('TENANT_BOUNDARY_DENIED')) {
-      return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, { activityId }, boundary.requestId)
     }
     return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'candidate sku update failed', 400, { activityId }, boundary.requestId)
   }

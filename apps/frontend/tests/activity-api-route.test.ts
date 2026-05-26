@@ -21,6 +21,15 @@ const authHeaders = {
   'x-request-id': 'activity_route_request',
 }
 
+const otherTenantHeaders = {
+  'content-type': 'application/json',
+  'x-p0-actor-id': 'activity_route_other_tenant',
+  'x-p0-tenant-id': 'other_tenant',
+  'x-p0-session-id': 'activity_route_other_session',
+  'x-p0-surface': 'route-test',
+  'x-request-id': 'activity_route_other_request',
+}
+
 test('standalone activity rule parse route returns workflow run id for audit navigation', async () => {
   const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
   const response = await parseStandaloneRules(
@@ -208,4 +217,33 @@ test('activity candidate sku route persists candidate list and workflow audit', 
   const audit = audits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
   assert.equal(audit?.workflowType, 'activity_candidate_skus')
   assert.equal(audit?.subjectId, activityId)
+})
+
+test('activity routes consistently return tenant boundary denial', async () => {
+  const createdResponse = await createActivity(
+    new Request('http://localhost/api/activities', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: `Activity Boundary ${Date.now()}`, platform: 'tmall' }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  const activityId = createdEnvelope.data.activityId
+
+  const responses = await Promise.all([
+    getActivity(new Request(`http://localhost/api/activities/${activityId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ activityId }) }),
+    updateActivity(new Request(`http://localhost/api/activities/${activityId}`, { method: 'PATCH', headers: otherTenantHeaders, body: JSON.stringify({ status: 'RUNNING' }) }), { params: Promise.resolve({ activityId }) }),
+    getExecutionPlan(new Request(`http://localhost/api/activities/${activityId}/execution-plan`, { headers: otherTenantHeaders }), { params: Promise.resolve({ activityId }) }),
+    startActivityRun(new Request(`http://localhost/api/activities/${activityId}/runs`, { method: 'POST', headers: otherTenantHeaders }), { params: Promise.resolve({ activityId }) }),
+    parseActivityRuleSet(new Request(`http://localhost/api/activities/${activityId}/rule-sets/parse`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ sourceText: '库存不得低于 20 件。' }) }), { params: Promise.resolve({ activityId }) }),
+    createSimulationRun(new Request(`http://localhost/api/activities/${activityId}/simulations`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ skuProfileIds: ['sku_cross_tenant'] }) }), { params: Promise.resolve({ activityId }) }),
+    addCandidateSkus(new Request(`http://localhost/api/activities/${activityId}/candidate-skus`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ skuProfileIds: ['sku_cross_tenant'] }) }), { params: Promise.resolve({ activityId }) }),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 403)
+    assert.equal(envelope.code, 'P0.TENANT_BOUNDARY_DENIED')
+  }
 })
