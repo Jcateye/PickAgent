@@ -721,7 +721,9 @@ test('agent chat createReviewItems tool supports batch simulation review creatio
   assert.equal(reviews.length, 2)
   assert.ok(reviews.every((item) => item.status === 'OPEN' && item.sourceType === 'simulation'))
   assert.equal(created.linkedEntity?.type, 'workflow_run')
-  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviews[0].reviewItemId))
+  for (const review of reviews) {
+    assert.ok(created.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === review.reviewItemId))
+  }
 
   const detail = await finalApiRuntime.skuReadinessQueryService.detail(skuProfileIds[0], {
     actorId: 'agent_demo',
