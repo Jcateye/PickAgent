@@ -1397,6 +1397,21 @@ test('agent chat audited report and review write tools link to run console', asy
   assert.equal(decidedReview.linkedEntity.id, decidedReviewRunId)
   assert.ok(decidedReview.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
   assert.ok(decidedReview.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decidedReviewRunId))
+
+  const modifiedReview = await executeFinalApiTool('createReviewItems', {
+    skuProfileId,
+    sourceType: 'health',
+    sourceId: skuProfileId,
+    question: '验证修改后批准别名',
+    recommendation: '需要修改后批准',
+    riskLevel: 'L1',
+  })
+  assert.equal(modifiedReview.status, 'SUCCEEDED')
+  const modifiedReviewItemId = (modifiedReview.result as Array<{ reviewItemId: string }>)[0]?.reviewItemId
+  assert.ok(modifiedReviewItemId)
+  const modifiedDecision = await executeFinalApiTool('decideReviewItem', { reviewItemId: modifiedReviewItemId, decision: 'MODIFIED', decisionBy: 'agent-test' })
+  assert.equal(modifiedDecision.status, 'SUCCEEDED')
+  assert.equal((modifiedDecision.result as { status: string }).status, 'MODIFIED')
 })
 
 test('agent chat generateReport tool supports SKU filters without explicit ids', async () => {

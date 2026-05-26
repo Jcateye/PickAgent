@@ -406,7 +406,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       assigneeRole: { type: 'string' },
       dueFrom: { type: 'string' },
       dueTo: { type: 'string' },
-      decision: { type: 'string', enum: ['APPROVE', 'REJECT', 'REQUEST_CHANGES'] },
+      decision: { type: 'string', enum: ['APPROVE', 'REJECT', 'REQUEST_CHANGES', 'MODIFIED', 'CHANGES_REQUESTED'] },
       decisionBy: { type: 'string' },
       decisionComment: { type: 'string' },
       status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'NEEDS_AUTH', 'FAILED', 'DISABLED', 'ENABLED', 'DRAFT', 'RUNNING', 'COMPLETED', 'PENDING', 'OPEN', 'APPROVED', 'REJECTED', 'MODIFIED'] },
@@ -664,7 +664,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('updateReviewItem', inputJson),
     }),
     decideReviewItem: tool({
-      description: '对真实 Review 项执行审批决策。需要 reviewItemId 和 decision=APPROVE/REJECT/REQUEST_CHANGES，可选 decisionComment/modifiedPayload；在 Review 页面可使用 workbench context 的 decisionCommentDraft 作为 decisionComment。只能在用户明确要求批准、驳回或要求修改时使用。',
+      description: '对真实 Review 项执行审批决策。需要 reviewItemId 和 decision=APPROVE/REJECT/REQUEST_CHANGES；也兼容 MODIFIED/CHANGES_REQUESTED 表示要求修改。可选 decisionComment/modifiedPayload；在 Review 页面可使用 workbench context 的 decisionCommentDraft 作为 decisionComment。只能在用户明确要求批准、驳回或要求修改时使用。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('decideReviewItem', inputJson),
     }),

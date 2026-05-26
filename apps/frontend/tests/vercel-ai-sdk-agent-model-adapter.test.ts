@@ -510,6 +510,9 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
       assert.match(toolPolicySchema, /deniedRuntimeTools/)
       const reviewItemSchema = JSON.stringify(input.tools?.createReviewItems?.inputSchema ?? {})
       assert.match(reviewItemSchema, /items/)
+      const decideReviewSchema = JSON.stringify(input.tools?.decideReviewItem?.inputSchema ?? {})
+      assert.match(decideReviewSchema, /MODIFIED/)
+      assert.match(decideReviewSchema, /CHANGES_REQUESTED/)
       const activitySimulationSchema = JSON.stringify(input.tools?.getActivitySimulationRunDetail?.inputSchema ?? {})
       assert.match(activitySimulationSchema, /simulationRunId/)
 

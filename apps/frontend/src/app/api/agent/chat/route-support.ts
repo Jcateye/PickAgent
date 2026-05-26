@@ -1766,7 +1766,8 @@ function normalizeRuleSetListStatus(value: unknown): RuleSetStatusDto | 'ALL' | 
 }
 
 function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['decision'] {
-  if (value === 'REJECT' || value === 'REQUEST_CHANGES') return value
+  if (value === 'REJECT') return value
+  if (value === 'REQUEST_CHANGES' || value === 'MODIFIED' || value === 'CHANGES_REQUESTED') return 'REQUEST_CHANGES'
   return 'APPROVE'
 }
 
