@@ -51,6 +51,7 @@ export interface ConnectorDetailDto extends ConnectorListItemDto {
   config: Record<string, unknown>;
   permissions: Array<{ key: string; label: string; granted: boolean }>;
   recentRuns: ConnectorRunSummaryDto[];
+  workflowRunId?: string;
 }
 
 export interface ConnectorRunSummaryDto {

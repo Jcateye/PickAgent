@@ -118,6 +118,7 @@ export function DataSourcesPage() {
         const created = await fetchActivityApi<ConnectorDetailDto>('/api/connectors', { method: 'POST', body: JSON.stringify(payload) })
         setConnectorForm(null)
         setMessage(`已添加连接器：${created.name}`)
+        setActionLink(connectorWriteRunActionLink(created.workflowRunId, created.connectorId, '查看创建 Run'))
         await loadConnectors(created.connectorId)
         return
       }
@@ -134,6 +135,7 @@ export function DataSourcesPage() {
       setConnectorForm(null)
       setDetail(updated)
       setMessage(`已更新连接器配置：${updated.name}`)
+      setActionLink(connectorWriteRunActionLink(updated.workflowRunId, updated.connectorId, '查看保存 Run'))
       await loadConnectors(updated.connectorId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存连接器失败')
@@ -196,6 +198,7 @@ export function DataSourcesPage() {
       })
       setDetail(updated)
       setMessage(`${updated.name} 已${updated.status === 'DISABLED' ? '停用' : '启用'}`)
+      setActionLink(connectorWriteRunActionLink(updated.workflowRunId, updated.connectorId, '查看状态 Run'))
       await loadConnectors(updated.connectorId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '连接器状态更新失败')
@@ -601,9 +604,18 @@ function connectorRunHref(run: ConnectorRunSummaryDto): string {
   return runConsoleHref(run.workflowRunRef?.entityId ?? run.connectorRunId)
 }
 
+function connectorWriteRunActionLink(workflowRunId: string | undefined, connectorId: string, label: string): ActionLink {
+  return workflowRunId ? { href: runConsoleHref(workflowRunId), label } : { href: dataSourcesHref(connectorId), label: '查看连接器' }
+}
+
 function runConsoleHref(runId: string): string {
   const params = new URLSearchParams({ runId })
   return `/run-console?${params.toString()}`
+}
+
+function dataSourcesHref(connectorId: string): string {
+  const params = new URLSearchParams({ connectorId })
+  return `/data-sources?${params.toString()}`
 }
 
 function skuAccessHref(state: { sourceKind?: string; drawerTab?: string }): string {

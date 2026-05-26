@@ -86,6 +86,43 @@ test('connector sync route rejects disabled connector as a conflict', async () =
   assert.equal(envelope.code, 'CONNECTOR.CONFLICT')
 })
 
+test('connector write routes return workflow run ids for audit navigation', async () => {
+  const createdResponse = await createConnector(
+    new Request('http://localhost/api/connectors', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        code: `audit_connector_${Date.now()}`,
+        name: 'Audit Connector',
+        kind: 'platform_api',
+        platform: 'tmall',
+        status: 'ACTIVE',
+      }),
+    }),
+  )
+  const createdEnvelope = await createdResponse.json()
+  assert.equal(createdResponse.status, 200)
+  assert.match(createdEnvelope.data.workflowRunId, /^workflow_/)
+  const connectorId = createdEnvelope.data.connectorId
+
+  const updateResponse = await updateConnector(
+    new Request(`http://localhost/api/connectors/${connectorId}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Audit Connector Updated' }),
+    }),
+    { params: Promise.resolve({ connectorId }) },
+  )
+  const updateEnvelope = await updateResponse.json()
+  assert.equal(updateResponse.status, 200)
+  assert.match(updateEnvelope.data.workflowRunId, /^workflow_/)
+
+  const disableResponse = await disableConnector(new Request(`http://localhost/api/connectors/${connectorId}`, { method: 'DELETE', headers: authHeaders }), { params: Promise.resolve({ connectorId }) })
+  const disableEnvelope = await disableResponse.json()
+  assert.equal(disableResponse.status, 200)
+  assert.match(disableEnvelope.data.workflowRunId, /^workflow_/)
+})
+
 test('browser scan ingest route writes SKU data and connector run atomically', async () => {
   const createdResponse = await createConnector(
     new Request('http://localhost/api/connectors', {
