@@ -106,6 +106,9 @@ function recoveredLinkedEntityHref(entityType: string, entityId: string): string
   if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
   if (entityType === 'agent_mission') return `/agent-mission?${new URLSearchParams({ missionId: entityId }).toString()}`
   if (entityType === 'download_artifact') return entityId.startsWith('/api/') ? entityId : '/overview'
+  if (entityId === 'sku-search' || entityId === 'sku-export' || entityId === 'sku-ingest') return '/sku-access'
+  if (entityId === 'activities') return '/rule-execution'
+  if (entityId === 'dashboard' || entityId === 'health-summary') return '/overview'
   if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
   if (entityId === 'reports') return '/report-center'
   if (entityId === 'reviews') return '/review-approvals'
