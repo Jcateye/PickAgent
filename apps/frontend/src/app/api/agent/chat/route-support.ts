@@ -1041,7 +1041,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const gateId = String(input.gateId ?? '')
       const decision = String(input.decision ?? '')
       if (!gateId || !decision) throw new Error('gateId and decision are required')
-      const normalizedDecision = decision === 'REJECT' ? 'REJECT' : decision === 'REQUEST_CHANGES' ? 'REQUEST_CHANGES' : 'APPROVE'
+      const normalizedDecision = normalizeReviewDecision(decision)
       const decidedBy = optionalString(input.decidedBy) ?? optionalString(input.decisionBy) ?? 'agent-chat-tool'
       const decisionComment = optionalString(input.decisionComment)
       if (isUuid(gateId)) {

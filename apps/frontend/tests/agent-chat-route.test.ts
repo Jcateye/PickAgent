@@ -92,6 +92,21 @@ test('agent chat mission tools link back to the mission console', async () => {
   assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
   assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decisionResult.continuationRun.id))
 
+  const modifiedGate = finalAgentRuntime.agentService.createReviewGateForTest({
+    missionId,
+    runId: startedRun.id,
+    toolCallId: null,
+    reasonCode: 'agent-chat-test-modified',
+    question: '是否要求修改后继续？',
+    agentRecommendation: '建议补充约束后继续。',
+    riskIfApproved: '会继续执行。',
+    riskIfRejected: '任务停留在当前 run。',
+    evidenceRefs: [],
+  })
+  const modifiedGateDecision = await executeFinalApiTool('decideAgentReviewGate', { gateId: modifiedGate.id, decision: 'MODIFIED', decidedBy: 'agent-chat-test' })
+  assert.equal(modifiedGateDecision.status, 'SUCCEEDED')
+  assert.equal((modifiedGateDecision.result as { gate: { status: string } }).gate.status, 'MODIFIED')
+
   const retried = await executeFinalApiTool('retryRun', { runType: 'agent_run', missionId, runId: startedRun.id })
   assert.equal(retried.status, 'SUCCEEDED')
   const retriedRun = retried.result as { id: string; missionId: string }

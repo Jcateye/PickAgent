@@ -784,7 +784,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('answerAgentRunQuestion', inputJson),
     }),
     decideAgentReviewGate: tool({
-      description: '处理真实 Agent Review Gate。需要 gateId 和 decision=APPROVE/REJECT/REQUEST_CHANGES，可选 decidedBy/decisionComment。只能在用户明确给出审批决策时使用。',
+      description: '处理真实 Agent Review Gate。需要 gateId 和 decision=APPROVE/REJECT/REQUEST_CHANGES；也兼容 MODIFIED/CHANGES_REQUESTED 表示要求修改。可选 decidedBy/decisionComment。只能在用户明确给出审批决策时使用。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('decideAgentReviewGate', inputJson),
     }),
