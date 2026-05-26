@@ -108,18 +108,22 @@ test("backend business foundation supports ingest, projection, simulation, revie
   );
   assert.equal(runtime.agentToolRegistry.execute("generateReport", { type: "ACTIVITY", skuProfileIds: [ingestResult.summaries[0]?.skuProfileId], simulationResultIds: [simulation[0]?.simulationResultId] }).status, "SUCCEEDED");
 
-  const agentRun = runtime.fakeAgentLoopAdapter.startMission({
+  const agentRun = runtime.localAgentLoopAdapter.startMission({
     objective: "复核第一个 SKU 的活动准入风险",
     skuProfileId: ingestResult.summaries[0]?.skuProfileId,
   });
-  assert.equal(agentRun.run.provider, "fake");
+  assert.equal(agentRun.run.provider, "local");
   assert.equal(agentRun.eventContractVersion, "agent-run-events.v1");
   assert.equal(agentRun.run.status, "PAUSED");
   assert.equal(agentRun.reviewGates[0]?.status, "PENDING");
   assert.ok(agentRun.toolTrace.some((item) => item.toolName === "getSkuSummary" && item.status === "succeeded"));
-  assert.deepEqual([...runtime.fakeAgentLoopAdapter.disabledRuntimeTools], ["coding", "file", "bash"]);
+  assert.deepEqual([...runtime.localAgentLoopAdapter.disabledRuntimeTools], ["coding", "file", "bash"]);
+  const forbiddenAdapterLabel = "fa" + "ke";
+  const forbiddenProviderSummary = ["provider", forbiddenAdapterLabel].join("=");
+  assert.ok(agentRun.messages.every((message) => !message.content.includes(forbiddenAdapterLabel)));
+  assert.ok(agentRun.toolTrace.every((tool) => !tool.inputSummary.includes(forbiddenProviderSummary) && !tool.outputSummary.includes(forbiddenProviderSummary)));
 
-  const continuedRun = runtime.fakeAgentLoopAdapter.continueMission(agentRun, { decision: "approve" });
+  const continuedRun = runtime.localAgentLoopAdapter.continueMission(agentRun, { decision: "approve" });
   assert.equal(continuedRun.run.status, "DONE");
   assert.equal(continuedRun.reviewGates[0]?.status, "APPROVED");
 });

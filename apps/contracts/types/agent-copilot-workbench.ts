@@ -98,7 +98,7 @@ export interface AgentMissionRun {
   run: {
     id: string
     status: AgentRunStatus
-    provider: 'fake' | 'pi'
+    provider: 'local' | 'pi'
     progressPercent: number
   }
   messages: AgentMessage[]

@@ -97,17 +97,18 @@ test("cross-module acceptance chain connects doudian ingest, health, activity, r
   assert.equal(toolResult.status, "SUCCEEDED");
   assert.ok(toolResult.trace.some((item) => item.step === "service_boundary"));
 
-  const agentRun = runtime.fakeAgentLoopAdapter.startMission({
+  const agentRun = runtime.localAgentLoopAdapter.startMission({
     objective: "验收抖店 SKU 活动准入风险并停在 Review Gate",
     skuProfileId: firstSkuProfileId,
   });
   assert.equal(agentRun.run.status, "PAUSED");
+  assert.equal(agentRun.run.provider, "local");
   assert.equal(agentRun.reviewGates[0]?.status, "PENDING");
-  assert.deepEqual([...runtime.fakeAgentLoopAdapter.disabledRuntimeTools], ["coding", "file", "bash"]);
+  assert.deepEqual([...runtime.localAgentLoopAdapter.disabledRuntimeTools], ["coding", "file", "bash"]);
 
-  const continuedRun = runtime.fakeAgentLoopAdapter.continueMission(agentRun, {
+  const continuedRun = runtime.localAgentLoopAdapter.continueMission(agentRun, {
     decision: "approve",
-    comment: "验收 smoke 批准继续，fake adapter 不执行真实高风险动作。",
+    comment: "验收 smoke 批准继续，本地业务适配器不执行真实高风险动作。",
   });
   assert.equal(continuedRun.run.status, "DONE");
   assert.equal(continuedRun.reviewGates[0]?.status, "APPROVED");

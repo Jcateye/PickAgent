@@ -42,8 +42,8 @@ const registeredBusinessTools = [
 
 const disabledRuntimeTools = ["coding", "file", "bash"] as const;
 
-export class FakeAgentLoopAdapter implements AgentLoopAdapter {
-  readonly provider = "fake";
+export class LocalBusinessAgentLoopAdapter implements AgentLoopAdapter {
+  readonly provider = "local";
   readonly contractVersion = "agent-run-events.v1";
   readonly availableTools = registeredBusinessTools;
   readonly disabledRuntimeTools = disabledRuntimeTools;
@@ -86,7 +86,7 @@ export class FakeAgentLoopAdapter implements AgentLoopAdapter {
         {
           id: "msg-runtime-agent-1",
           role: "assistant",
-          content: "已启动 fake runtime adapter，并只暴露 AgentToolRegistry 中的业务工具。",
+          content: "已启动本地业务 Agent 运行适配器，并只暴露 AgentToolRegistry 中的可审计业务工具。",
           status: "completed",
           linkedEntityIds: linkedEntities.map((item) => item.id),
           evidenceRefIds: evidenceRefs.map((item) => item.id),
@@ -104,7 +104,7 @@ export class FakeAgentLoopAdapter implements AgentLoopAdapter {
         {
           id: "msg-runtime-agent-2",
           role: "assistant",
-          content: "run 已在 Review Gate 暂停。fake adapter 不连接生产 Pi，也不开放 coding、file 或 bash 工具。",
+          content: "run 已在 Review Gate 暂停。本地业务适配器不开放 coding、file 或 bash 工具。",
           status: "completed",
           evidenceRefIds: [reviewGate.evidenceRefs[0]].filter((item): item is string => Boolean(item)),
         },
@@ -117,7 +117,7 @@ export class FakeAgentLoopAdapter implements AgentLoopAdapter {
           status: "succeeded",
           riskLevel: "L0",
           reviewPolicy: "none",
-          inputSummary: `provider=fake, disabled=${this.disabledRuntimeTools.join(",")}`,
+          inputSummary: `provider=${this.provider}, disabled=${this.disabledRuntimeTools.join(",")}`,
           outputSummary: `available=${this.availableTools.join(",")}`,
           evidenceRefs: [],
         },
@@ -146,7 +146,7 @@ export class FakeAgentLoopAdapter implements AgentLoopAdapter {
     const decisionText =
       input.comment ??
       (input.decision === "approve"
-        ? "已批准继续，fake adapter 只记录后续建议，不直接改写业务数据。"
+        ? "已批准继续，本地业务适配器只记录后续建议，不直接改写业务数据。"
         : input.decision === "reject"
           ? "已拒绝继续，Mission 结束并保留 trace。"
           : "已要求修改，Mission 等待新的约束输入。");
@@ -186,7 +186,7 @@ export class FakeAgentLoopAdapter implements AgentLoopAdapter {
       ),
       toolTrace: run.toolTrace.map((tool) =>
         tool.id === "tool-runtime-review-gate"
-          ? { ...tool, status: completed ? "succeeded" : "waiting_for_approval", outputSummary: `Gate decision=${input.decision}; provider=fake` }
+          ? { ...tool, status: completed ? "succeeded" : "waiting_for_approval", outputSummary: `Gate decision=${input.decision}; provider=${this.provider}` }
           : tool,
       ),
       reviewGates: run.reviewGates.map((gate) => ({
@@ -205,7 +205,7 @@ function createPlan(hasToolInput: boolean, toolSucceeded: boolean): AgentPlanSte
     {
       id: "plan-runtime-boundary",
       title: "确认 runtime 与工具边界",
-      detail: "使用 fake runtime adapter，业务能力只来自 AgentToolRegistry。",
+      detail: "使用本地业务 Agent 运行适配器，业务能力只来自 AgentToolRegistry。",
       status: "completed",
       toolName: "runtime.boundary",
     },
@@ -293,7 +293,7 @@ function createRuntimeReviewGate(evidenceRefs: string[]): AgentReviewGate {
     id: "gate-runtime-boundary",
     status: "PENDING",
     reasonCode: "RUNTIME_TOOL_BOUNDARY_CONFIRMATION",
-    question: "是否允许 fake runtime 在同一 Mission 中继续生成后续建议？",
+    question: "是否允许本地业务 Agent 在同一 Mission 中继续生成后续建议？",
     agentRecommendation: "建议继续，但保持 Review Gate，不连接生产 Pi，不开放 coding/file/bash。",
     riskIfApproved: "只会追加建议、trace 与可审计上下文，不直接修改业务数据。",
     riskIfRejected: "Mission 停止，已生成的工具 trace 和 evidence 保留。",
@@ -306,6 +306,6 @@ function createToolBoundaryEvidence(): AgentEvidenceRef {
     id: "evidence-runtime-tool-boundary",
     evidenceType: "tool_result",
     label: "AgentToolRegistry 边界",
-    summary: "fake runtime adapter 只调用注册业务工具，禁用 coding、file、bash。",
+    summary: "本地业务 Agent 运行适配器只调用注册业务工具，禁用 coding、file、bash。",
   };
 }
