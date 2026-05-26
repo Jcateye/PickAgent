@@ -53,6 +53,16 @@ interface MissionCreatedResponse {
   }
 }
 
+interface MissionDetailResponse extends MissionListItem {
+  runs: Array<{
+    runId: string
+    status: RunStatus
+    startedAt?: string | null
+    completedAt?: string | null
+    updatedAt: string
+  }>
+}
+
 interface AgentRun {
   id?: string
   runId?: string
@@ -124,8 +134,8 @@ interface PlanStep {
 
 export function AgentMissionPage() {
   const [missions, setMissions] = useState<MissionListItem[]>([])
-  const [activeMissionId, setActiveMissionId] = useState<string | null>(null)
-  const [runId, setRunId] = useState<string | null>(null)
+  const [activeMissionId, setActiveMissionId] = useState<string | null>(() => getInitialAgentMissionParam('missionId'))
+  const [runId, setRunId] = useState<string | null>(() => getInitialAgentMissionParam('runId'))
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null)
   const [objective, setObjective] = useState(defaultObjective)
   const [loading, setLoading] = useState(true)
@@ -177,8 +187,15 @@ export function AgentMissionPage() {
     setLoading(true)
     setError(null)
     try {
-      const list = await apiGet<MissionListResponse>('/api/agent/missions?page=1&pageSize=10')
-      let nextMission = list.items[0]
+      const preferredMissionId = getInitialAgentMissionParam('missionId')
+      const preferredRunId = getInitialAgentMissionParam('runId')
+      const list = await apiGet<MissionListResponse>('/api/agent/missions?page=1&pageSize=100')
+      let nextMission = preferredMissionId ? list.items.find((item) => item.missionId === preferredMissionId) : undefined
+      if (!nextMission && preferredMissionId) {
+        const detail = await apiGet<MissionDetailResponse>(`/api/agent/missions/${encodeURIComponent(preferredMissionId)}`)
+        nextMission = missionDetailToListItem(detail)
+      }
+      nextMission = nextMission ?? list.items[0]
       if (!nextMission) {
         const created = await apiPost<MissionCreatedResponse>('/api/agent/missions', {
           sessionKey,
@@ -201,7 +218,7 @@ export function AgentMissionPage() {
       setMissions(nextMission ? [nextMission, ...list.items.filter((item) => item.missionId !== nextMission.missionId)] : list.items)
       setActiveMissionId(nextMission?.missionId ?? null)
       setObjective(nextMission?.objective ?? defaultObjective)
-      let nextRunId = nextMission?.currentRun?.runId
+      let nextRunId = preferredRunId ?? nextMission?.currentRun?.runId
       if (nextMission && !nextRunId) {
         const started = await apiPost<AgentRun>(`/api/agent/missions/${encodeURIComponent(nextMission.missionId)}/runs`, {
           modelProvider: 'pi',
@@ -217,6 +234,10 @@ export function AgentMissionPage() {
       setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    syncAgentMissionUrl(activeMission?.missionId ?? activeMissionId, runId)
+  }, [activeMission?.missionId, activeMissionId, runId])
 
   useEffect(() => {
     void loadMissionConsole()
@@ -505,6 +526,43 @@ export function AgentMissionPage() {
       </main>
     </div>
   )
+}
+
+function missionDetailToListItem(detail: MissionDetailResponse): MissionListItem {
+  const currentRun = detail.currentRun ?? detail.runs[0]
+  return {
+    missionId: detail.missionId,
+    objective: detail.objective,
+    status: detail.status,
+    sourceSurface: detail.sourceSurface,
+    subjectType: detail.subjectType,
+    subjectId: detail.subjectId,
+    currentRun: currentRun ? {
+      runId: currentRun.runId,
+      status: currentRun.status,
+      startedAt: currentRun.startedAt ?? currentRun.updatedAt,
+      updatedAt: currentRun.updatedAt,
+    } : undefined,
+    createdAt: detail.createdAt,
+    updatedAt: detail.updatedAt,
+  }
+}
+
+function getInitialAgentMissionParam(name: string): string | null {
+  if (typeof window === 'undefined') return null
+  return new URLSearchParams(window.location.search).get(name)
+}
+
+function syncAgentMissionUrl(missionId: string | null | undefined, runId: string | null | undefined) {
+  if (typeof window === 'undefined') return
+  const params = new URLSearchParams()
+  if (missionId) params.set('missionId', missionId)
+  if (runId) params.set('runId', runId)
+  const nextSearch = params.toString()
+  const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
+  if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
 
 async function apiGet<T>(url: string): Promise<T> {

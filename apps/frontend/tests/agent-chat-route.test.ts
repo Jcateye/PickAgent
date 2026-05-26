@@ -12,11 +12,26 @@ test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('review_item', 'review_1'), '/review-approvals?reviewItemId=review_1')
   assert.equal(linkedEntityHref('report', 'report_1'), '/report-center?reportId=report_1')
   assert.equal(linkedEntityHref('connector', 'connector_1'), '/data-sources?connectorId=connector_1')
+  assert.equal(linkedEntityHref('agent_mission', 'mission_1'), '/agent-mission?missionId=mission_1')
   assert.equal(linkedEntityHref('simulation_run', 'rule_1:run_1'), '/rule-execution?simulationRunId=run_1&ruleSetId=rule_1')
   assert.equal(linkedEntityHref('dashboard', 'connectors'), '/data-sources')
   assert.equal(linkedEntityHref('dashboard', 'reports'), '/report-center')
   assert.equal(linkedEntityHref('dashboard', 'reviews'), '/review-approvals')
   assert.equal(linkedEntityHref('dashboard', 'rule-sets'), '/rule-library')
+  assert.equal(linkedEntityHref('dashboard', 'agent-missions'), '/agent-mission')
+})
+
+test('agent chat mission tools link back to the mission console', async () => {
+  const created = await executeFinalApiTool('createAgentMission', {
+    sessionKey: `agent-mission-link-${Date.now()}`,
+    objective: '验证 Agent Mission 深链',
+    sourceSurface: 'agent-chat-test',
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  assert.equal(created.linkedEntity?.type, 'agent_mission')
+  const missionId = (created.result as { mission: { id: string } }).mission.id
+  assert.equal(created.linkedEntity.id, missionId)
+  assert.equal(linkedEntityHref(created.linkedEntity.type, created.linkedEntity.id), `/agent-mission?missionId=${missionId}`)
 })
 
 test('agent chat connector linked entities restore data source details', async () => {

@@ -740,14 +740,14 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         pageSize: numberOr(input.pageSize, 10),
         status: optionalString(input.status),
       })
-      return succeeded(result, [{ type: 'tool_trace', entityId: 'agent-missions', label: 'Agent Mission 列表', summary: `读取 ${result.items.length} 个 Mission` }], `读取 Agent Mission：${result.items.length} 个`, result.items[0] ? { type: 'workflow_run', id: result.items[0].currentRun?.runId ?? result.items[0].missionId } : { type: 'dashboard', id: 'agent-missions' })
+      return succeeded(result, [{ type: 'tool_trace', entityId: 'agent-missions', label: 'Agent Mission 列表', summary: `读取 ${result.items.length} 个 Mission` }], `读取 Agent Mission：${result.items.length} 个`, result.items[0] ? { type: 'agent_mission', id: result.items[0].missionId } : { type: 'dashboard', id: 'agent-missions' })
     }
 
     if (toolName === 'getAgentMission') {
       const missionId = String(input.missionId ?? '')
       if (!missionId) throw new Error('missionId is required')
       const result = finalAgentRuntime.agentService.getMission(missionId)
-      return succeeded(result, [{ type: 'tool_trace', entityId: missionId, label: 'Agent Mission', summary: `读取 Mission：${result.objective}` }], `读取 Agent Mission：${result.objective}`, result.runs[0] ? { type: 'workflow_run', id: result.runs[0].runId } : { type: 'dashboard', id: missionId })
+      return succeeded(result, [{ type: 'tool_trace', entityId: missionId, label: 'Agent Mission', summary: `读取 Mission：${result.objective}` }], `读取 Agent Mission：${result.objective}`, { type: 'agent_mission', id: missionId })
     }
 
     if (toolName === 'createAgentMission') {
@@ -765,7 +765,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         workbenchContextJson: isRecord(input.workbenchContextJson) ? input.workbenchContextJson : undefined,
         createdBy: optionalString(input.createdBy) ?? 'agent-chat-tool',
       })
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.mission.id, label: 'Agent Mission', summary: `创建 Mission：${result.mission.objective}` }], `创建 Agent Mission：${result.mission.id}`, { type: 'dashboard', id: result.mission.id })
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.mission.id, label: 'Agent Mission', summary: `创建 Mission：${result.mission.objective}` }], `创建 Agent Mission：${result.mission.id}`, { type: 'agent_mission', id: result.mission.id })
     }
 
     if (toolName === 'startAgentRun') {
@@ -1503,7 +1503,7 @@ function normalizeLinkedEntityType(type: string): AgentLinkedEntity['entityType'
   if (type === 'activity_rule_set') return 'rule_set'
   if (type === 'dashboard') return 'dashboard'
   if (type === 'report') return 'report'
-  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run' || type === 'connector') return type
+  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run' || type === 'connector' || type === 'agent_mission') return type
   return 'dashboard'
 }
 
@@ -1515,6 +1515,7 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
   if (entityType === 'report') return '报告中心'
   if (entityType === 'workflow_run') return 'Run Console'
   if (entityType === 'connector') return '数据源'
+  if (entityType === 'agent_mission') return 'Agent Mission'
   if (entityId === 'connectors') return '数据源'
   if (entityId === 'reports') return '报告中心'
   if (entityId === 'reviews') return 'Review 工作台'
@@ -1535,11 +1536,13 @@ export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
   if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
   if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
+  if (entityType === 'agent_mission') return `/agent-mission?${new URLSearchParams({ missionId: entityId }).toString()}`
   if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
   if (entityId === 'reports') return '/report-center'
   if (entityId === 'reviews') return '/review-approvals'
   if (entityId === 'rule-sets') return '/rule-library'
   if (entityId === 'run-console') return '/run-console'
+  if (entityId === 'agent-missions') return '/agent-mission'
   if (entityId === 'settings' || entityId === 'tool-policy' || entityId === 'settings-users') return '/settings'
   return '/overview'
 }
