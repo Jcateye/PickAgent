@@ -1128,6 +1128,34 @@ test('agent chat tool policy treats an empty allowlist as deny all', () => {
   assert.equal(isAgentToolDeniedBySettings('getSkuSummary', { allowedAgentTools: ['getSkuSummary'], deniedRuntimeTools: ['getSkuSummary'] }), true)
 })
 
+test('agent chat sku detail tools respect tenant boundary', async () => {
+  const externalSkuId = `agent_cross_tenant_sku_${Date.now()}`
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T16:00:00.000Z',
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_cross_tenant_store',
+      externalSkuId,
+      productName: 'Agent 跨租户不可见 SKU',
+      stock: 88,
+      positiveRate: 0.99,
+      raw: { externalSkuId },
+    }],
+  }, {
+    actorId: 'agent_cross_tenant_owner',
+    tenantId: 'other_tenant',
+    sessionId: 'agent_cross_tenant_session',
+    surface: 'route-test',
+    requestId: 'agent_cross_tenant_ingest',
+  })
+  const skuProfileId = ingest.summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const execution = await executeFinalApiTool('getSkuSummary', { skuProfileId })
+  assert.equal(execution.status, 'FAILED')
+  assert.match((execution.result as { message: string }).message, /cross-tenant access denied|Tenant boundary denied/)
+})
+
 test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('generateReport'), 'L2')
   assert.equal(agentToolRiskLevel('generateReportPreview'), 'L2')

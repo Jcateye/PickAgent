@@ -1446,7 +1446,7 @@ function skuListEvidence(items: Array<{ skuProfileId: string; productName: strin
 
 async function getRequiredSkuDetail(skuProfileId: string): Promise<SkuDetailDto> {
   if (!skuProfileId) throw new Error('skuProfileId is required')
-  const detail = await finalApiRuntime.ingestService.getSkuDetail(skuProfileId)
+  const detail = await finalApiRuntime.ingestService.getSkuDetail(skuProfileId, agentToolAuthContext())
   if (!detail) throw new Error(`SKU not found: ${skuProfileId}`)
   return detail
 }
