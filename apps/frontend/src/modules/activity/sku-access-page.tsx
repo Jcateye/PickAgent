@@ -138,9 +138,9 @@ export function SkuAccessPage() {
       entityId: selectedRow?.skuProfileId ?? selectedId ?? 'sku-access',
       label: selectedRow?.displaySku ?? selectedRow?.productName ?? 'SKU 准入工作台',
     },
-    visibleFilters: { page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, selectedIds, activityId },
+    visibleFilters: { page, healthStatus, sourceKind, category, platform, storeId, query, drawerTab, selectedIds, activityId, nextActionType, nextActionDraft: nextActionOptions.find((option) => option.type === nextActionType) ?? nextActionOptions[0] },
     visibleColumns: ['displaySku', 'productName', 'healthStatus', 'eligibilityLabel', 'nextAction'],
-  }), [activityId, category, drawerTab, healthStatus, page, platform, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind, storeId])
+  }), [activityId, category, drawerTab, healthStatus, nextActionType, page, platform, query, selectedId, selectedIds, selectedRow?.displaySku, selectedRow?.productName, selectedRow?.skuProfileId, sourceKind, storeId])
   const stats = useMemo(() => {
     const total = summary?.total ?? rows.length
     const ready = summary?.ready ?? rows.filter((item) => item.healthStatus === 'READY').length

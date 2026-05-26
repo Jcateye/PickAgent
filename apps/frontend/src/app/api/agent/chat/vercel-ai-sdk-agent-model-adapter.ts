@@ -584,7 +584,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('startActivityRun', inputJson),
     }),
     addActivityCandidateSkus: tool({
-      description: '把 SKU 加入活动候选清单，不执行外部平台报名。需要 activityId 和 skuProfileIds，可选 reasonCode/comment。',
+      description: '把 SKU 加入活动候选清单，不执行外部平台报名。需要 activityId 和 skuProfileIds，可选 reasonCode/comment；在 SKU 准入页可使用 workbench context 的 selectedIds 和 activityId 复现当前批量操作。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('addActivityCandidateSkus', inputJson),
     }),
@@ -649,7 +649,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('listReviews', inputJson),
     }),
     createReviewItems: tool({
-      description: '创建真实人工 Review 项。支持单条 skuProfileId/sourceId，也支持 items 数组批量创建；可选 question/recommendation/riskLevel/sourceType/evidence。用于规则歧义、模拟失败项、数据冲突或人工复核。',
+      description: '创建真实人工 Review 项。支持单条 skuProfileId/sourceId，也支持 items 数组批量创建；可选 question/recommendation/riskLevel/sourceType/evidence。用于规则歧义、模拟失败项、数据冲突或人工复核；在 SKU 准入页可使用 workbench context 的 selectedIds 复现批量生成 Review。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createReviewItems', inputJson),
     }),
@@ -669,7 +669,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('decideReviewItem', inputJson),
     }),
     setSkuNextAction: tool({
-      description: '设置 SKU 工作台里的下一步动作。需要 skuProfileId 和 nextAction 或 type/label。适合记录“下一步查看阻塞、进入人工确认、修复问题”等操作。',
+      description: '设置 SKU 工作台里的下一步动作。需要 skuProfileId 和 nextAction 或 type/label。适合记录“下一步查看阻塞、进入人工确认、修复问题”等操作；在 SKU 准入页可使用 workbench context 的 selectedIds 和 nextActionDraft 复现当前批量设置。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('setSkuNextAction', inputJson),
     }),
