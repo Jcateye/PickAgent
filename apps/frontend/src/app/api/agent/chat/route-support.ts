@@ -1136,15 +1136,25 @@ function skuListQueryFromToolInput(input: Record<string, unknown>, fallbackPageS
 async function reportSkuProfileIdsFromInput(input: Record<string, unknown>): Promise<string[]> {
   const explicitIds = stringArray(input.skuProfileIds)
   if (explicitIds.length) return explicitIds
+  const requestedMaxSkuCount = optionalNumber(input.maxSkuCount)
+  const maxSkuCount = requestedMaxSkuCount && requestedMaxSkuCount > 0 ? Math.floor(requestedMaxSkuCount) : undefined
+  const pageSize = Math.min(maxSkuCount ?? 100, 100)
   const query = skuListQueryFromToolInput({
     ...input,
     page: 1,
-    pageSize: numberOr(input.maxSkuCount, 500),
+    pageSize,
     sortBy: optionalString(input.sortBy) ?? 'updatedAt',
     sortOrder: optionalString(input.sortOrder) ?? 'desc',
-  }, 500)
-  const result = await finalApiRuntime.skuReadinessQueryService.list(query, agentToolAuthContext())
-  return result.items.map((item) => item.skuProfileId)
+  }, pageSize)
+  const firstPage = await finalApiRuntime.skuReadinessQueryService.list(query, agentToolAuthContext())
+  const totalToLoad = maxSkuCount ? Math.min(firstPage.total, maxSkuCount) : firstPage.total
+  const totalPages = Math.max(1, Math.ceil(totalToLoad / firstPage.pageSize))
+  const restPages = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) => {
+    const nextPage = index + 2
+    const remaining = totalToLoad - (nextPage - 1) * firstPage.pageSize
+    return finalApiRuntime.skuReadinessQueryService.list({ ...query, page: nextPage, pageSize: Math.min(firstPage.pageSize, remaining) }, agentToolAuthContext())
+  }))
+  return [...firstPage.items, ...restPages.flatMap((page) => page.items)].slice(0, totalToLoad).map((item) => item.skuProfileId)
 }
 
 function ingestPayloadInput(input: Record<string, unknown>): IngestPayloadDto {

@@ -1206,6 +1206,34 @@ test('agent chat generateReport tool supports SKU filters without explicit ids',
   assert.ok(generated.linkedEntities?.some((entity) => entity.type === 'report' && entity.id === result.reportId))
 })
 
+test('agent chat generateReport tool loads all filtered SKU pages', async () => {
+  const stamp = Date.now()
+  const category = `agent_report_all_pages_${stamp}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: Array.from({ length: 105 }, (_, index) => ({
+      platform: 'tmall',
+      storeId: `agent_report_all_pages_store_${stamp}`,
+      externalSkuId: `agent_report_all_pages_${stamp}_${String(index + 1).padStart(3, '0')}`,
+      productName: `Agent 全量分页报告 SKU ${index + 1}`,
+      category,
+      stock: 120 + index,
+      positiveRate: 0.98,
+    })),
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const generated = await executeFinalApiTool('generateReport', {
+    type: 'HEALTH',
+    category,
+    platform: 'tmall',
+  })
+  assert.equal(generated.status, 'SUCCEEDED')
+  const result = generated.result as { reportId: string; sections: Array<{ summary: string }>; workflowRunId?: string }
+  assert.ok(result.reportId)
+  assert.match(result.sections[0].summary, /覆盖 105 个 SKU/)
+  assert.ok(result.workflowRunId)
+})
+
 test('agent chat generateReportPreview tool aliases to the real report generator', async () => {
   const externalSkuId = `agent_report_preview_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {
