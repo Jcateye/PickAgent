@@ -11,6 +11,11 @@ test('vercel ai sdk agent model adapter exposes every registered default tool', 
     model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
     generateText: (async (input: { tools?: Record<string, unknown> }) => {
       assert.deepEqual(Object.keys(input.tools ?? {}).sort(), [...defaultAgentToolNames].sort())
+      const listReviewsTool = input.tools?.listReviews as { inputSchema?: unknown } | undefined
+      const listReviewsSchema = JSON.stringify(listReviewsTool?.inputSchema)
+      for (const reviewStatus of ['PENDING', 'OPEN', 'APPROVED', 'REJECTED', 'MODIFIED']) {
+        assert.match(listReviewsSchema, new RegExp(`"${reviewStatus}"`))
+      }
       return {
         text: '工具名单一致',
         usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },

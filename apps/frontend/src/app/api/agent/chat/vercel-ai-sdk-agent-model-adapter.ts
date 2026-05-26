@@ -333,7 +333,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       decision: { type: 'string', enum: ['APPROVE', 'REJECT', 'REQUEST_CHANGES'] },
       decisionBy: { type: 'string' },
       decisionComment: { type: 'string' },
-      status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'NEEDS_AUTH', 'FAILED', 'DISABLED', 'ENABLED', 'DRAFT', 'RUNNING', 'COMPLETED'] },
+      status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'NEEDS_AUTH', 'FAILED', 'DISABLED', 'ENABLED', 'DRAFT', 'RUNNING', 'COMPLETED', 'PENDING', 'OPEN', 'APPROVED', 'REJECTED', 'MODIFIED'] },
       healthStatus: { type: 'string', enum: ['READY', 'REPAIRABLE', 'RISKY', 'BLOCKED'] },
       eligibilityStatus: { type: 'string', enum: ['DIRECT_READY', 'REPAIRABLE_READY', 'MANUAL_REVIEW', 'BLOCKED'] },
       minSales30d: { type: 'number' },
