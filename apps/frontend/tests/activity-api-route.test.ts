@@ -52,6 +52,47 @@ test('activity root and standalone parse routes return stable auth envelopes whe
   }
 })
 
+test('activity child routes return stable auth envelopes when P0 context is missing', async () => {
+  const activityId = 'missing_auth_activity'
+  const simulationRunId = 'missing_auth_simulation'
+  const params = { params: Promise.resolve({ activityId }) }
+
+  const responses = await Promise.all([
+    getActivity(new Request(`http://localhost/api/activities/${activityId}`), params),
+    updateActivity(new Request(`http://localhost/api/activities/${activityId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'RUNNING' }),
+    }), params),
+    getExecutionPlan(new Request(`http://localhost/api/activities/${activityId}/execution-plan`), params),
+    startActivityRun(new Request(`http://localhost/api/activities/${activityId}/runs`, { method: 'POST' }), params),
+    parseActivityRuleSet(new Request(`http://localhost/api/activities/${activityId}/rule-sets/parse`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sourceText: '库存不得低于 20 件。' }),
+    }), params),
+    createSimulationRun(new Request(`http://localhost/api/activities/${activityId}/simulations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ skuProfileIds: ['missing_auth_sku'] }),
+    }), params),
+    addCandidateSkus(new Request(`http://localhost/api/activities/${activityId}/candidate-skus`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ skuProfileIds: ['missing_auth_sku'] }),
+    }), params),
+    getSimulationRun(new Request(`http://localhost/api/activities/${activityId}/simulations/${simulationRunId}`), {
+      params: Promise.resolve({ activityId, simulationRunId }),
+    }),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
+
 test('standalone activity rule parse route returns workflow run id for audit navigation', async () => {
   const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
   const response = await parseStandaloneRules(
