@@ -594,7 +594,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const reviewItemId = String(input.reviewItemId ?? input.sourceId ?? '')
       if (!reviewItemId) throw new Error('reviewItemId is required')
       const result = await finalApiRuntime.reviewService.update(reviewItemId, reviewPatchInput(input), agentToolAuthContext())
-      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `更新 Review：${result.reviewItemId}`, workflowLinkedEntity(latestReviewWorkflow(result), { type: 'review_item', id: result.reviewItemId }))
+      const reviewEntity = { type: 'review_item', id: result.reviewItemId }
+      const workflowEntity = workflowLinkedEntity(latestReviewWorkflow(result), reviewEntity)
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `更新 Review：${result.reviewItemId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [reviewEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'decideReviewItem') {
@@ -607,7 +609,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         modifiedPayload: isRecord(input.modifiedPayload) ? input.modifiedPayload : undefined,
       }
       const result = await finalApiRuntime.reviewService.decide(reviewItemId, request, agentToolAuthContext())
-      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `Review 决策：${result.reviewItemId} -> ${result.status}`, workflowLinkedEntity(latestReviewWorkflow(result), { type: 'review_item', id: result.reviewItemId }))
+      const reviewEntity = { type: 'review_item', id: result.reviewItemId }
+      const workflowEntity = workflowLinkedEntity(latestReviewWorkflow(result), reviewEntity)
+      return succeeded(result, result.evidenceRefs.map(reviewEvidenceToAgentEvidence), `Review 决策：${result.reviewItemId} -> ${result.status}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [reviewEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'setSkuNextAction') {

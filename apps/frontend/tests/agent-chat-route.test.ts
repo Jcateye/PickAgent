@@ -905,10 +905,24 @@ test('agent chat audited report and review write tools link to run console', asy
   const updatedReview = await executeFinalApiTool('updateReviewItem', { reviewItemId, recommendation: '已补充建议内容' })
   assert.equal(updatedReview.status, 'SUCCEEDED')
   assert.equal(updatedReview.linkedEntity?.type, 'workflow_run')
+  const updatedReviewRunId = [...((updatedReview.result as { approvalHistory: Array<{ workflowRunId?: string }> }).approvalHistory)]
+    .reverse()
+    .find((item) => item.workflowRunId)?.workflowRunId
+  assert.ok(updatedReviewRunId)
+  assert.equal(updatedReview.linkedEntity.id, updatedReviewRunId)
+  assert.ok(updatedReview.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
+  assert.ok(updatedReview.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === updatedReviewRunId))
 
   const decidedReview = await executeFinalApiTool('decideReviewItem', { reviewItemId, decision: 'APPROVE', decisionBy: 'agent-test' })
   assert.equal(decidedReview.status, 'SUCCEEDED')
   assert.equal(decidedReview.linkedEntity?.type, 'workflow_run')
+  const decidedReviewRunId = [...((decidedReview.result as { approvalHistory: Array<{ workflowRunId?: string }> }).approvalHistory)]
+    .reverse()
+    .find((item) => item.workflowRunId)?.workflowRunId
+  assert.ok(decidedReviewRunId)
+  assert.equal(decidedReview.linkedEntity.id, decidedReviewRunId)
+  assert.ok(decidedReview.linkedEntities?.some((entity) => entity.type === 'review_item' && entity.id === reviewItemId))
+  assert.ok(decidedReview.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decidedReviewRunId))
 })
 
 test('agent chat generateReportPreview tool aliases to the real report generator', async () => {
