@@ -12,7 +12,7 @@ export async function GET(request: Request, context: { params: Promise<{ ruleSet
   } catch (error) {
     if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
-    throw error
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'rule set detail failed', 400, { ruleSetId })
   }
 }
 
@@ -25,7 +25,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ ruleS
   } catch (error) {
     if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
-    throw error
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'rule set update failed', 400, { ruleSetId })
   }
 }
 
@@ -36,7 +36,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ rule
   } catch (error) {
     if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
-    throw error
+    return fail('COMMON.VALIDATION_ERROR', error instanceof Error ? error.message : 'rule set disable failed', 400, { ruleSetId })
   }
 }
 

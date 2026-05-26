@@ -64,6 +64,26 @@ test('rule set routes return stable auth envelopes when P0 context is missing', 
   }
 })
 
+test('rule set detail route returns stable validation envelope for unexpected service errors', async () => {
+  const originalGet = finalApiRuntime.ruleSetService.get
+  const ruleSetId = 'unexpected_rule_error'
+  finalApiRuntime.ruleSetService.get = async () => {
+    throw new Error('repository unavailable for route test')
+  }
+  try {
+    const response = await getRuleSet(
+      new Request(`http://localhost/api/rule-sets/${ruleSetId}`, { headers: authHeaders }),
+      { params: Promise.resolve({ ruleSetId }) },
+    )
+    const envelope = await response.json()
+    assert.equal(response.status, 400)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+    assert.match(envelope.message, /repository unavailable/)
+  } finally {
+    finalApiRuntime.ruleSetService.get = originalGet
+  }
+})
+
 test('rule set routes return not found for missing rule set reads and writes', async () => {
   const params = { params: Promise.resolve({ ruleSetId: 'missing_rule_set' }) }
 
