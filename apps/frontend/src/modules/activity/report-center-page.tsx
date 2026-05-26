@@ -215,8 +215,8 @@ export function ReportCenterPage() {
     setActionLink(null)
     setSecondaryActionLink(null)
     try {
-      const skuPage = await fetchActivityApi<PageDto<DashboardSkuListItemDto>>('/api/skus?page=1&pageSize=50&sortBy=updatedAt&sortOrder=desc')
-      const skuProfileIds = skuPage.items.map((item) => item.skuProfileId)
+      const skuRows = await loadAllReportSkuRows()
+      const skuProfileIds = skuRows.map((item) => item.skuProfileId)
       if (!skuProfileIds.length) throw new Error('当前没有可用于生成报告的 SKU 数据')
       const report = await fetchActivityApi<ReportPreviewDto>('/api/reports', {
         method: 'POST',
@@ -234,6 +234,18 @@ export function ReportCenterPage() {
     } finally {
       setBusy(null)
     }
+  }
+
+  async function loadAllReportSkuRows() {
+    const firstPage = await fetchActivityApi<PageDto<DashboardSkuListItemDto>>('/api/skus?page=1&pageSize=100&sortBy=updatedAt&sortOrder=desc')
+    const pageSize = firstPage.pageSize || 100
+    const totalPages = Math.max(1, Math.ceil(firstPage.total / pageSize))
+    if (totalPages <= 1) return firstPage.items
+    const restPages = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) => {
+      const nextPage = index + 2
+      return fetchActivityApi<PageDto<DashboardSkuListItemDto>>(`/api/skus?page=${nextPage}&pageSize=${pageSize}&sortBy=updatedAt&sortOrder=desc`)
+    }))
+    return [...firstPage.items, ...restPages.flatMap((page) => page.items)]
   }
 
   const reviewStats = detail?.summary.reviewResult

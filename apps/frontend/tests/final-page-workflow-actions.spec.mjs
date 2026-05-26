@@ -482,18 +482,22 @@ test('report center page generates, exports, subscribes, copies restorable links
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL })
   const ingest = await apiPost(page.request, '/api/ingest', {
     collectedAt: new Date().toISOString(),
-    rows: [{
-      platform: 'tmall',
-      storeId: 'pw_report_store',
-      externalSkuId: `pw_report_sku_${stamp}`,
-      productName: '页面报告中心 SKU',
-      stock: 55,
-      sales30d: 188,
-      positiveRate: 0.99,
-      raw: { externalSkuId: `pw_report_sku_${stamp}` },
-    }],
+    rows: Array.from({ length: 55 }, (_, index) => {
+      const externalSkuId = `pw_report_sku_${stamp}_${String(index + 1).padStart(2, '0')}`
+      return {
+        platform: 'tmall',
+        storeId: 'pw_report_store',
+        externalSkuId,
+        productName: `页面报告中心 SKU ${index + 1}`,
+        stock: 55 + index,
+        sales30d: 188 + index,
+        positiveRate: 0.99,
+        raw: { externalSkuId },
+      }
+    }),
   })
   const skuProfileId = ingest.summaries[0].skuProfileId
+  const seededSkuProfileIds = ingest.summaries.map((item) => item.skuProfileId)
   const firstReport = await apiPost(page.request, '/api/reports', { type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] })
   const secondReport = await apiPost(page.request, '/api/reports', { type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] })
 
@@ -502,10 +506,16 @@ test('report center page generates, exports, subscribes, copies restorable links
 
   const generatedReportResponse = page.waitForResponse((response) => response.url().endsWith('/api/reports') && response.request().method() === 'POST')
   await page.getByRole('button', { name: /生成报告/ }).click()
-  const generatedReportEnvelope = await (await generatedReportResponse).json()
+  const generatedReportHttpResponse = await generatedReportResponse
+  const generatedReportRequestBody = generatedReportHttpResponse.request().postDataJSON()
+  const generatedReportEnvelope = await generatedReportHttpResponse.json()
   expect(generatedReportEnvelope.code).toBe('OK')
   expect(generatedReportEnvelope.data.reportId).toBeTruthy()
   expect(generatedReportEnvelope.data.workflowRunId).toBeTruthy()
+  expect(generatedReportRequestBody.skuProfileIds.length).toBeGreaterThanOrEqual(55)
+  for (const seededSkuProfileId of seededSkuProfileIds) {
+    expect(generatedReportRequestBody.skuProfileIds).toContain(seededSkuProfileId)
+  }
   await expect(page.getByText(/已基于当前 SKU 数据生成健康报告/)).toBeVisible()
 
   const exportResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reports/${firstReport.reportId}/export`) && response.request().method() === 'POST')
