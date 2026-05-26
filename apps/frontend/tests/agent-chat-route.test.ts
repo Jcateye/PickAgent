@@ -227,18 +227,42 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   })
   assert.equal(created.status, 'SUCCEEDED')
 
-  const ruleSetId = (created.result as { ruleSetId: string }).ruleSetId
+  const createdResult = created.result as { ruleSetId: string; workflowRunId?: string }
+  const ruleSetId = createdResult.ruleSetId
+  assert.ok(createdResult.workflowRunId)
+  assert.equal(created.linkedEntity?.type, 'workflow_run')
+  assert.equal(created.linkedEntity.id, createdResult.workflowRunId)
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === createdResult.workflowRunId))
+
   const updated = await executeFinalApiTool('updateRuleSet', {
     ruleSetId,
     status: 'DISABLED',
   })
   assert.equal(updated.status, 'SUCCEEDED')
-  assert.equal((updated.result as { status: string }).status, 'DISABLED')
+  const updatedResult = updated.result as { status: string; workflowRunId?: string }
+  assert.equal(updatedResult.status, 'DISABLED')
   assert.equal(updated.linkedEntity?.type, 'workflow_run')
-  assert.ok((updated.result as { workflowRunId?: string }).workflowRunId)
+  assert.equal(updated.linkedEntity.id, updatedResult.workflowRunId)
+  assert.ok(updatedResult.workflowRunId)
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === updatedResult.workflowRunId))
 
   const detail = await finalApiRuntime.ruleSetService.get(ruleSetId)
   assert.equal(detail?.status, 'DISABLED')
+
+  const enabled = await executeFinalApiTool('setRuleSetStatus', {
+    ruleSetId,
+    status: 'ENABLED',
+  })
+  assert.equal(enabled.status, 'SUCCEEDED')
+  const enabledResult = enabled.result as { status: string; workflowRunId?: string }
+  assert.equal(enabledResult.status, 'ENABLED')
+  assert.ok(enabledResult.workflowRunId)
+  assert.equal(enabled.linkedEntity?.type, 'workflow_run')
+  assert.equal(enabled.linkedEntity.id, enabledResult.workflowRunId)
+  assert.ok(enabled.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(enabled.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === enabledResult.workflowRunId))
 })
 
 test('agent chat listRuleSetVersions tool reads persisted rule set versions', async () => {
@@ -254,7 +278,12 @@ test('agent chat listRuleSetVersions tool reads persisted rule set versions', as
   const version = await executeFinalApiTool('createRuleSetVersion', { ruleSetId })
   assert.equal(version.status, 'SUCCEEDED')
   assert.equal(version.linkedEntity?.type, 'workflow_run')
-  const ruleSetVersionId = (version.result as { ruleSetVersionId: string }).ruleSetVersionId
+  const versionResult = version.result as { ruleSetVersionId: string; workflowRunId?: string }
+  const ruleSetVersionId = versionResult.ruleSetVersionId
+  assert.ok(versionResult.workflowRunId)
+  assert.equal(version.linkedEntity.id, versionResult.workflowRunId)
+  assert.ok(version.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(version.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === versionResult.workflowRunId))
 
   const listed = await executeFinalApiTool('listRuleSetVersions', { ruleSetId })
   assert.equal(listed.status, 'SUCCEEDED')

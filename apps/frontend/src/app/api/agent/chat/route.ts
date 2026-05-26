@@ -376,7 +376,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'createRuleSet') {
       const request = createRuleSetInput(input)
       const result = await finalApiRuntime.ruleSetService.create(request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `${result.status} / ${result.summary.ruleCount} 条规则` }], `创建规则集：${result.name}`, workflowLinkedEntity(result, { type: 'rule_set', id: result.ruleSetId }))
+      const ruleSetEntity = { type: 'rule_set', id: result.ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
+      return succeeded(result, [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `${result.status} / ${result.summary.ruleCount} 条规则` }], `创建规则集：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'updateRuleSet') {
@@ -384,14 +386,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const request = updateRuleSetInput(input)
       const result = await finalApiRuntime.ruleSetService.update(ruleSetId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status}` }], `更新规则集：${result.name}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
+      const ruleSetEntity = { type: 'rule_set', id: ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: result.name, summary: `${result.version} / ${result.status}` }], `更新规则集：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'createRuleSetVersion') {
       const ruleSetId = String(input.ruleSetId ?? '')
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const result = await finalApiRuntime.ruleSetService.createVersion(ruleSetId, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集版本', summary: `创建版本：${result.version}` }], `创建规则集版本：${result.version}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
+      const ruleSetEntity = { type: 'rule_set', id: ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集版本', summary: `创建版本：${result.version}` }], `创建规则集版本：${result.version}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'listActivities') {
@@ -714,7 +720,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       if (!ruleSetId) throw new Error('ruleSetId is required')
       const status = normalizeRuleSetStatus(input.status)
       const result = await finalApiRuntime.ruleSetService.setStatus(ruleSetId, status, agentToolAuthContext())
-      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集状态', summary: `规则集状态已更新为：${result.status}` }], `更新规则集状态：${result.status}`, workflowLinkedEntity(result, { type: 'rule_set', id: ruleSetId }))
+      const ruleSetEntity = { type: 'rule_set', id: ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
+      return succeeded(result, [{ type: 'rule', entityId: ruleSetId, label: '规则集状态', summary: `规则集状态已更新为：${result.status}` }], `更新规则集状态：${result.status}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'retryRun') {
