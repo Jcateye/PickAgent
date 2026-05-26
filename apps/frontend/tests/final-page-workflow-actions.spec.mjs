@@ -221,6 +221,49 @@ test('rule execution page runs real parsing and simulation then saves the rule s
   await expect(page.getByText(/已保存到规则库/)).toBeVisible()
 })
 
+test('overview page filters SKU rows and exports the filtered result through real APIs', async ({ page }) => {
+  const stamp = Date.now()
+  const externalSkuId = `pw_overview_blocked_${stamp}`
+
+  await apiPost(page.request, '/api/ingest', {
+    collectedAt: new Date().toISOString(),
+    rows: [{
+      platform: 'tmall',
+      storeId: 'pw_overview_store',
+      externalSkuId,
+      productName: 'Overview 页面筛选导出 SKU',
+      stock: 0,
+      sales30d: 12,
+      positiveRate: 0.72,
+      certificateStatus: 'missing',
+      raw: { externalSkuId },
+    }],
+  })
+
+  await page.goto(`${baseURL}/overview`, { waitUntil: 'networkidle' })
+  const filteredSkuResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url())
+    return url.pathname === '/api/skus' && url.searchParams.get('healthStatus') === 'BLOCKED' && response.request().method() === 'GET'
+  })
+  await page.locator('select.secondaryButton').selectOption('BLOCKED')
+  const filteredSkuEnvelope = await (await filteredSkuResponse).json()
+  expect(filteredSkuEnvelope.code).toBe('OK')
+  expect(filteredSkuEnvelope.data.items.every((item) => item.healthStatus === 'BLOCKED')).toBe(true)
+  await expect(page).toHaveURL(/healthStatus=BLOCKED/)
+
+  const exportResponse = page.waitForResponse((response) => response.url().endsWith('/api/skus/export') && response.request().method() === 'POST')
+  await page.getByRole('button', { name: '导出' }).click()
+  const exportHttpResponse = await exportResponse
+  const exportRequestBody = exportHttpResponse.request().postDataJSON()
+  const exportEnvelope = await exportHttpResponse.json()
+  expect(exportEnvelope.code).toBe('OK')
+  expect(exportRequestBody.query.healthStatus).toBe('BLOCKED')
+  expect(exportEnvelope.data.rowCount).toBeGreaterThan(0)
+  expect(exportEnvelope.data.workflowRunId).toBeTruthy()
+  await expect(page.getByText(/已导出 Overview SKU 清单/)).toBeVisible()
+  await expect(page.getByRole('link', { name: '下载导出文件' })).toBeVisible()
+})
+
 test('sku access page creates reviews, updates next actions, exports rows, and generates a report', async ({ page }) => {
   const stamp = Date.now()
   const externalSkuId = `pw_sku_access_${stamp}`
