@@ -33,14 +33,10 @@ interface RunConsoleLogExportDto {
   lineCount: number
 }
 
-interface ConnectorRunRetryDto {
-  connectorRunId: string
-  workflowRunRef?: { entityId: string }
-}
-
-interface ActivitySimulationRetryDto {
-  simulationRunId: string
-  workflowRunId?: string
+interface RunConsoleRetryDto {
+  runId: string
+  type: string
+  sourceHref?: string
 }
 
 type RunConsoleTab = 'timeline' | 'raw' | 'tools'
@@ -126,49 +122,15 @@ export function RunConsolePage() {
       setMessage(`当前 Run 状态为 ${selectedRun.status}，不需要重试。`)
       return
     }
-    if (!selectedRun.sourceId) {
-      setMessage(`当前 ${selectedRun.type} 没有关联源对象，无法自动重试。`)
-      return
-    }
     setBusy('retry')
     setActionLink(null)
     try {
-      if (selectedRun.type === 'connector_sync') {
-        const run = await fetchActivityApi<ConnectorRunRetryDto>(`/api/connectors/${selectedRun.sourceId}/sync-runs`, {
-          method: 'POST',
-          body: JSON.stringify({
-            rowCount: 0,
-            qualityScore: 0,
-            warnings: ['从运行控制台重试失败运行'],
-            summary: { retryOf: selectedRun.runId, triggeredBy: 'run-console' },
-          }),
-        })
-        setMessage(`已创建连接器重试运行：${run.connectorRunId}`)
-        setActionLink({ href: runConsoleHref(run.workflowRunRef?.entityId ?? run.connectorRunId), label: '查看重试 Run' })
-      } else if (selectedRun.type === 'agent_run') {
-        const run = await fetchActivityApi<{ id?: string; runId?: string }>(`/api/agent/missions/${selectedRun.sourceId}/runs`, {
-          method: 'POST',
-          body: JSON.stringify({
-            modelProvider: 'pi',
-            modelName: 'sku-ready-agent',
-            inputJson: { retryOf: selectedRun.runId, triggeredBy: 'run-console' },
-          }),
-        })
-        const runId = run.runId ?? run.id ?? 'new run'
-        setMessage(`已创建 Agent 重试运行：${runId}`)
-        if (run.runId ?? run.id) setActionLink({ href: runConsoleHref(run.runId ?? run.id!), label: '查看重试 Run' })
-      } else if (selectedRun.type === 'activity_simulation') {
-        const skuProfileIds = simulationSkuProfileIds(selectedRun)
-        if (!skuProfileIds.length) throw new Error('当前模拟运行没有可复用的 SKU 范围')
-        const run = await fetchActivityApi<ActivitySimulationRetryDto>(`/api/rule-sets/${selectedRun.sourceId}/simulations`, {
-          method: 'POST',
-          body: JSON.stringify({ skuProfileIds }),
-        })
-        setMessage(`已创建规则模拟重试运行：${run.simulationRunId}`)
-        setActionLink({ href: runConsoleHref(run.workflowRunId ?? run.simulationRunId), label: '查看重试 Run' })
-      } else {
-        setMessage(`当前 ${selectedRun.type} 运行暂不支持自动重试。`)
-      }
+      const retried = await fetchActivityApi<RunConsoleRetryDto>(`/api/run-console/${encodeURIComponent(selectedRun.runId)}/retry`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setMessage(`已创建 ${retried.type} 重试运行：${retried.runId}`)
+      setActionLink({ href: retried.sourceHref ?? runConsoleHref(retried.runId), label: '查看重试 Run' })
       await loadRuns()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '重试运行失败')
@@ -303,16 +265,6 @@ function formatTime(value?: string): string {
 
 function isSucceeded(status: string): boolean {
   return ['SUCCEEDED', 'SUCCESS', 'succeeded', 'completed'].includes(status)
-}
-
-function simulationSkuProfileIds(run: RunConsoleItemDto): string[] {
-  const scope = run.logs.find((log) => log.tag === 'Simulation' && isRecord(log.payload))?.payload
-  if (!isRecord(scope) || !Array.isArray(scope.skuProfileIds)) return []
-  return scope.skuProfileIds.map(String).filter(Boolean)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function isFailed(status: string): boolean {

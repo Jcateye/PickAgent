@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { GET as listRuns } from '../src/app/api/run-console/route'
 import { POST as exportRunLogs } from '../src/app/api/run-console/[runId]/export/route'
+import { POST as retryRun } from '../src/app/api/run-console/[runId]/retry/route'
 import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
@@ -171,4 +172,66 @@ test('run console exposes workflow audit input and output as structured payloads
   assert.equal(run?.sourceHref, `/rule-execution?activityId=${activity.activityId}`)
   assert.deepEqual(run?.logs[0]?.payload.skuProfileIds, [skuProfileId])
   assert.deepEqual(run?.logs[1]?.payload.addedSkuProfileIds, [skuProfileId])
+})
+
+test('run console retry route replays failed sku export audits as real workflow runs', async () => {
+  const externalSkuId = `run_console_retry_export_${Date.now()}`
+  await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T15:00:00.000Z',
+    rows: [{
+      platform: 'tmall',
+      storeId: 'run_console_retry_store',
+      externalSkuId,
+      productName: 'Run Console 重试导出 SKU',
+      stock: 77,
+      positiveRate: 0.97,
+      raw: { externalSkuId },
+    }],
+  }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_retry_ingest',
+  })
+
+  const failedRunId = `workflow_failed_sku_export_${Date.now()}`
+  finalApiRuntime.store.workflowAudits.set(failedRunId, {
+    workflowRunId: failedRunId,
+    workflowType: 'sku_export',
+    status: 'FAILED',
+    subjectType: 'sku_batch',
+    input: {
+      query: { q: externalSkuId, sortBy: 'updatedAt', sortOrder: 'desc' },
+      actorId: authHeaders['x-p0-actor-id'],
+      tenantId: authHeaders['x-p0-tenant-id'],
+      sessionId: authHeaders['x-p0-session-id'],
+      surface: authHeaders['x-p0-surface'],
+    },
+    output: { error: 'forced failure for retry route test' },
+    createdAt: new Date().toISOString(),
+  })
+  finalApiRuntime.store.tenantByEntityId.set(failedRunId, authHeaders['x-p0-tenant-id'])
+
+  const response = await retryRun(
+    new Request(`http://localhost/api/run-console/${failedRunId}/retry`, { method: 'POST', headers: authHeaders }),
+    { params: Promise.resolve({ runId: failedRunId }) },
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.equal(envelope.data.type, 'sku_export')
+  assert.match(envelope.data.runId, /^workflow_/)
+
+  const audits = await finalApiRuntime.workflowAuditService.list({
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_retry_audit',
+  }, 20)
+  const retried = audits.find((item) => item.workflowRunId === envelope.data.runId)
+  assert.equal(retried?.workflowType, 'sku_export')
+  assert.equal(retried?.status, 'SUCCEEDED')
+  assert.equal(retried?.output.rowCount, 1)
 })
