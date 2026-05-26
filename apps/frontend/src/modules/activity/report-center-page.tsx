@@ -25,7 +25,7 @@ export function ReportCenterPage() {
   const [detail, setDetail] = useState<ReportDetailDto | null>(null)
   const [versions, setVersions] = useState<ReportVersionDto[]>([])
   const [comparison, setComparison] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<ReportTab>('SUMMARY')
+  const [activeTab, setActiveTab] = useState<ReportTab>(() => getInitialReportTab())
   const [format, setFormat] = useState<ExportFormat>('PDF')
   const [includeCharts, setIncludeCharts] = useState(true)
   const [includeDetails, setIncludeDetails] = useState(false)
@@ -68,7 +68,7 @@ export function ReportCenterPage() {
     setSelectedVersionId(nextVersion?.versionId ?? null)
     setDetail(nextVersion ?? nextDetail)
     hydratedSelectionRef.current = { reportId, versionId: nextVersion?.versionId ?? null }
-    syncReportUrl(reportId, nextVersion?.versionId ?? null)
+    syncReportUrl(reportId, nextVersion?.versionId ?? null, activeTab)
     setSubscriptionFrequency(nextDetail.subscription?.frequency ?? 'OFF')
     setSubscriptionRecipients(nextDetail.subscription?.recipients.join('\n') ?? '')
     setActiveTab((current) => (nextDetail.tabs.includes(current) ? current : nextDetail.tabs[0] ?? 'SUMMARY'))
@@ -80,7 +80,7 @@ export function ReportCenterPage() {
     setSelectedVersionId(versionId)
     setDetail(version)
     hydratedSelectionRef.current = { reportId: version.reportId, versionId }
-    syncReportUrl(version.reportId, versionId)
+    syncReportUrl(version.reportId, versionId, activeTab)
     setMessage(`已切换报告版本：${version.version}`)
   }
 
@@ -141,6 +141,7 @@ export function ReportCenterPage() {
     if (!detail) return
     const params = new URLSearchParams({ reportId: detail.reportId })
     if (selectedVersionId) params.set('versionId', selectedVersionId)
+    if (activeTab !== 'SUMMARY') params.set('tab', activeTab)
     const link = `${window.location.origin}/report-center?${params.toString()}`
     await navigator.clipboard.writeText(link)
     setMessage(`已复制报告链接：${detail.reportId}${selectedVersionId ? ` / ${selectedVersionId}` : ''}`)
@@ -201,7 +202,7 @@ export function ReportCenterPage() {
           </div>
 
           {reports.map((report, index) => (
-            <button className={`${styles.reportItem} ${report.reportId === selectedReportId ? styles.active : ''}`} key={report.reportId} type="button" onClick={() => setSelectedReportId(report.reportId)}>
+            <button className={`${styles.reportItem} ${report.reportId === selectedReportId ? styles.active : ''}`} key={report.reportId} type="button" onClick={() => { setSelectedReportId(report.reportId); syncReportUrl(report.reportId, null, activeTab) }}>
               <div className={styles.itemTitle}>{report.title} {index === 0 ? <span className={styles.itemBadge}>最新</span> : null} {report.reportId === selectedReportId ? <Check size={16} color="var(--primary)" style={{ marginLeft: 'auto' }} /> : null}</div>
               <div className={styles.itemMeta}>{report.version} &nbsp;&nbsp; {new Date(report.generatedAt).toLocaleString('zh-CN')}</div>
             </button>
@@ -228,7 +229,7 @@ export function ReportCenterPage() {
 
           <div className={styles.centerTabs}>
             {visibleTabs.map((tab) => (
-              <button className={`${styles.tab} ${activeTab === tab ? styles.active : ''}`} key={tab} type="button" onClick={() => setActiveTab(tab)}>
+              <button className={`${styles.tab} ${activeTab === tab ? styles.active : ''}`} key={tab} type="button" onClick={() => { setActiveTab(tab); if (detail) syncReportUrl(detail.reportId, selectedVersionId, tab) }}>
                 {tabLabels[tab]}
               </button>
             ))}
@@ -536,7 +537,13 @@ function getInitialVersionId(): string | null {
   return new URLSearchParams(window.location.search).get('versionId')
 }
 
-function syncReportUrl(reportId: string, versionId?: string | null) {
+function getInitialReportTab(): ReportTab {
+  if (typeof window === 'undefined') return 'SUMMARY'
+  const value = new URLSearchParams(window.location.search).get('tab')
+  return value === 'TASKS' || value === 'RULES' || value === 'EVIDENCE' || value === 'REPAIRS' ? value : 'SUMMARY'
+}
+
+function syncReportUrl(reportId: string, versionId?: string | null, activeTab: ReportTab = 'SUMMARY') {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams(window.location.search)
   params.set('reportId', reportId)
@@ -544,6 +551,11 @@ function syncReportUrl(reportId: string, versionId?: string | null) {
     params.set('versionId', versionId)
   } else {
     params.delete('versionId')
+  }
+  if (activeTab !== 'SUMMARY') {
+    params.set('tab', activeTab)
+  } else {
+    params.delete('tab')
   }
   const nextUrl = `${window.location.pathname}?${params.toString()}`
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
