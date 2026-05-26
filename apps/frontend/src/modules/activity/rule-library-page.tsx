@@ -16,9 +16,9 @@ export function RuleLibraryPage() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(() => getInitialRuleSetId())
   const [selectedRule, setSelectedRule] = useState<RuleSetDetailDto | null>(null)
   const [versions, setVersions] = useState<RuleSetVersionDto[]>([])
-  const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'ALL' | RuleSetStatusDto>('ALL')
+  const [query, setQuery] = useState(() => getInitialRuleLibraryParam('q') ?? '')
+  const [page, setPage] = useState(() => getInitialRuleLibraryPage())
+  const [statusFilter, setStatusFilter] = useState<'ALL' | RuleSetStatusDto>(() => getInitialRuleStatus())
   const [panelTab, setPanelTab] = useState<RulePanelTab>(() => getInitialRulePanelTab())
   const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -34,7 +34,7 @@ export function RuleLibraryPage() {
     } else {
       setSelectedRule(null)
       setVersions([])
-      syncRuleLibraryUrl(null, panelTab)
+      syncRuleLibraryUrl({ ruleSetId: null, panelTab, query, page: nextPage, statusFilter })
     }
   }
 
@@ -45,12 +45,13 @@ export function RuleLibraryPage() {
     ])
     setSelectedRule(detail)
     setVersions(versionList)
-    syncRuleLibraryUrl(ruleSetId, panelTab)
+    syncRuleLibraryUrl({ ruleSetId, panelTab, query, page, statusFilter })
   }
 
   useEffect(() => {
+    syncRuleLibraryUrl({ ruleSetId: selectedRuleId, panelTab, query, page, statusFilter })
     loadRules(null, page).catch((error: unknown) => setMessage(error instanceof Error ? error.message : '规则集 API 加载失败'))
-  }, [page])
+  }, [page, query, statusFilter])
 
   useEffect(() => {
     if (!selectedRuleId) return
@@ -185,21 +186,21 @@ export function RuleLibraryPage() {
           <div className={styles.searchRow}>
             <div className={styles.searchInput}>
               <Search size={14} color="var(--muted)" />
-              <input type="text" placeholder="搜索规则集名称..." value={query} onChange={(event) => setQuery(event.target.value)} />
+              <input type="text" placeholder="搜索规则集名称..." value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} />
             </div>
             <button className={styles.btnAdd} type="button" onClick={() => void createRuleSet()} disabled={!!busy}><Plus size={16} /></button>
           </div>
           <div className={styles.tabs}>
-            <button className={`${styles.tab} ${statusFilter === 'ALL' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ALL')}>所有 ({ruleCount})</button>
-            <button className={`${styles.tab} ${statusFilter === 'ENABLED' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('ENABLED')}>已启用 ({enabledCount})</button>
-            <button className={`${styles.tab} ${statusFilter === 'DRAFT' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('DRAFT')}>草稿 ({draftCount})</button>
-            <button className={`${styles.tab} ${statusFilter === 'DISABLED' ? styles.active : ''}`} type="button" onClick={() => setStatusFilter('DISABLED')}>已禁用 ({disabledCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'ALL' ? styles.active : ''}`} type="button" onClick={() => { setStatusFilter('ALL'); setPage(1) }}>所有 ({ruleCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'ENABLED' ? styles.active : ''}`} type="button" onClick={() => { setStatusFilter('ENABLED'); setPage(1) }}>已启用 ({enabledCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'DRAFT' ? styles.active : ''}`} type="button" onClick={() => { setStatusFilter('DRAFT'); setPage(1) }}>草稿 ({draftCount})</button>
+            <button className={`${styles.tab} ${statusFilter === 'DISABLED' ? styles.active : ''}`} type="button" onClick={() => { setStatusFilter('DISABLED'); setPage(1) }}>已禁用 ({disabledCount})</button>
           </div>
         </div>
 
         <div className={styles.ruleList}>
           {visibleRules.map((rule) => (
-            <button className={`${styles.ruleCard} ${rule.ruleSetId === selectedRuleId ? styles.active : ''}`} key={rule.ruleSetId} type="button" onClick={() => { setSelectedRuleId(rule.ruleSetId); syncRuleLibraryUrl(rule.ruleSetId, panelTab) }}>
+            <button className={`${styles.ruleCard} ${rule.ruleSetId === selectedRuleId ? styles.active : ''}`} key={rule.ruleSetId} type="button" onClick={() => { setSelectedRuleId(rule.ruleSetId); syncRuleLibraryUrl({ ruleSetId: rule.ruleSetId, panelTab, query, page, statusFilter }) }}>
               <div className={styles.ruleTitleRow}>
                 <div className={styles.ruleTitle}>{rule.name}</div>
                 <span className={`${styles.statusBadge} ${rule.status === 'DRAFT' ? styles.statusDraft : styles.statusActive}`}>{rule.status === 'DRAFT' ? '草稿' : rule.status === 'DISABLED' ? '已禁用' : '已启用'}</span>
@@ -267,9 +268,9 @@ export function RuleLibraryPage() {
         </div>
 
         <div className={styles.panelTabs}>
-          <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('summary'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'summary') }}>规则概况</button>
-          <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('json'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'json') }}>JSON 定义</button>
-          <button className={`${styles.panelTab} ${panelTab === 'versions' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('versions'); syncRuleLibraryUrl(selectedRule?.ruleSetId ?? selectedRuleId, 'versions') }}>版本历史 ({versions.length})</button>
+          <button className={`${styles.panelTab} ${panelTab === 'summary' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('summary'); syncRuleLibraryUrl({ ruleSetId: selectedRule?.ruleSetId ?? selectedRuleId, panelTab: 'summary', query, page, statusFilter }) }}>规则概况</button>
+          <button className={`${styles.panelTab} ${panelTab === 'json' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('json'); syncRuleLibraryUrl({ ruleSetId: selectedRule?.ruleSetId ?? selectedRuleId, panelTab: 'json', query, page, statusFilter }) }}>JSON 定义</button>
+          <button className={`${styles.panelTab} ${panelTab === 'versions' ? styles.active : ''}`} type="button" onClick={() => { setPanelTab('versions'); syncRuleLibraryUrl({ ruleSetId: selectedRule?.ruleSetId ?? selectedRuleId, panelTab: 'versions', query, page, statusFilter }) }}>版本历史 ({versions.length})</button>
         </div>
 
         {panelTab === 'summary' ? <RuleSummaryPanel selectedRule={selectedRule} /> : null}
@@ -395,21 +396,43 @@ function RuleJsonPanel({ dslText, selectedRule }: { dslText: string; selectedRul
 }
 
 function getInitialRuleSetId(): string | null {
+  return getInitialRuleLibraryParam('ruleSetId')
+}
+
+function getInitialRuleLibraryParam(name: string): string | null {
   if (typeof window === 'undefined') return null
-  return new URLSearchParams(window.location.search).get('ruleSetId')
+  return new URLSearchParams(window.location.search).get(name)
 }
 
 function getInitialRulePanelTab(): RulePanelTab {
-  if (typeof window === 'undefined') return 'json'
-  const value = new URLSearchParams(window.location.search).get('panelTab')
+  const value = getInitialRuleLibraryParam('panelTab')
   return value === 'summary' || value === 'versions' ? value : 'json'
 }
 
-function syncRuleLibraryUrl(ruleSetId: string | null, panelTab: RulePanelTab) {
+function getInitialRuleLibraryPage(): number {
+  const value = Number(getInitialRuleLibraryParam('page') ?? 1)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1
+}
+
+function getInitialRuleStatus(): 'ALL' | RuleSetStatusDto {
+  const value = getInitialRuleLibraryParam('status')
+  return value === 'ENABLED' || value === 'DRAFT' || value === 'DISABLED' ? value : 'ALL'
+}
+
+function syncRuleLibraryUrl(state: {
+  ruleSetId: string | null
+  panelTab: RulePanelTab
+  query: string
+  page: number
+  statusFilter: 'ALL' | RuleSetStatusDto
+}) {
   if (typeof window === 'undefined') return
   const params = new URLSearchParams()
-  if (ruleSetId) params.set('ruleSetId', ruleSetId)
-  if (panelTab !== 'json') params.set('panelTab', panelTab)
+  if (state.ruleSetId) params.set('ruleSetId', state.ruleSetId)
+  if (state.panelTab !== 'json') params.set('panelTab', state.panelTab)
+  if (state.query.trim()) params.set('q', state.query.trim())
+  if (state.page > 1) params.set('page', String(state.page))
+  if (state.statusFilter !== 'ALL') params.set('status', state.statusFilter)
   const nextSearch = params.toString()
   const nextUrl = nextSearch ? `${window.location.pathname}?${nextSearch}` : window.location.pathname
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
