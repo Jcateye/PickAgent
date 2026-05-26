@@ -67,6 +67,11 @@ export function ReportCenterPage() {
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '报告详情加载失败'))
   }, [selectedReportId])
 
+  useEffect(() => {
+    if (!detail) return
+    syncReportUrl(detail.reportId, selectedVersionId, activeTab)
+  }, [activeTab, detail?.reportId, selectedVersionId])
+
   async function loadReportDetail(reportId: string, preferredVersionId?: string | null) {
     const [nextDetail, versionPage] = await Promise.all([
       fetchActivityApi<ReportDetailDto>(`/api/reports/${reportId}`),

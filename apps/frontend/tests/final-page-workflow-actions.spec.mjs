@@ -398,8 +398,9 @@ test('review approvals page edits recommendations and applies approve, reject, a
   await expect(page.getByText(new RegExp(`${modifyReviewItemId} 已修改后批准`))).toBeVisible()
 })
 
-test('report center page exports, subscribes, and compares real reports', async ({ page }) => {
+test('report center page generates, exports, subscribes, copies restorable links, and compares real reports', async ({ page, context }) => {
   const stamp = Date.now()
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: baseURL })
   const ingest = await apiPost(page.request, '/api/ingest', {
     collectedAt: new Date().toISOString(),
     rows: [{
@@ -420,12 +421,32 @@ test('report center page exports, subscribes, and compares real reports', async 
   await page.goto(`${baseURL}/report-center?reportId=${firstReport.reportId}`, { waitUntil: 'networkidle' })
   await expect(page.getByText(firstReport.reportId)).toBeVisible()
 
+  const generatedReportResponse = page.waitForResponse((response) => response.url().endsWith('/api/reports') && response.request().method() === 'POST')
+  await page.getByRole('button', { name: /生成报告/ }).click()
+  const generatedReportEnvelope = await (await generatedReportResponse).json()
+  expect(generatedReportEnvelope.code).toBe('OK')
+  expect(generatedReportEnvelope.data.reportId).toBeTruthy()
+  expect(generatedReportEnvelope.data.workflowRunId).toBeTruthy()
+  await expect(page.getByText(/已基于当前 SKU 数据生成健康报告/)).toBeVisible()
+
   const exportResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reports/${firstReport.reportId}/export`) && response.request().method() === 'POST')
+  await page.goto(`${baseURL}/report-center?reportId=${firstReport.reportId}`, { waitUntil: 'networkidle' })
   await page.locator('button.primaryButton', { hasText: '导出' }).click()
   const exportEnvelope = await (await exportResponse).json()
   expect(exportEnvelope.code).toBe('OK')
   expect(exportEnvelope.data.artifactHref).toContain(`/api/reports/${firstReport.reportId}/download`)
   await expect(page.getByText(/已生成导出文件/)).toBeVisible()
+
+  await page.getByRole('button', { name: '证据详情' }).click()
+  await expect(page).toHaveURL(/tab=EVIDENCE/)
+  await page.getByRole('button', { name: /复制报告链接/ }).click()
+  await expect(page.getByText(/已复制报告链接/)).toBeVisible()
+  const copiedLink = await page.evaluate(() => navigator.clipboard.readText())
+  const copiedUrl = new URL(copiedLink)
+  expect(copiedUrl.pathname).toBe('/report-center')
+  expect(copiedUrl.searchParams.get('reportId')).toBe(firstReport.reportId)
+  expect(copiedUrl.searchParams.get('versionId')).toBeTruthy()
+  expect(copiedUrl.searchParams.get('tab')).toBe('EVIDENCE')
 
   await page.getByPlaceholder('多个邮箱用逗号或换行分隔').fill('ops@example.test')
   const subscriptionResponse = page.waitForResponse((response) => response.url().endsWith(`/api/reports/${firstReport.reportId}/subscriptions`) && response.request().method() === 'POST')
