@@ -173,6 +173,7 @@ export interface RuleSetListItemDto {
   updatedAt: string;
   updatedBy: string;
   activeRunCount: number;
+  workflowRunId?: string;
 }
 
 export interface RuleSetDetailDto extends RuleSetListItemDto {
@@ -211,6 +212,7 @@ export interface RuleSetVersionDto {
   manualReviewItems: RuleSetDetailDto["manualReviewItems"];
   createdAt: string;
   createdBy: string;
+  workflowRunId?: string;
 }
 
 export interface WorkspaceSettingsDto {

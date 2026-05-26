@@ -10,6 +10,10 @@ type RuleFormState =
   | { mode: 'create'; name: string; sourceText: string; status: RuleSetStatusDto }
   | { mode: 'edit'; ruleSetId: string; name: string; sourceText: string; status: RuleSetStatusDto }
 type RulePanelTab = 'summary' | 'json' | 'versions'
+interface ActionLink {
+  href: string
+  label: string
+}
 
 export function RuleLibraryPage() {
   const [rulePage, setRulePage] = useState<PageDto<RuleSetListItemDto> | null>(null)
@@ -22,6 +26,7 @@ export function RuleLibraryPage() {
   const [panelTab, setPanelTab] = useState<RulePanelTab>(() => getInitialRulePanelTab())
   const [ruleForm, setRuleForm] = useState<RuleFormState | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<ActionLink | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
   async function loadRules(preferredId?: string | null, nextPage = page) {
@@ -97,6 +102,7 @@ export function RuleLibraryPage() {
       return
     }
     setBusy(ruleForm.mode === 'create' ? 'create' : 'edit')
+    setActionLink(null)
     try {
       if (ruleForm.mode === 'create') {
         const created = await fetchActivityApi<RuleSetDetailDto>('/api/rule-sets', {
@@ -111,6 +117,7 @@ export function RuleLibraryPage() {
         })
         setRuleForm(null)
         setMessage(`已创建规则集：${created.name}`)
+        setActionLink(ruleRunActionLink(created.workflowRunId, '查看创建 Run', created.ruleSetId))
         await loadRules(created.ruleSetId)
         return
       }
@@ -126,6 +133,7 @@ export function RuleLibraryPage() {
       setRuleForm(null)
       setSelectedRule(updated)
       setMessage(`已更新规则集：${updated.name}`)
+      setActionLink(ruleRunActionLink(updated.workflowRunId, '查看保存 Run', updated.ruleSetId))
       await loadRules(updated.ruleSetId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存规则集失败')
@@ -137,9 +145,11 @@ export function RuleLibraryPage() {
   async function createVersion() {
     if (!selectedRule) return
     setBusy('version')
+    setActionLink(null)
     try {
       const version = await fetchActivityApi<RuleSetVersionDto>(`/api/rule-sets/${selectedRule.ruleSetId}/versions`, { method: 'POST', body: JSON.stringify({}) })
       setMessage(`已创建新版本：${version.version}`)
+      setActionLink(ruleRunActionLink(version.workflowRunId, '查看版本 Run', version.ruleSetId))
       setPanelTab('versions')
       await loadRules(selectedRule.ruleSetId)
     } catch (error) {
@@ -153,6 +163,7 @@ export function RuleLibraryPage() {
     if (!selectedRule) return
     const action = selectedRule.status === 'DISABLED' ? 'enable' : 'disable'
     setBusy(action)
+    setActionLink(null)
     try {
       const updated = await fetchActivityApi<RuleSetDetailDto>(
         selectedRule.status === 'DISABLED' ? `/api/rule-sets/${selectedRule.ruleSetId}/enable` : `/api/rule-sets/${selectedRule.ruleSetId}`,
@@ -160,6 +171,7 @@ export function RuleLibraryPage() {
       )
       setSelectedRule(updated)
       setMessage(`${updated.name} 已${updated.status === 'DISABLED' ? '禁用' : '启用'}`)
+      setActionLink(ruleRunActionLink(updated.workflowRunId, '查看状态 Run', updated.ruleSetId))
       await loadRules(updated.ruleSetId)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '状态更新失败')
@@ -238,7 +250,12 @@ export function RuleLibraryPage() {
             <div className={styles.metaItem}><Clock size={14} /> 规则数 {selectedRule?.summary.ruleCount ?? 0} · {selectedRule?.summary.scopeText ?? '无范围'}</div>
             <div className={styles.metaItem}><User size={14} /> 最后更新 {selectedRule?.updatedAt ? new Date(selectedRule.updatedAt).toLocaleString('zh-CN') : '-'} by {selectedRule?.updatedBy ?? '-'}</div>
           </div>
-          {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '10px' }}>{message}</div> : null}
+          {message ? (
+            <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '10px' }}>
+              {message}
+              {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+            </div>
+          ) : null}
           {ruleForm ? (
             <form className={styles.ruleForm} onSubmit={(event) => { event.preventDefault(); void submitRuleForm() }}>
               <div className={styles.formGrid}>
@@ -357,6 +374,7 @@ function RuleVersionsPanel({ versions, selectedRule }: { versions: RuleSetVersio
                 <span className={`${styles.statusBadge} ${version.status === 'DRAFT' ? styles.statusDraft : styles.statusActive}`}>{version.status === 'DRAFT' ? '草稿' : version.status === 'DISABLED' ? '已禁用' : '已启用'}</span>
               </div>
               <div className={styles.summaryText}>规则 {version.dslJson.length} 条 · 影响字段 {version.affectedFields.length} 个 · 人工复核 {version.manualReviewItems.length} 项</div>
+              {version.workflowRunId ? <a href={runConsoleHref(version.workflowRunId)} style={{ color: 'var(--primary)', fontSize: '13px' }}>查看版本 Run</a> : null}
               <pre className={styles.versionSource}>{version.sourceText}</pre>
             </div>
           )) : <div className={styles.emptyState}>当前规则集还没有版本记录。</div>}
@@ -397,6 +415,22 @@ function RuleJsonPanel({ dslText, selectedRule }: { dslText: string; selectedRul
 
 function getInitialRuleSetId(): string | null {
   return getInitialRuleLibraryParam('ruleSetId')
+}
+
+function ruleRunActionLink(workflowRunId: string | undefined, label: string, ruleSetId: string): ActionLink {
+  return workflowRunId
+    ? { href: runConsoleHref(workflowRunId), label }
+    : { href: ruleLibraryHref(ruleSetId), label: '查看规则集' }
+}
+
+function runConsoleHref(runId: string): string {
+  const params = new URLSearchParams({ runId })
+  return `/run-console?${params.toString()}`
+}
+
+function ruleLibraryHref(ruleSetId: string): string {
+  const params = new URLSearchParams({ ruleSetId })
+  return `/rule-library?${params.toString()}`
 }
 
 function getInitialRuleLibraryParam(name: string): string | null {

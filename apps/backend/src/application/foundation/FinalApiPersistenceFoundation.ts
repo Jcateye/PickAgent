@@ -2839,13 +2839,14 @@ export class RuleSetService {
   async create(input: CreateRuleSetInputDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
     return this.tx.transaction(async (tx) => {
       const detail = await this.repository.create(boundary, input);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "rule_set_create",
         subjectType: "rule_set",
         subjectId: detail.ruleSetId,
         input: { name: input.name, type: detail.type, actorId: boundary.actorId },
         output: { ruleSetId: detail.ruleSetId, status: detail.status, version: detail.version },
       });
+      detail.workflowRunId = audit.workflowRunId;
       return detail;
     });
   }
@@ -2853,13 +2854,14 @@ export class RuleSetService {
   async update(ruleSetId: string, input: UpdateRuleSetInputDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
     return this.tx.transaction(async (tx) => {
       const detail = await this.repository.update(boundary, ruleSetId, input);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "rule_set_update",
         subjectType: "rule_set",
         subjectId: ruleSetId,
         input: { ruleSetId, fields: Object.keys(input), actorId: boundary.actorId },
         output: { ruleSetId, status: detail.status, version: detail.version },
       });
+      detail.workflowRunId = audit.workflowRunId;
       return detail;
     });
   }
@@ -2867,13 +2869,14 @@ export class RuleSetService {
   async createVersion(ruleSetId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetVersionDto> {
     return this.tx.transaction(async (tx) => {
       const version = await this.repository.createVersion(boundary, ruleSetId);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "rule_set_version_create",
         subjectType: "rule_set",
         subjectId: ruleSetId,
         input: { ruleSetId, actorId: boundary.actorId },
         output: { ruleSetVersionId: version.ruleSetVersionId, version: version.version },
       });
+      version.workflowRunId = audit.workflowRunId;
       return version;
     });
   }
@@ -2887,13 +2890,14 @@ export class RuleSetService {
   async setStatus(ruleSetId: string, status: RuleSetStatusDto, boundary: P0AuthContextDto = explicitDevBoundary): Promise<RuleSetDetailDto> {
     return this.tx.transaction(async (tx) => {
       const detail = await this.repository.setStatus(boundary, ruleSetId, status);
-      await this.auditRepository.recordWorkflowAudit(tx, boundary, {
+      const audit = await this.auditRepository.recordWorkflowAudit(tx, boundary, {
         workflowType: "rule_set_status_update",
         subjectType: "rule_set",
         subjectId: ruleSetId,
         input: { ruleSetId, status, actorId: boundary.actorId },
         output: { ruleSetId, status: detail.status },
       });
+      detail.workflowRunId = audit.workflowRunId;
       return detail;
     });
   }
