@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, getRealAgentChatReadiness, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route'
-import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
+import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, getRealAgentChatReadiness, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route-support'
+import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route-support'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/recovered-turn'
 import { finalAgentRuntime, finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 

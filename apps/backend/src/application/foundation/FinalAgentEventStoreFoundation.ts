@@ -501,7 +501,7 @@ export class AgentRepository {
       runId: input.runId,
       toolCallId: input.toolCallId ?? null,
       reviewItemId: input.reviewItemId ?? null,
-      status: "OPEN",
+      status: "PENDING",
       reasonCode: input.reasonCode,
       question: input.question,
       agentRecommendation: input.agentRecommendation ?? null,
@@ -858,6 +858,22 @@ export class FinalAgentService {
   startRun(missionId: string, input: StartAgentRunInput = {}): AgentRun {
     const run = this.repository.createRun(missionId, input);
     this.eventStore.append({ runId: run.id, eventType: "run.started", eventPhase: "started", payloadJson: { missionId, input: input.inputJson ?? {} } });
+    if (input.inputJson?.requiresReviewGate === true) {
+      const gate = this.repository.createReviewGate({
+        missionId,
+        runId: run.id,
+        toolCallId: null,
+        reasonCode: String(input.inputJson.reviewGateReasonCode ?? "agent_mission_review_required"),
+        question: String(input.inputJson.reviewGateQuestion ?? "是否批准 Agent Mission 继续执行？"),
+        agentRecommendation: String(input.inputJson.reviewGateRecommendation ?? "批准后将创建 continuation run，并保留当前任务上下文与审计事件。"),
+        riskIfApproved: String(input.inputJson.reviewGateRiskIfApproved ?? "Agent 将继续执行后续任务。"),
+        riskIfRejected: String(input.inputJson.reviewGateRiskIfRejected ?? "任务将停留在当前 run，等待人工处理。"),
+        evidenceRefs: [],
+      });
+      const waitingRun = this.eventStore.markRunStatus(run.id, "WAITING_REVIEW", { reviewGateId: gate.id }, null);
+      this.eventStore.append({ runId: run.id, eventType: "review_gate.opened", eventPhase: "PENDING", payloadJson: { gateId: gate.id, reasonCode: gate.reasonCode, question: gate.question } });
+      return waitingRun;
+    }
     return run;
   }
 

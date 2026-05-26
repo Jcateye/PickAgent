@@ -288,7 +288,14 @@ export function AgentMissionPage() {
       const started = await apiPost<AgentRun>(`/api/agent/missions/${encodeURIComponent(created.mission.id)}/runs`, {
         modelProvider: 'pi',
         modelName: 'sku-ready-agent',
-        inputJson: { source: 'agent-mission-console', objective },
+        inputJson: {
+          source: 'agent-mission-console',
+          objective,
+          requiresReviewGate: true,
+          reviewGateReasonCode: 'agent_mission_console_start',
+          reviewGateQuestion: '是否批准 Agent Mission 继续执行？',
+          reviewGateRecommendation: '建议批准后继续创建后续 Run，并保留当前 Mission 审计上下文。',
+        },
       })
       const startedRunId = runIdFromAgentRun(started)
       await loadMissionConsole()

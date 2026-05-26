@@ -45,7 +45,7 @@ test('run console page restores a real workflow run, exports logs, switches tabs
   expect(runId).toBeTruthy()
 
   await page.goto(`${baseURL}/run-console?runId=${runId}`, { waitUntil: 'networkidle' })
-  await expect(page.getByText(`Run #${runId.slice(0, 8)}`)).toBeVisible()
+  await expect(page.getByText(`Run #${runId.slice(0, 8)}`, { exact: true })).toBeVisible()
   await expect(page.getByText('状态: SUCCEEDED')).toBeVisible()
   await expect(page.getByText('类型: report_generate')).toBeVisible()
   await expect(page.getByRole('link', { name: /对象:/ })).toHaveAttribute('href', `/report-center?reportId=${report.reportId}`)
