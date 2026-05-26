@@ -607,6 +607,33 @@ test('agent chat activity write tools link audited runs and activity object', as
   assert.ok(candidate.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === candidateResult.workflowRunId))
 })
 
+test('agent chat parses and binds activity rule sets into execution plans', async () => {
+  const created = await executeFinalApiTool('createActivity', {
+    name: `Agent 活动规则绑定 ${Date.now()}`,
+    platform: 'tmall',
+    categoryScope: ['beauty'],
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  const activityId = (created.result as { activityId: string }).activityId
+
+  const parsed = await executeFinalApiTool('parseActivityRuleSetForActivity', {
+    activityId,
+    sourceText: '库存不得低于 20 件，好评率不得低于 95%。',
+  })
+  assert.equal(parsed.status, 'SUCCEEDED')
+  const plan = parsed.result as { activityId: string; ruleSet: { ruleSetId: string; rules: unknown[] } }
+  assert.equal(plan.activityId, activityId)
+  assert.ok(plan.ruleSet.ruleSetId)
+  assert.equal(parsed.linkedEntity?.type, 'activity')
+  assert.equal(parsed.linkedEntity.id, activityId)
+  assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === activityId))
+  assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === plan.ruleSet.ruleSetId))
+
+  const executionPlan = await executeFinalApiTool('getActivityExecutionPlan', { activityId })
+  assert.equal(executionPlan.status, 'SUCCEEDED')
+  assert.equal((executionPlan.result as { ruleSet: { ruleSetId: string } }).ruleSet.ruleSetId, plan.ruleSet.ruleSetId)
+})
+
 test('agent chat settings tools read and update real workspace settings', async () => {
   const read = await executeFinalApiTool('getWorkspaceSettings', {})
   assert.equal(read.status, 'SUCCEEDED')
@@ -1445,6 +1472,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRiskLevel('getReportDetail'), 'L1')
   assert.equal(agentToolRiskLevel('createReviewItems'), 'L1')
   assert.equal(agentToolRiskLevel('runConnectorSync'), 'L1')
+  assert.equal(agentToolRiskLevel('parseActivityRuleSetForActivity'), 'L1')
   assert.equal(agentToolRiskLevel('updateConnectorPermissions'), 'L1')
   assert.equal(agentToolRiskLevel('setSkuNextAction'), 'L1')
   assert.equal(agentToolRiskLevel('exportReport'), 'L1')
@@ -1461,6 +1489,7 @@ test('agent chat classifies report-producing tools as write risk', () => {
   assert.equal(agentToolRequiresReviewGate('getReportDetail'), false)
   assert.equal(agentToolRequiresReviewGate('createReviewItems'), false)
   assert.equal(agentToolRequiresReviewGate('runConnectorSync'), false)
+  assert.equal(agentToolRequiresReviewGate('parseActivityRuleSetForActivity'), false)
   assert.equal(agentToolRequiresReviewGate('updateConnectorPermissions'), false)
   assert.equal(agentToolRequiresReviewGate('setSkuNextAction'), false)
   assert.equal(agentToolRequiresReviewGate('exportReport'), false)

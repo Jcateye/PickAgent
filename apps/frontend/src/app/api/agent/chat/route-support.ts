@@ -5,7 +5,7 @@ import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAg
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
-import { defaultAgentToolNames, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
+import { defaultAgentToolNames, type CanonicalRuleDto, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
 import type { ReportExportRequestDto, ReportSubscriptionRequestDto, ReviewDecisionRequestDto, ReviewListQueryDto } from '../../../../../../contracts/types/reviewReportCenter'
 import type { DashboardSkuListItemDto, DashboardSkuListQuery } from '../../../../../../contracts/types/dashboardSkuReadModels'
 import { buildRunConsoleLogExport, buildRunConsolePage } from '../../run-console/run-console-data'
@@ -145,8 +145,8 @@ function createConversationRepository(env: Record<string, string | undefined> = 
 }
 
 const registeredAgentTools = new Set<string>(defaultAgentToolNames)
-const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'addActivityCandidateSkus', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'updateConnectorPermissions', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
-const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'addActivityCandidateSkus', 'updateConnectorPermissions', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
+const writeAgentTools = new Set(['createRuleSet', 'updateRuleSet', 'createRuleSetVersion', 'createActivity', 'updateActivity', 'startActivityRun', 'addActivityCandidateSkus', 'parseActivityRuleSetForActivity', 'ingestSkus', 'ingestBrowserScan', 'createReviewItems', 'updateReviewItem', 'decideReviewItem', 'setSkuNextAction', 'createConnector', 'updateConnector', 'updateConnectorPermissions', 'runConnectorSync', 'setConnectorStatus', 'setRuleSetStatus', 'retryRun', 'createAgentMission', 'startAgentRun', 'pauseAgentRun', 'cancelAgentRun', 'answerAgentRunQuestion', 'decideAgentReviewGate', 'generateReport', 'compareReports', 'exportReport', 'exportSkuList', 'subscribeReport', 'updateWorkspaceSettings', 'updateToolPolicy', 'updateSettingsUserStatus'])
+const autoAllowedWriteAgentTools = new Set(['createReviewItems', 'setSkuNextAction', 'addActivityCandidateSkus', 'parseActivityRuleSetForActivity', 'updateConnectorPermissions', 'runConnectorSync', 'exportReport', 'exportSkuList', 'subscribeReport', 'answerAgentRunQuestion'])
 const sensitiveKeyPattern = /cookie|token|jwt|sso|secret|api[_-]?key|authorization|password|credential/i
 
 export function createPersistentToolExecutor(repository: AgentConversationRepository) {
@@ -563,6 +563,21 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const ruleSetEntity = { type: 'rule_set', id: result.ruleSetId }
       const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
       return succeeded(result, result.errors.length ? [] : [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `规则解析状态：${result.parseStatus}` }], `解析规则：${result.parseStatus}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
+    }
+
+    if (toolName === 'parseActivityRuleSetForActivity') {
+      const activityId = String(input.activityId ?? '')
+      const sourceText = String(input.sourceText ?? input.ruleText ?? '')
+      if (!activityId || !sourceText.trim()) throw new Error('activityId and sourceText are required')
+      const rules = recordArray(input.rules) as unknown as CanonicalRuleDto[]
+      const result = await finalApiRuntime.activityService.parseForActivity(activityId, {
+        name: optionalString(input.name),
+        sourceText,
+        rules: rules.length ? rules : undefined,
+      }, agentToolAuthContext())
+      const activityEntity = { type: 'activity', id: result.activityId }
+      const ruleSetEntity = { type: 'rule_set', id: result.ruleSet.ruleSetId }
+      return succeeded(result, [{ type: 'rule', entityId: result.ruleSet.ruleSetId, label: `活动规则 ${result.ruleSet.version}`, summary: `已绑定活动 ${activityId}，规则 ${result.ruleSet.rules.length} 条` }], `解析并绑定活动规则：${result.ruleSet.ruleSetId}`, activityEntity, [activityEntity, ruleSetEntity])
     }
 
     if (toolName === 'simulateActivityReadiness') {

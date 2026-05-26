@@ -48,7 +48,16 @@ test('vercel ai sdk agent model adapter exposes activity rule parsing as an exec
     model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
     generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
       const parseResult = await input.tools?.parseActivityRules?.execute?.({ sourceText: '活动库存不少于 20，好评率不少于 92%，证书状态必须有效。' })
+      const boundParseResult = await input.tools?.parseActivityRuleSetForActivity?.execute?.({ activityId: 'activity_1', sourceText: '活动库存不少于 20。' })
       assert.deepEqual(parseResult, {
+        status: 'SUCCEEDED',
+        summary: 'parsed',
+        data: { ruleSetId: 'rules_1', parseStatus: 'PARSED' },
+        evidenceRefs: [],
+        linkedEntities: [],
+        reviewGateId: null,
+      })
+      assert.deepEqual(boundParseResult, {
         status: 'SUCCEEDED',
         summary: 'parsed',
         data: { ruleSetId: 'rules_1', parseStatus: 'PARSED' },
@@ -94,6 +103,13 @@ test('vercel ai sdk agent model adapter exposes activity rule parsing as an exec
       name: 'Agent Copilot 活动规则',
       platform: 'agent-copilot',
       sourceText: '活动库存不少于 20，好评率不少于 92%，证书状态必须有效。',
+    },
+  }])
+  assert.deepEqual(executedTools.filter((item) => item.toolName === 'parseActivityRuleSetForActivity'), [{
+    toolName: 'parseActivityRuleSetForActivity',
+    inputJson: {
+      activityId: 'activity_1',
+      sourceText: '活动库存不少于 20。',
     },
   }])
 })

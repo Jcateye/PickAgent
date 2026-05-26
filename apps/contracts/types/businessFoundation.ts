@@ -263,6 +263,7 @@ export const defaultAgentToolNames = [
   "getSkuSummary",
   "ingestSkus",
   "parseActivityRules",
+  "parseActivityRuleSetForActivity",
   "checkDataFreshness",
   "diagnoseSkuHealth",
   "simulateActivityReadiness",

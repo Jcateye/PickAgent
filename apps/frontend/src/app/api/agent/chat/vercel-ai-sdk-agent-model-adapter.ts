@@ -508,6 +508,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('parseActivityRules', normalizeRuleParseInput(inputJson)),
     }),
+    parseActivityRuleSetForActivity: tool({
+      description: '把规则文本解析为 Canonical Rule DSL，并绑定到指定活动执行计划。需要 activityId 和 sourceText，可选 name/rules。用于完成创建活动后的规则绑定流转。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('parseActivityRuleSetForActivity', inputJson),
+    }),
     getSkuSummary: tool({
       description: '读取 SKU 当前健康摘要。需要 skuProfileId。',
       inputSchema: objectSchema,
