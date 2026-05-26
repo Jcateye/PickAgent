@@ -11,6 +11,7 @@ interface RunConsoleItemDto {
   status: string
   subject: string
   sourceId?: string
+  sourceHref?: string
   startedAt?: string
   completedAt?: string
   summary: string
@@ -43,6 +44,7 @@ export function RunConsolePage() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(() => getInitialRunConsoleParam('runId'))
   const [activeTab, setActiveTab] = useState<RunConsoleTab>(() => getInitialRunConsoleTab())
   const [message, setMessage] = useState<string | null>(null)
+  const [actionLink, setActionLink] = useState<{ href: string; label: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -87,6 +89,7 @@ export function RunConsolePage() {
       link.click()
       URL.revokeObjectURL(url)
       setMessage(`已导出 Run 日志：${exported.runId} / ${exported.lineCount} 行`)
+      setActionLink({ href: runConsoleHref(exported.runId, 'raw'), label: '查看 Raw Logs' })
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '导出 Run 日志失败')
     } finally {
@@ -105,6 +108,7 @@ export function RunConsolePage() {
       return
     }
     setBusy('retry')
+    setActionLink(null)
     try {
       if (selectedRun.type === 'connector_sync') {
         const run = await fetchActivityApi<{ connectorRunId: string }>(`/api/connectors/${selectedRun.sourceId}/sync-runs`, {
@@ -117,6 +121,7 @@ export function RunConsolePage() {
           }),
         })
         setMessage(`已创建连接器重试运行：${run.connectorRunId}`)
+        setActionLink({ href: runConsoleHref(run.connectorRunId), label: '查看重试 Run' })
       } else if (selectedRun.type === 'agent_run') {
         const run = await fetchActivityApi<{ id?: string; runId?: string }>(`/api/agent/missions/${selectedRun.sourceId}/runs`, {
           method: 'POST',
@@ -126,7 +131,9 @@ export function RunConsolePage() {
             inputJson: { retryOf: selectedRun.runId, triggeredBy: 'run-console' },
           }),
         })
-        setMessage(`已创建 Agent 重试运行：${run.runId ?? run.id ?? 'new run'}`)
+        const runId = run.runId ?? run.id ?? 'new run'
+        setMessage(`已创建 Agent 重试运行：${runId}`)
+        if (run.runId ?? run.id) setActionLink({ href: runConsoleHref(run.runId ?? run.id!), label: '查看重试 Run' })
       } else if (selectedRun.type === 'activity_simulation') {
         const skuProfileIds = simulationSkuProfileIds(selectedRun)
         if (!skuProfileIds.length) throw new Error('当前模拟运行没有可复用的 SKU 范围')
@@ -135,6 +142,7 @@ export function RunConsolePage() {
           body: JSON.stringify({ skuProfileIds }),
         })
         setMessage(`已创建规则模拟重试运行：${run.simulationRunId}`)
+        setActionLink({ href: runConsoleHref(run.simulationRunId), label: '查看重试 Run' })
       } else {
         setMessage(`当前 ${selectedRun.type} 运行暂不支持自动重试。`)
       }
@@ -176,19 +184,24 @@ export function RunConsolePage() {
             <div className={styles.runTitle}>{selectedRun ? `Run #${shortId(selectedRun.runId)}` : 'Run Console'}</div>
             {selectedRun ? (
               <div className={styles.runBadges}>
-                <span className={`${styles.badge} ${isSucceeded(selectedRun.status) ? styles.badgeSuccess : ''}`}>状态: {selectedRun.status}</span>
-                <span className={styles.badge}>类型: {selectedRun.type}</span>
-                <span className={styles.badge}>对象: {selectedRun.subject}</span>
-              </div>
+            <span className={`${styles.badge} ${isSucceeded(selectedRun.status) ? styles.badgeSuccess : ''}`}>状态: {selectedRun.status}</span>
+            <span className={styles.badge}>类型: {selectedRun.type}</span>
+            {selectedRun.sourceHref ? <a className={styles.badge} href={selectedRun.sourceHref} style={{ color: 'var(--primary)' }}>对象: {selectedRun.subject}</a> : <span className={styles.badge}>对象: {selectedRun.subject}</span>}
+          </div>
             ) : null}
           </div>
           <div className={styles.headerActions}>
             <button className="secondaryButton" type="button" onClick={() => void retryRun()} disabled={!selectedRun || busy === 'retry'} style={{ height: '32px', fontSize: '13px' }}><RotateCcw size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>重试失败项</button>
             <button className="secondaryButton" type="button" onClick={() => void exportLogs()} disabled={!selectedRun || busy === 'export'} style={{ height: '32px', fontSize: '13px' }}><Download size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }}/>导出日志</button>
-            <a className="iconButton" href="/agent-mission" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
+            <a className="iconButton" href={selectedRun?.sourceHref ?? '/agent-mission'} aria-label="打开来源对象" style={{ height: '32px', width: '32px' }}><ExternalLink size={16} /></a>
           </div>
         </div>
-        {message ? <div style={{ color: 'var(--muted)', fontSize: '13px', margin: '12px 24px 0' }}>{message}</div> : null}
+        {message ? (
+          <div style={{ color: 'var(--muted)', fontSize: '13px', margin: '12px 24px 0' }}>
+            {message}
+            {actionLink ? <> · <a href={actionLink.href} style={{ color: 'var(--primary)', fontWeight: 600 }}>{actionLink.label}</a></> : null}
+          </div>
+        ) : null}
 
         <div className={styles.tabsBar}>
           {runConsoleTabs.map((tab) => (
@@ -300,6 +313,12 @@ function syncRunConsoleUrl(runId: string | null | undefined, tab: RunConsoleTab)
   if (`${window.location.pathname}${window.location.search}` !== nextUrl) {
     window.history.replaceState(null, '', nextUrl)
   }
+}
+
+function runConsoleHref(runId: string, tab: RunConsoleTab = 'timeline'): string {
+  const params = new URLSearchParams({ runId })
+  if (tab !== 'timeline') params.set('tab', tab)
+  return `/run-console?${params.toString()}`
 }
 
 function statusClass(status: string, styleMap: typeof styles): string {

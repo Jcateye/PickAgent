@@ -8,6 +8,7 @@ export interface RunConsoleItemDto {
   status: string
   subject: string
   sourceId?: string
+  sourceHref?: string
   startedAt?: string
   completedAt?: string
   summary: string
@@ -41,6 +42,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
       status: run.status,
       subject: connector.name,
       sourceId: connector.connectorId,
+      sourceHref: entityHref('connector', connector.connectorId),
       startedAt: run.startedAt,
       completedAt: run.completedAt,
       summary: `采集 ${run.rowCount} 行，质量分 ${run.qualityScore ?? '-'}`,
@@ -60,6 +62,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
       status: run.status,
       subject: mission.objective,
       sourceId: mission.missionId,
+      sourceHref: entityHref('agent_mission', mission.missionId, run.runId),
       startedAt: run.startedAt ?? undefined,
       completedAt: run.completedAt ?? undefined,
       summary: `Agent Mission：${mission.objective}`,
@@ -79,6 +82,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
     status: run.status,
     subject: `规则集 ${run.activityRuleSetId.slice(0, 8)}`,
     sourceId: run.activityRuleSetId,
+    sourceHref: entityHref('activity_simulation', run.activityRuleSetId, run.simulationRunId),
     startedAt: run.startedAt,
     completedAt: run.completedAt,
     summary: `准入模拟 ${run.results.length} 个 SKU，阻断 ${run.results.filter((result) => result.eligibility === 'BLOCKED').length} 个，需人工确认 ${run.results.filter((result) => result.eligibility === 'MANUAL_REVIEW').length} 个`,
@@ -95,6 +99,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
     status: audit.status,
     subject: `${audit.subjectType ?? 'workflow'}:${audit.subjectId ?? '-'}`,
     sourceId: audit.subjectId,
+    sourceHref: audit.subjectType && audit.subjectId ? entityHref(audit.subjectType, audit.subjectId) : undefined,
     startedAt: audit.createdAt,
     completedAt: audit.createdAt,
     summary: `${audit.workflowType} -> ${audit.subjectType ?? 'workflow'}`,
@@ -106,6 +111,26 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
 
   const sorted = runs.sort((left, right) => Date.parse(right.startedAt ?? right.completedAt ?? '') - Date.parse(left.startedAt ?? left.completedAt ?? ''))
   return { items: sorted.slice(0, limit), total: sorted.length, page: 1, pageSize: limit }
+}
+
+function entityHref(entityType: string, entityId: string, runId?: string): string | undefined {
+  if (entityType === 'connector') return `/data-sources?connectorId=${encodeURIComponent(entityId)}`
+  if (entityType === 'agent_mission') {
+    const params = new URLSearchParams({ missionId: entityId })
+    if (runId) params.set('runId', runId)
+    return `/agent-mission?${params.toString()}`
+  }
+  if (entityType === 'activity_simulation') {
+    const params = new URLSearchParams({ ruleSetId: entityId })
+    if (runId) params.set('simulationRunId', runId)
+    return `/rule-execution?${params.toString()}`
+  }
+  if (entityType === 'rule_set') return `/rule-library?ruleSetId=${encodeURIComponent(entityId)}`
+  if (entityType === 'report') return `/report-center?reportId=${encodeURIComponent(entityId)}`
+  if (entityType === 'review_item') return `/review-approvals?reviewItemId=${encodeURIComponent(entityId)}`
+  if (entityType === 'activity') return `/rule-execution?activityId=${encodeURIComponent(entityId)}`
+  if (entityType === 'sku_profile') return `/sku-access?skuProfileId=${encodeURIComponent(entityId)}`
+  return undefined
 }
 
 export async function buildRunConsoleLogExport(boundary: P0AuthContextDto, runId: string): Promise<RunConsoleLogExportDto | null> {
