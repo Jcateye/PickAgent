@@ -539,12 +539,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('listRuleSetVersions', inputJson),
     }),
     createRuleSet: tool({
-      description: '创建真实规则集。需要 name 和 sourceText，可选 platform、type=ACTIVITY_RULE、source=INTERNAL/PLATFORM、status=DRAFT/ENABLED/DISABLED。',
+      description: '创建真实规则集。需要 name 和 sourceText，可选 platform、type=ACTIVITY_RULE、source=INTERNAL/PLATFORM、status=DRAFT/ENABLED/DISABLED；在规则库页面可使用 workbench context 的 ruleFormDraft 作为当前创建表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('createRuleSet', inputJson),
     }),
     updateRuleSet: tool({
-      description: '更新真实规则集。需要 ruleSetId，并至少提供 name、sourceText、platform 或 status=DRAFT/ENABLED/DISABLED。',
+      description: '更新真实规则集。需要 ruleSetId，并至少提供 name、sourceText、platform 或 status=DRAFT/ENABLED/DISABLED；在规则库页面可使用 workbench context 的 ruleFormDraft 作为当前编辑表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('updateRuleSet', inputJson),
     }),

@@ -91,9 +91,16 @@ export function RuleLibraryPage() {
       entityId: selectedRule?.ruleSetId ?? selectedRuleId ?? 'rule-library',
       label: selectedRule?.name ?? visibleRules.find((item) => item.ruleSetId === selectedRuleId)?.name ?? '规则库',
     },
-    visibleFilters: { query, page, statusFilter, panelTab, ruleFormMode: ruleForm?.mode ?? null },
+    visibleFilters: {
+      query,
+      page,
+      statusFilter,
+      panelTab,
+      ruleFormMode: ruleForm?.mode ?? null,
+      ruleFormDraft: ruleForm,
+    },
     visibleColumns: ['ruleSetId', 'name', 'status', 'source', 'activeRunCount', 'version'],
-  }), [page, panelTab, query, ruleForm?.mode, selectedRule?.name, selectedRule?.ruleSetId, selectedRuleId, statusFilter, visibleRules])
+  }), [page, panelTab, query, ruleForm, selectedRule?.name, selectedRule?.ruleSetId, selectedRuleId, statusFilter, visibleRules])
 
   async function createRuleSet() {
     setRuleForm({
