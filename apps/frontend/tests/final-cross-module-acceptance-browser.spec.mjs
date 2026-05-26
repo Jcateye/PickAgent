@@ -9,17 +9,21 @@ const evidenceDir = process.env.EVIDENCE_DIR
   : path.resolve(thisDir, "..", "..", "..", "output", "final-cross-module-acceptance", "browser");
 
 const desktopRoutes = [
-  { route: "/dashboard", file: "desktop-dashboard.png" },
-  { route: "/sku-health", file: "desktop-sku-health.png" },
-  { route: "/activities", file: "desktop-activities.png" },
-  { route: "/reviews", file: "desktop-reviews.png" },
-  { route: "/reports", file: "desktop-reports.png" },
+  { route: "/overview", file: "desktop-overview.png" },
+  { route: "/sku-access", file: "desktop-sku-access.png" },
+  { route: "/rule-execution", file: "desktop-rule-execution.png" },
+  { route: "/review-approvals", file: "desktop-review-approvals.png" },
+  { route: "/report-center", file: "desktop-report-center.png" },
+  { route: "/data-sources", file: "desktop-data-sources.png" },
+  { route: "/rule-library", file: "desktop-rule-library.png" },
   { route: "/agent-chat", file: "desktop-agent-chat.png" },
 ];
 
 const mobileRoutes = [
-  { route: "/dashboard", file: "mobile-dashboard.png" },
-  { route: "/sku-health", file: "mobile-sku-health.png" },
+  { route: "/overview", file: "mobile-overview.png" },
+  { route: "/sku-access", file: "mobile-sku-access.png" },
+  { route: "/review-approvals", file: "mobile-review-approvals.png" },
+  { route: "/report-center", file: "mobile-report-center.png" },
   { route: "/agent-chat", file: "mobile-agent-chat.png" },
 ];
 
