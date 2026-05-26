@@ -418,7 +418,7 @@ export function AgentMissionPage() {
               <span className={styles.agentAvatar}>AI</span>
               <div>
                 <strong>你好，我是 SKU Ready Agent</strong>
-                <p>我会围绕当前 Mission 异步调用只读工具，展示工具链、证据和需要人工确认的步骤。</p>
+                <p>我会围绕当前 Mission 异步调用可审计工具，展示工具链、证据和需要人工确认的步骤。</p>
               </div>
               <button className="secondaryButton" type="button" onClick={startMission} disabled={loading || !objective.trim()}>
                 启动任务

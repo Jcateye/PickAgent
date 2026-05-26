@@ -159,12 +159,12 @@ async function completeWithReadOnlyToolFallback(
 
   const businessSummary = toolExecutions.length
     ? toolExecutions.map((execution) => `${execution.toolCall.toolName}: ${execution.summary}`).join('；')
-    : '当前没有足够上下文选择只读工具，请指定 SKU、规则文本或报告范围后重试。'
+    : '当前没有足够上下文选择可审计工具，请指定 SKU、规则文本或报告范围后重试。'
   const errorMessage = error instanceof Error ? error.message : 'model provider call failed'
 
   return {
     content: [
-      '模型 provider 本次调用失败，我先用已注册的只读业务工具返回可验证结果。',
+      '模型 provider 本次调用失败，我先用已注册的可审计业务工具返回可验证结果。',
       `用户问题：${userMessage}`,
       `工具结果：${businessSummary}`,
       '如果要继续自然语言多轮推理，需要修复模型 provider 配置；业务工具和证据链路已经可用。',

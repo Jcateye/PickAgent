@@ -409,7 +409,7 @@ function toTurnMeta(data: ChatResponse): ChatTurnMeta {
 
 function buildThoughts(data: ChatResponse): string[] {
   const thoughts = ['锁定当前页面上下文和用户目标。']
-  if (data.toolTrace.length) thoughts.push(`选择 ${data.toolTrace.length} 个只读工具执行，保留可审计 trace。`)
+  if (data.toolTrace.length) thoughts.push(`选择 ${data.toolTrace.length} 个可审计工具执行，保留 trace 和风险策略。`)
   if (data.evidenceRefs.length) thoughts.push(`汇总 ${data.evidenceRefs.length} 条证据引用，避免前端自行推断。`)
   if (data.reviewGate) thoughts.push('检测到需要人工确认的风险，生成交互卡片。')
   return thoughts
