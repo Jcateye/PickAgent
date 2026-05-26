@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { fetchAgentApi } from './api-client'
 import type { AgentRunEvent } from './types'
 
-interface EventReplayEnvelope {
-  code: string
-  data: {
-    items: AgentRunEvent[]
-    after: number
-  }
+interface EventReplayResponse {
+  items: AgentRunEvent[]
+  after: number
 }
 
 export function useAgentRunEvents(runId: string | null) {
@@ -33,13 +31,10 @@ export function useAgentRunEvents(runId: string | null) {
     if (!runId) return
     const after = lastSequenceRef.current
     setMode('replay')
-    const response = await fetch(`/api/agent/runs/${encodeURIComponent(runId)}/events?after=${after}`, {
+    const data = await fetchAgentApi<EventReplayResponse>(`/api/agent/runs/${encodeURIComponent(runId)}/events?after=${after}`, {
       headers: { Accept: 'application/json' },
-      cache: 'no-store',
     })
-    if (!response.ok) throw new Error(`Event replay failed: ${response.status}`)
-    const envelope = (await response.json()) as EventReplayEnvelope
-    mergeEvents(envelope.data.items)
+    mergeEvents(data.items)
     setError(null)
   }, [mergeEvents, runId])
 

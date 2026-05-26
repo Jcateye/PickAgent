@@ -5,6 +5,7 @@ import { Bot, CheckCircle2, ChevronRight, Cpu, Sparkles, User, Wrench, Zap } fro
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
+import { fetchAgentApi } from './api-client'
 import { useAgentRunEvents } from './use-agent-run-events'
 import type { AgentEvidenceRef, AgentLinkedEntity, AgentMessage, AgentReviewGate, AgentToolTrace, WorkbenchContext } from './types'
 
@@ -101,14 +102,11 @@ export function AgentAssistantThread({
     let disposed = false
     async function recover() {
       try {
-        const response = await fetch(`/api/agent/sessions/${encodeURIComponent(sessionKey)}/messages?limit=50`, {
+        const data = await fetchAgentApi<SessionMessagesResponse>(`/api/agent/sessions/${encodeURIComponent(sessionKey)}/messages?limit=50`, {
           headers: apiHeaders(sessionKey),
-          cache: 'no-store',
         })
-        if (!response.ok) return
-        const envelope = (await response.json()) as { code: string; data?: SessionMessagesResponse }
-        if (disposed || envelope.code !== 'OK' || !envelope.data) return
-        setMessages(envelope.data.items.map((item) => ({
+        if (disposed) return
+        setMessages(data.items.map((item) => ({
           id: item.id,
           role: item.role,
           content: item.content,
@@ -116,8 +114,8 @@ export function AgentAssistantThread({
           linkedEntityIds: item.linkedEntityIds,
           evidenceRefIds: item.evidenceRefIds,
         })))
-        setTurns(Object.fromEntries(envelope.data.items.flatMap((item) => item.turn ? [[item.id, { assistantMessageId: item.id, ...item.turn } satisfies ChatTurnMeta]] : [])))
-        const latestRunId = envelope.data.items.findLast((item) => item.runId)?.runId
+        setTurns(Object.fromEntries(data.items.flatMap((item) => item.turn ? [[item.id, { assistantMessageId: item.id, ...item.turn } satisfies ChatTurnMeta]] : [])))
+        const latestRunId = data.items.findLast((item) => item.runId)?.runId
         if (latestRunId) setActiveRunId(latestRunId)
       } catch {
         // Recovery is best-effort; sending a new message will surface hard failures.
@@ -154,16 +152,11 @@ export function AgentAssistantThread({
     setError(null)
 
     try {
-      const response = await fetch('/api/agent/chat', {
+      const data = await fetchAgentApi<ChatResponse>('/api/agent/chat', {
         method: 'POST',
         headers: apiHeaders(sessionKey),
         body: JSON.stringify({ sessionKey, message: text, context }),
       })
-      const envelope = (await response.json()) as { code: string; message: string; data?: ChatResponse }
-      if (!response.ok || envelope.code !== 'OK' || !envelope.data) {
-        throw new Error(envelope.message || `Agent chat failed: ${response.status}`)
-      }
-      const data = envelope.data
       const turn = toTurnMeta(data)
 
       setActiveRunId(data.runId)
