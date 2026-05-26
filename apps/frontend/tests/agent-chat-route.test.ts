@@ -79,6 +79,15 @@ test('agent chat mission tools link back to the mission console', async () => {
   assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
   assert.ok(decided.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === decisionResult.continuationRun.id))
 
+  const retried = await executeFinalApiTool('retryRun', { runType: 'agent_run', missionId, runId: startedRun.id })
+  assert.equal(retried.status, 'SUCCEEDED')
+  const retriedRun = retried.result as { id: string; missionId: string }
+  assert.equal(retriedRun.missionId, missionId)
+  assert.equal(retried.linkedEntity?.type, 'workflow_run')
+  assert.equal(retried.linkedEntity.id, retriedRun.id)
+  assert.ok(retried.linkedEntities?.some((entity) => entity.type === 'agent_mission' && entity.id === missionId))
+  assert.ok(retried.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === retriedRun.id))
+
   const cancelStarted = await executeFinalApiTool('startAgentRun', { missionId, inputJson: { source: 'agent-chat-cancel-test' } })
   const cancelRunId = (cancelStarted.result as { id: string }).id
   const canceled = await executeFinalApiTool('cancelAgentRun', { runId: cancelRunId, canceledBy: 'agent-chat-test', reason: 'link assertion' })

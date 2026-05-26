@@ -774,7 +774,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
           modelName: optionalString(input.modelName) ?? 'sku-ready-agent',
           inputJson: { retryOf, triggeredBy: 'agent-chat-tool', ...(isRecord(input.inputJson) ? input.inputJson : {}) },
         })
-        return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent 重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建 Agent 重试运行：${result.id}`, { type: 'workflow_run', id: result.id })
+        const runEntity = { type: 'workflow_run', id: result.id }
+        const missionEntity = { type: 'agent_mission', id: result.missionId }
+        return succeeded(result, [{ type: 'tool_trace', entityId: result.id, label: 'Agent 重试运行', summary: `重试来源：${retryOf ?? '未指定'}，状态：${result.status}` }], `创建 Agent 重试运行：${result.id}`, runEntity, [missionEntity, runEntity])
       }
       if (runType === 'activity_simulation' || input.ruleSetId) {
         const skuProfileIds = stringArray(input.skuProfileIds)
