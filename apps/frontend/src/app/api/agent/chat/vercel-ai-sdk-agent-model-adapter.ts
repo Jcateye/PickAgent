@@ -185,15 +185,70 @@ async function prefetchContextTools(
   userMessage: string,
   toolExecutions: AgentConversationToolExecution[],
 ): Promise<string> {
-  if (!input.executeTool || !shouldPrefetchDashboardContext(input, userMessage)) return ''
-  const execution = await input.executeTool({
-    run: input.run,
-    mission: input.mission,
-    toolName: 'getDashboardContext',
-    inputJson: buildDashboardPrefetchInput(input, userMessage),
-  })
-  toolExecutions.push(execution)
-  return summarizePrefetchedToolExecutions([execution])
+  if (!input.executeTool) return ''
+  const prefetched: AgentConversationToolExecution[] = []
+  if (shouldPrefetchDashboardContext(input, userMessage)) {
+    const execution = await executePrefetchTool(input, 'getDashboardContext', buildDashboardPrefetchInput(input, userMessage))
+    if (execution) prefetched.push(execution)
+  }
+  for (const request of selectedEntityPrefetchRequests(input)) {
+    const execution = await executePrefetchTool(input, request.toolName, request.inputJson)
+    if (execution) prefetched.push(execution)
+  }
+  toolExecutions.push(...prefetched)
+  return summarizePrefetchedToolExecutions(prefetched)
+}
+
+async function executePrefetchTool(
+  input: AgentModelAdapterInput,
+  toolName: string,
+  inputJson: Record<string, unknown>,
+): Promise<AgentConversationToolExecution | null> {
+  if (!input.executeTool) return null
+  try {
+    return await input.executeTool({
+      run: input.run,
+      mission: input.mission,
+      toolName,
+      inputJson,
+    })
+  } catch {
+    return null
+  }
+}
+
+function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ toolName: string; inputJson: Record<string, unknown> }> {
+  const selectedEntity = input.context?.selectedEntity
+  const entityType = selectedEntity?.entityType ? String(selectedEntity.entityType) : ''
+  const entityId = selectedEntity?.entityId ? String(selectedEntity.entityId) : ''
+  if (!entityType || !entityId || isPlaceholderEntityId(entityId)) return []
+  const visibleFilters = objectInput(input.context?.visibleFilters)
+  if (entityType === 'sku' || entityType === 'sku_profile') {
+    return [
+      { toolName: 'getSkuSummary', inputJson: { skuProfileId: entityId } },
+      { toolName: 'diagnoseSkuHealth', inputJson: { skuProfileId: entityId } },
+      { toolName: 'checkDataFreshness', inputJson: { skuProfileId: entityId, maxAgeHours: 24 } },
+    ]
+  }
+  if (entityType === 'report') return [{ toolName: 'getReportDetail', inputJson: { reportId: entityId } }]
+  if (entityType === 'reviewItem' || entityType === 'review_item') return [{ toolName: 'getReviewDetail', inputJson: { reviewItemId: entityId } }]
+  if (entityType === 'connector') return [{ toolName: 'getConnectorDetail', inputJson: { connectorId: entityId } }]
+  if (entityType === 'ruleSet' || entityType === 'rule_set' || entityType === 'activityRuleSet') return [{ toolName: 'getRuleSetDetail', inputJson: { ruleSetId: entityId } }]
+  if (entityType === 'workflowRun' || entityType === 'workflow_run') return [{ toolName: 'exportRunLogs', inputJson: { runId: entityId } }]
+  if (entityType === 'activity') return [{ toolName: 'getActivityExecutionPlan', inputJson: { activityId: entityId } }]
+  if (entityType === 'agentMission' || entityType === 'agent_mission') return [{ toolName: 'getAgentMission', inputJson: { missionId: entityId } }]
+  if (entityType === 'simulationRun' || entityType === 'simulation_run') {
+    const ruleSetId = typeof visibleFilters.ruleSetId === 'string' ? visibleFilters.ruleSetId : ''
+    const activityId = typeof visibleFilters.activityId === 'string' ? visibleFilters.activityId : ''
+    if (ruleSetId) return [{ toolName: 'getActivitySimulationRunDetail', inputJson: { ruleSetId, simulationRunId: entityId } }]
+    if (activityId) return [{ toolName: 'getActivitySimulationRunDetail', inputJson: { activityId, simulationRunId: entityId } }]
+  }
+  if (entityType === 'settings') return [{ toolName: 'getWorkspaceSettings', inputJson: {} }]
+  return []
+}
+
+function isPlaceholderEntityId(entityId: string): boolean {
+  return ['overview', 'sku-access', 'review-approvals', 'report-center', 'rule-library', 'rule-execution', 'data-sources', 'run-console', 'settings'].includes(entityId)
 }
 
 function shouldPrefetchDashboardContext(input: AgentModelAdapterInput, userMessage: string): boolean {
