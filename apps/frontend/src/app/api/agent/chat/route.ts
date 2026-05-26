@@ -511,7 +511,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         platform: typeof input.platform === 'string' ? input.platform : undefined,
         sourceText,
       }, agentToolAuthContext())
-      return succeeded(result, result.errors.length ? [] : [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `规则解析状态：${result.parseStatus}` }], `解析规则：${result.parseStatus}`, { type: 'rule_set', id: result.ruleSetId })
+      const ruleSetEntity = { type: 'rule_set', id: result.ruleSetId }
+      const workflowEntity = workflowLinkedEntity(result, ruleSetEntity)
+      return succeeded(result, result.errors.length ? [] : [{ type: 'rule', entityId: result.ruleSetId, label: result.name, summary: `规则解析状态：${result.parseStatus}` }], `解析规则：${result.parseStatus}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [ruleSetEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'simulateActivityReadiness') {

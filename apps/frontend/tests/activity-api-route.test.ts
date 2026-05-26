@@ -8,6 +8,8 @@ import { POST as startActivityRun } from '../src/app/api/activities/[activityId]
 import { POST as parseActivityRuleSet } from '../src/app/api/activities/[activityId]/rule-sets/parse/route'
 import { GET as getSimulationRun } from '../src/app/api/activities/[activityId]/simulations/[simulationRunId]/route'
 import { POST as createSimulationRun } from '../src/app/api/activities/[activityId]/simulations/route'
+import { POST as parseStandaloneRules } from '../src/app/api/activities/parse/route'
+import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
   'content-type': 'application/json',
@@ -17,6 +19,27 @@ const authHeaders = {
   'x-p0-surface': 'route-test',
   'x-request-id': 'activity_route_request',
 }
+
+test('standalone activity rule parse route returns workflow run id for audit navigation', async () => {
+  const beforeIds = new Set(Array.from(finalApiRuntime.store.workflowAudits.keys()))
+  const response = await parseStandaloneRules(
+    new Request('http://localhost/api/activities/parse', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name: 'Route Standalone Parse Rule', platform: 'tmall', sourceText: '库存不得低于 20 件。' }),
+    }),
+  )
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.match(envelope.data.workflowRunId, /^workflow_/)
+
+  const newAudits = Array.from(finalApiRuntime.store.workflowAudits.entries())
+    .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
+    .map(([, audit]) => audit)
+  const audit = newAudits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
+  assert.equal(audit?.workflowType, 'activity_rule_parse')
+  assert.equal(audit?.subjectId, envelope.data.ruleSetId)
+})
 
 test('activity routes return not found for missing activity reads and writes', async () => {
   const params = { params: Promise.resolve({ activityId: 'missing_activity' }) }

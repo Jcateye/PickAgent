@@ -132,6 +132,7 @@ export interface ActivityRuleSetDto {
   parseStatus: ParseStatus;
   confidence: number;
   errors: string[];
+  workflowRunId?: string;
 }
 
 export type TraceableEntityType =

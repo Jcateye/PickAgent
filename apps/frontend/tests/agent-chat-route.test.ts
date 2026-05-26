@@ -106,7 +106,13 @@ test('agent chat activity simulation links back to restorable rule execution res
     sourceText: '库存不得低于 10 件。',
   })
   assert.equal(parsed.status, 'SUCCEEDED')
-  const ruleSetId = (parsed.result as { ruleSetId: string }).ruleSetId
+  const parsedResult = parsed.result as { ruleSetId: string; workflowRunId?: string }
+  const ruleSetId = parsedResult.ruleSetId
+  assert.ok(parsedResult.workflowRunId)
+  assert.equal(parsed.linkedEntity?.type, 'workflow_run')
+  assert.equal(parsed.linkedEntity.id, parsedResult.workflowRunId)
+  assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === ruleSetId))
+  assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === parsedResult.workflowRunId))
 
   const simulated = await executeFinalApiTool('simulateActivityReadiness', { ruleSetId, skuProfileIds: [skuProfileId] })
   assert.equal(simulated.status, 'SUCCEEDED')
@@ -182,12 +188,19 @@ test('agent chat tools write backend workflow audits with agent auth context', a
   })
 
   assert.equal(execution.status, 'SUCCEEDED')
+  const result = execution.result as { ruleSetId: string; workflowRunId?: string }
+  assert.ok(result.workflowRunId)
+  assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.equal(execution.linkedEntity.id, result.workflowRunId)
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === result.ruleSetId))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
   const newAudits = Array.from(finalApiRuntime.store.workflowAudits.entries())
     .filter(([workflowRunId]) => !beforeIds.has(workflowRunId))
     .map(([, audit]) => audit)
   const parseAudit = newAudits.find((audit) => audit.workflowType === 'activity_rule_parse')
 
   assert.ok(parseAudit)
+  assert.equal(parseAudit.workflowRunId, result.workflowRunId)
   assert.equal(parseAudit.input.actorId, 'agent_demo')
   assert.equal(finalApiRuntime.store.tenantByEntityId.get(parseAudit.workflowRunId), 'dev_tenant')
 })

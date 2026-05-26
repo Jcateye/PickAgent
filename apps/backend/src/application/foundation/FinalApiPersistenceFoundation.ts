@@ -2536,7 +2536,7 @@ export class FinalActivityService {
       ruleSet.errors.push(error instanceof Error ? error.message : "Rule DSL validation failed");
     }
     const saved = await this.repository.saveRuleSet(boundary, ruleSet);
-    await this.repository.recordWorkflowAudit(boundary, "activity_rule_parse", saved.ruleSetId, {
+    const workflowRunRef = await this.repository.recordWorkflowAudit(boundary, "activity_rule_parse", saved.ruleSetId, {
       actorId: boundary.actorId,
       name: input.name,
       platform: input.platform,
@@ -2546,7 +2546,7 @@ export class FinalActivityService {
       confidence: saved.confidence,
       ruleCount: saved.rules.length,
     });
-    return saved;
+    return { ...saved, workflowRunId: workflowRunRef.entityId };
   }
 
   async simulate(activityRuleSetId: string, request: Omit<SimulationRequestDto, "ruleSetId">, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivitySimulationRunDto> {
