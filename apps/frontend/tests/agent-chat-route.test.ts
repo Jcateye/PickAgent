@@ -11,10 +11,43 @@ test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('rule_set', 'rule_1'), '/rule-library?ruleSetId=rule_1')
   assert.equal(linkedEntityHref('review_item', 'review_1'), '/review-approvals?reviewItemId=review_1')
   assert.equal(linkedEntityHref('report', 'report_1'), '/report-center?reportId=report_1')
+  assert.equal(linkedEntityHref('simulation_run', 'rule_1:run_1'), '/rule-execution?simulationRunId=run_1&ruleSetId=rule_1')
   assert.equal(linkedEntityHref('dashboard', 'connectors'), '/data-sources')
   assert.equal(linkedEntityHref('dashboard', 'reports'), '/report-center')
   assert.equal(linkedEntityHref('dashboard', 'reviews'), '/review-approvals')
   assert.equal(linkedEntityHref('dashboard', 'rule-sets'), '/rule-library')
+})
+
+test('agent chat activity simulation links back to restorable rule execution results', async () => {
+  const ingested = await executeFinalApiTool('ingestSkus', {
+    rows: [{
+      platform: 'tmall',
+      storeId: 'agent_simulation_link_store',
+      externalSkuId: `agent_simulation_link_${Date.now()}`,
+      productName: 'Agent 模拟深链 SKU',
+      stock: 5,
+      positiveRate: 0.98,
+      certificateStatus: 'valid',
+    }],
+  })
+  assert.equal(ingested.status, 'SUCCEEDED')
+  const skuProfileId = (ingested.result as { summaries: Array<{ skuProfileId: string }> }).summaries[0]?.skuProfileId
+  assert.ok(skuProfileId)
+
+  const parsed = await executeFinalApiTool('parseActivityRules', {
+    name: 'Agent 模拟深链规则',
+    platform: 'tmall',
+    sourceText: '库存不得低于 10 件。',
+  })
+  assert.equal(parsed.status, 'SUCCEEDED')
+  const ruleSetId = (parsed.result as { ruleSetId: string }).ruleSetId
+
+  const simulated = await executeFinalApiTool('simulateActivityReadiness', { ruleSetId, skuProfileIds: [skuProfileId] })
+  assert.equal(simulated.status, 'SUCCEEDED')
+  const simulationRunId = (simulated.result as { simulationRunId: string }).simulationRunId
+  assert.ok(simulationRunId)
+  assert.equal(simulated.linkedEntity?.type, 'simulation_run')
+  assert.equal(linkedEntityHref(simulated.linkedEntity.type, simulated.linkedEntity.id), `/rule-execution?simulationRunId=${simulationRunId}&ruleSetId=${ruleSetId}`)
 })
 
 test('agent chat route fails closed instead of returning template replies when real runtime is missing', async () => {

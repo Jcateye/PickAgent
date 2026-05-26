@@ -343,6 +343,10 @@ function nextUuid(): string {
   return "10000000-1000-4000-8000-".replace(/[018]/g, (char) => (Number(char) ^ Math.floor(Math.random() * 16)).toString(16)) + Math.floor(Math.random() * 0xffffffffffff).toString(16).padStart(12, "0").slice(0, 12);
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function canonicalSkuKey(row: IngestRowDto): string {
   return `${row.platform}:${row.storeId}:${row.externalSkuId}`;
 }
@@ -1265,10 +1269,11 @@ export class PrismaIngestRepository extends IngestRepository {
   ): Promise<SkuSummaryDto> {
     if (!tx.prisma) throw new Error("Prisma transaction context is required");
     const key = canonicalSkuKey(input.row);
+    const profileCreateId = isUuid(input.snapshot.skuProfileId) ? input.snapshot.skuProfileId : nextUuid();
     const profile = await tx.prisma.skuProfile.upsert({
       where: { canonicalKey: key },
       create: {
-        id: input.snapshot.skuProfileId,
+        id: profileCreateId,
         canonicalKey: key,
         platform: input.row.platform,
         storeId: input.row.storeId,
@@ -1284,36 +1289,46 @@ export class PrismaIngestRepository extends IngestRepository {
       },
     });
     const skuProfileId = String(profile.id);
+    const snapshotId = isUuid(input.snapshot.snapshotId) ? input.snapshot.snapshotId : nextUuid();
+    const normalizedSnapshot = { ...input.snapshot, snapshotId, skuProfileId };
     const snapshot = await tx.prisma.skuSnapshot.create({
       data: {
-        id: input.snapshot.snapshotId,
+        id: snapshotId,
         skuProfileId,
         collectedAt: new Date(input.collectedAt),
-        productName: input.snapshot.productName,
-        category: input.snapshot.category,
-        sales30d: input.snapshot.sales30d,
-        positiveRate: input.snapshot.positiveRate,
-        stock: input.snapshot.stock,
-        originalPrice: input.snapshot.originalPrice,
-        lowestPrice30d: input.snapshot.lowestPrice30d,
-        campaignPrice: input.snapshot.campaignPrice,
-        joinedBrandDay: input.snapshot.joinedBrandDay,
-        certificateStatus: input.snapshot.certificateStatus,
+        productName: normalizedSnapshot.productName,
+        category: normalizedSnapshot.category,
+        sales30d: normalizedSnapshot.sales30d,
+        positiveRate: normalizedSnapshot.positiveRate,
+        stock: normalizedSnapshot.stock,
+        originalPrice: normalizedSnapshot.originalPrice,
+        lowestPrice30d: normalizedSnapshot.lowestPrice30d,
+        campaignPrice: normalizedSnapshot.campaignPrice,
+        joinedBrandDay: normalizedSnapshot.joinedBrandDay,
+        certificateStatus: normalizedSnapshot.certificateStatus,
         rawJson: input.row.raw ?? {},
-        normalizedJson: input.snapshot,
+        normalizedJson: normalizedSnapshot,
       },
     });
+    const diagnosisId = isUuid(input.diagnosis.diagnosisId) ? input.diagnosis.diagnosisId : nextUuid();
+    const normalizedDiagnosis = {
+      ...input.diagnosis,
+      diagnosisId,
+      skuProfileId,
+      snapshotId: String(snapshot.id),
+      evidence: input.diagnosis.evidence.map((item) => item.type === "snapshot" ? { ...item, entityId: String(snapshot.id) } : item),
+    };
     const diagnosis = await tx.prisma.skuHealthDiagnosis.create({
       data: {
-        id: input.diagnosis.diagnosisId,
+        id: diagnosisId,
         skuProfileId,
         snapshotId: String(snapshot.id),
-        healthStatus: toPrismaHealthStatus(input.diagnosis.healthStatus),
-        healthScore: input.diagnosis.healthScore,
-        dataQualityScore: input.diagnosis.dataQualityScore,
-        issuesJson: input.diagnosis.issues,
-        nextActionsJson: input.diagnosis.nextActions,
-        evidenceJson: input.diagnosis.evidence,
+        healthStatus: toPrismaHealthStatus(normalizedDiagnosis.healthStatus),
+        healthScore: normalizedDiagnosis.healthScore,
+        dataQualityScore: normalizedDiagnosis.dataQualityScore,
+        issuesJson: normalizedDiagnosis.issues,
+        nextActionsJson: normalizedDiagnosis.nextActions,
+        evidenceJson: normalizedDiagnosis.evidence,
       },
     });
     await tx.prisma.currentSkuProjection.upsert({
@@ -1343,11 +1358,11 @@ export class PrismaIngestRepository extends IngestRepository {
         platform: input.row.platform,
         storeId: input.row.storeId,
         externalSkuId: input.row.externalSkuId,
-        productName: input.snapshot.productName,
+        productName: normalizedSnapshot.productName,
         category: input.row.category,
         brand: input.row.brand,
       },
-      input.diagnosis,
+      normalizedDiagnosis,
     );
   }
 

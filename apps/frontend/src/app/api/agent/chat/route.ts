@@ -427,7 +427,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         const result = await finalApiRuntime.activityService.simulationRunForRuleSet(ruleSetId, simulationRunId, agentToolAuthContext())
         if (!result) throw new Error(`Rule set simulation run not found: ${ruleSetId}/${simulationRunId}`)
         const evidence = result.results.flatMap((item) => item.evidence)
-        return succeeded(result, evidence, `读取规则集模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationRunId })
+        return succeeded(result, evidence, `读取规则集模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, simulationRunId) })
       }
       const result = await finalApiRuntime.activityService.simulationDetail(activityId, simulationRunId, agentToolAuthContext())
       if (!result) throw new Error(`Activity simulation run not found: ${activityId}/${simulationRunId}`)
@@ -507,7 +507,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
       }, agentToolAuthContext())
       const evidence = result.results.flatMap((item) => item.evidence)
-      return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, { type: 'simulation_run', id: result.simulationRunId })
+      return succeeded(result, evidence, `模拟完成：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationLinkedEntityId(ruleSetId, result.simulationRunId) })
     }
 
     if (toolName === 'explainDecisionWithEvidence') {
@@ -729,7 +729,7 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
           skuProfileIds,
           whatIf: isRecord(input.whatIf) ? input.whatIf : undefined,
         }, agentToolAuthContext())
-        return succeeded(result, [{ type: 'simulation', entityId: result.simulationRunId, label: '活动准入模拟重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.results.length} 个` }], `创建活动准入模拟重试运行：${result.simulationRunId}`, { type: 'simulation_run', id: result.simulationRunId })
+        return succeeded(result, [{ type: 'simulation', entityId: result.simulationRunId, label: '活动准入模拟重试', summary: `重试来源：${retryOf ?? '未指定'}，SKU ${result.results.length} 个` }], `创建活动准入模拟重试运行：${result.simulationRunId}`, { type: 'simulation_run', id: simulationLinkedEntityId(sourceId, result.simulationRunId) })
       }
       throw new Error('runType must be connector_sync, agent_run, or activity_simulation')
     }
@@ -1524,7 +1524,12 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
 export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'sku_profile') return `/sku-access?${new URLSearchParams({ skuProfileId: entityId, drawerTab: 'evidence' }).toString()}`
   if (entityType === 'rule_set' || entityType === 'activity_rule_set') return `/rule-library?${new URLSearchParams({ ruleSetId: entityId }).toString()}`
-  if (entityType === 'simulation_run') return `/rule-execution?${new URLSearchParams({ simulationRunId: entityId }).toString()}`
+  if (entityType === 'simulation_run') {
+    const parsed = parseSimulationLinkedEntityId(entityId)
+    const params = new URLSearchParams({ simulationRunId: parsed.simulationRunId })
+    if (parsed.ruleSetId) params.set('ruleSetId', parsed.ruleSetId)
+    return `/rule-execution?${params.toString()}`
+  }
   if (entityType === 'review_item') return `/review-approvals?${new URLSearchParams({ reviewItemId: entityId }).toString()}`
   if (entityType === 'report') return `/report-center?${new URLSearchParams({ reportId: entityId }).toString()}`
   if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
@@ -1535,6 +1540,18 @@ export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityId === 'run-console') return '/run-console'
   if (entityId === 'settings' || entityId === 'tool-policy' || entityId === 'settings-users') return '/settings'
   return '/overview'
+}
+
+function simulationLinkedEntityId(ruleSetId: string, simulationRunId: string): string {
+  return `${encodeURIComponent(ruleSetId)}:${encodeURIComponent(simulationRunId)}`
+}
+
+function parseSimulationLinkedEntityId(value: string): { ruleSetId?: string; simulationRunId: string } {
+  const separatorIndex = value.indexOf(':')
+  if (separatorIndex <= 0) return { simulationRunId: value }
+  const ruleSetId = decodeURIComponent(value.slice(0, separatorIndex))
+  const simulationRunId = decodeURIComponent(value.slice(separatorIndex + 1))
+  return { ruleSetId, simulationRunId }
 }
 
 function summarizeToolOutput(value: unknown, fallback = '工具已执行'): string {
