@@ -1259,6 +1259,46 @@ test('agent chat exportSkuList tool creates auditable sku csv export', async () 
   assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
 })
 
+test('agent chat sku tools accept nested page query context', async () => {
+  const stamp = Date.now()
+  const category = `agent_nested_query_${stamp}`
+  const ingest = await executeFinalApiTool('ingestSkus', {
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: `agent_nested_query_store_${stamp}`,
+        externalSkuId: `agent_nested_query_${stamp}_ready`,
+        productName: 'Agent 嵌套查询 READY SKU',
+        category,
+        stock: 120,
+        positiveRate: 0.99,
+      },
+      {
+        platform: 'tmall',
+        storeId: `agent_nested_query_store_${stamp}`,
+        externalSkuId: `agent_nested_query_${stamp}_blocked`,
+        productName: 'Agent 嵌套查询 BLOCKED SKU',
+        category,
+        stock: 0,
+        positiveRate: 0.6,
+      },
+    ],
+  })
+  assert.equal(ingest.status, 'SUCCEEDED')
+
+  const query = { q: `agent_nested_query_${stamp}_ready`, category, platform: 'tmall', sortBy: 'updatedAt', sortOrder: 'desc' }
+  const exported = await executeFinalApiTool('exportSkuList', { query })
+  assert.equal(exported.status, 'SUCCEEDED')
+  const exportedResult = exported.result as { rowCount: number; csv: string }
+  assert.equal(exportedResult.rowCount, 1)
+  assert.match(exportedResult.csv, /Agent 嵌套查询 READY SKU/)
+  assert.doesNotMatch(exportedResult.csv, /Agent 嵌套查询 BLOCKED SKU/)
+
+  const generated = await executeFinalApiTool('generateReport', { type: 'HEALTH', query })
+  assert.equal(generated.status, 'SUCCEEDED')
+  assert.match((generated.result as { sections: Array<{ summary: string }> }).sections[0].summary, /覆盖 1 个 SKU/)
+})
+
 test('agent chat audited report and review write tools link to run console', async () => {
   const externalSkuId = `agent_write_run_link_sku_${Date.now()}`
   const ingest = await executeFinalApiTool('ingestSkus', {
