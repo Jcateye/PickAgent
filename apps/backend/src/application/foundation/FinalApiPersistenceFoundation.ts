@@ -2193,6 +2193,16 @@ export class PrismaReportRepository extends ReportRepository {
   }
 
   async createExport(boundary: P0AuthContextDto, reportId: string, request: ReportExportRequestDto): Promise<ReportExportJobDto> {
+    if (request.idempotencyKey) {
+      const existingRuns = await this.prisma.workflowRun.findMany({
+        where: { workflowType: "report_export", subjectId: reportId },
+        orderBy: { createdAt: "desc" },
+      });
+      const existing = existingRuns
+        .map((row) => reportExportJobFromWorkflowRun(reportId, request, row))
+        .find((job) => job !== null);
+      if (existing) return existing;
+    }
     if (this.prisma.report) {
       await this.prisma.report.update({ where: { id: reportId }, data: { exportStatus: "READY" } });
     }
@@ -4095,6 +4105,31 @@ function toReportVersionFromRow(row: Record<string, unknown>): ReportVersionDto 
 function reportExportArtifactHref(reportId: string, exportJobId: string, format: ReportExportRequestDto["format"]): string {
   const params = new URLSearchParams({ exportJobId, format });
   return `/api/reports/${encodeURIComponent(reportId)}/download?${params.toString()}`;
+}
+
+function reportExportJobFromWorkflowRun(reportId: string, request: ReportExportRequestDto, row: Record<string, unknown>): ReportExportJobDto | null {
+  const input = asRecord(row.inputJson);
+  const savedRequest = asRecord(input.request);
+  if (savedRequest.idempotencyKey !== request.idempotencyKey) return null;
+  if (savedRequest.format !== request.format) return null;
+  if (Boolean(savedRequest.includeCharts ?? true) !== Boolean(request.includeCharts ?? true)) return null;
+  if (Boolean(savedRequest.includeDetails ?? false) !== Boolean(request.includeDetails ?? false)) return null;
+  const output = asRecord(row.outputJson);
+  const exportJobId = String(output.exportJobId ?? request.idempotencyKey);
+  const format = request.format;
+  const requestedAt = row.startedAt instanceof Date ? row.startedAt.toISOString() : String(row.startedAt ?? row.createdAt ?? new Date().toISOString());
+  return {
+    exportJobId,
+    reportId,
+    status: "READY",
+    format,
+    includeCharts: request.includeCharts ?? true,
+    includeDetails: request.includeDetails ?? false,
+    requestedAt,
+    artifactHref: String(output.artifactHref ?? reportExportArtifactHref(reportId, exportJobId, format)),
+    artifactContentType: reportExportContentType(format),
+    workflowRunId: String(row.id),
+  };
 }
 
 function reportExportContentType(format: ReportExportRequestDto["format"]): string {

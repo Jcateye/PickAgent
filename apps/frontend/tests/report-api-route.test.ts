@@ -255,6 +255,19 @@ test('report export creates a ready downloadable artifact and updates list statu
   assert.match(exportEnvelope.data.artifactHref, new RegExp(`/api/reports/${reportId}/download\\\\?`))
   assert.equal(finalApiRuntime.store.reportExports.get(`${reportId}:downloadable-artifact`)?.status, 'READY')
 
+  const repeatedExportResponse = await exportReport(
+    new Request(`http://localhost/api/reports/${reportId}/export`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ format: 'EXCEL', includeCharts: true, includeDetails: true, idempotencyKey: 'downloadable-artifact' }),
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const repeatedExportEnvelope = await repeatedExportResponse.json()
+  assert.equal(repeatedExportResponse.status, 200)
+  assert.equal(repeatedExportEnvelope.data.exportJobId, exportEnvelope.data.exportJobId)
+  assert.equal(repeatedExportEnvelope.data.workflowRunId, exportEnvelope.data.workflowRunId)
+
   const list = await finalApiRuntime.reportService.list()
   const exportedReport = list.items.find((item) => item.reportId === reportId)
   assert.equal(exportedReport?.exportStatus, 'READY')
