@@ -1,4 +1,4 @@
-import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
 
 import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import type { UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
@@ -10,7 +10,7 @@ export async function GET(request: Request, context: { params: Promise<{ ruleSet
     if (!detail) return ruleSetNotFound(ruleSetId)
     return ok(detail)
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
     throw error
   }
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ ruleS
   try {
     return ok(await finalApiRuntime.ruleSetService.update(ruleSetId, payload, authContextFromRequest(request)))
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
     throw error
   }
@@ -34,7 +34,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ rule
   try {
     return ok(await finalApiRuntime.ruleSetService.setStatus(ruleSetId, 'DISABLED', authContextFromRequest(request)))
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (isRuleSetNotFound(error)) return ruleSetNotFound(ruleSetId)
     throw error
   }

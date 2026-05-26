@@ -1,4 +1,4 @@
-import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalApiRuntime, ok } from '../../../_final-api-runtime'
 import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 export async function POST(request: Request, context: { params: Promise<{ ruleSetId: string }> }) {
@@ -6,7 +6,7 @@ export async function POST(request: Request, context: { params: Promise<{ ruleSe
   try {
     return ok(await finalApiRuntime.ruleSetService.setStatus(ruleSetId, 'ENABLED', authContextFromRequest(request)))
   } catch (error) {
-    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     if (error instanceof Error && error.message.includes('Rule set not found')) {
       return fail('RULE.NOT_FOUND', 'rule set not found', 404, { ruleSetId })
     }

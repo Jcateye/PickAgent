@@ -7,7 +7,7 @@ import { POST as enableRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/enab
 import { GET as getRuleSetSimulationRun } from '../src/app/api/rule-sets/[ruleSetId]/simulations/[simulationRunId]/route'
 import { POST as simulateRuleSet } from '../src/app/api/rule-sets/[ruleSetId]/simulations/route'
 import { GET as listRuleSetVersions, POST as createRuleSetVersion } from '../src/app/api/rule-sets/[ruleSetId]/versions/route'
-import { POST as createRuleSet } from '../src/app/api/rule-sets/route'
+import { GET as listRuleSets, POST as createRuleSet } from '../src/app/api/rule-sets/route'
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 
 const authHeaders = {
@@ -27,6 +27,36 @@ const otherTenantHeaders = {
   'x-p0-surface': 'route-test',
   'x-request-id': 'rule_set_route_other_request',
 }
+
+test('rule set routes return stable auth envelopes when P0 context is missing', async () => {
+  const ruleSetId = 'missing_auth_rule_set'
+  const params = { params: Promise.resolve({ ruleSetId }) }
+  const responses = await Promise.all([
+    listRuleSets(new Request('http://localhost/api/rule-sets')),
+    createRuleSet(new Request('http://localhost/api/rule-sets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Rule', sourceText: '库存不得低于 20 件。', platform: 'tmall' }),
+    })),
+    getRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`), params),
+    updateRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Missing Auth Rule Updated' }),
+    }), params),
+    deleteRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}`, { method: 'DELETE' }), params),
+    enableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/enable`, { method: 'POST' }), params),
+    disableRuleSet(new Request(`http://localhost/api/rule-sets/${ruleSetId}/disable`, { method: 'POST' }), params),
+    listRuleSetVersions(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`), params),
+    createRuleSetVersion(new Request(`http://localhost/api/rule-sets/${ruleSetId}/versions`, { method: 'POST' }), params),
+  ])
+
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 401)
+    assert.equal(envelope.code, 'COMMON.VALIDATION_ERROR')
+  }
+})
 
 test('rule set routes return not found for missing rule set reads and writes', async () => {
   const params = { params: Promise.resolve({ ruleSetId: 'missing_rule_set' }) }
