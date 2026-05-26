@@ -199,6 +199,35 @@ test('review list route applies assignee role and due date filters', async () =>
   assert.ok(!missedEnvelope.data.items.some((item: { reviewItemId: string }) => item.reviewItemId === reviewItemId))
 })
 
+test('review decision route accepts modified aliases as request changes', async () => {
+  const [review] = await finalApiRuntime.reviewService.create([
+    {
+      sourceType: 'agent',
+      sourceId: `review_route_modified_alias_${Date.now()}`,
+      question: '是否要求修改后再批准？',
+      recommendation: '需要修改建议后再继续。',
+      riskLevel: 'L2',
+      evidence: [],
+    },
+  ], boundary)
+
+  const decisionResponse = await decideReview(
+    new Request(`http://localhost/api/reviews/${review.reviewItemId}/decision`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ decision: 'CHANGES_REQUESTED', decisionBy: boundary.actorId, decisionComment: '路由别名测试：要求修改' }),
+    }),
+    { params: Promise.resolve({ reviewItemId: review.reviewItemId }) },
+  )
+  const decisionEnvelope = await decisionResponse.json()
+
+  assert.equal(decisionResponse.status, 200)
+  assert.equal(decisionEnvelope.code, 'OK')
+  assert.equal(decisionEnvelope.data.status, 'MODIFIED')
+  assert.equal(decisionEnvelope.data.approvalHistory.at(-1).action, 'review_decision')
+  assert.equal(decisionEnvelope.data.approvalHistory.at(-1).comment, 'REQUEST_CHANGES')
+})
+
 test('review routes consistently return tenant boundary denial', async () => {
   const [review] = await finalApiRuntime.reviewService.create([
     {
