@@ -3,6 +3,8 @@ import { fail, finalAgentRuntime, finalApiRuntime, ok } from '../../_final-api-r
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
 import { REAL_AGENT_CHAT_NOT_CONFIGURED, RealAgentChatConfigurationError, RealAgentChatRuntime, type AgentConversationEvidenceRef, type AgentConversationLinkedEntity, type AgentConversationRepository, type AgentConversationToolExecution } from '../../../../../../backend/src/application/foundation/RealAgentChatRuntime'
 import type { CreateRuleSetInputDto, UpdateRuleSetInputDto } from '../../../../../../backend/src/application/foundation/FinalApiPersistenceFoundation'
+import type { AgentRun } from '../../../../../../backend/src/domain/entities/AgentRun'
+import type { AgentToolCall } from '../../../../../../backend/src/domain/entities/AgentToolCall'
 import type { BrowserPageDetectionRequestDto, BrowserScanPreviewRequestDto, CreateConnectorDto, CreateConnectorSyncRunDto, UpdateConnectorDto } from '../../../../../../contracts/types/connectorBackend'
 import type { CreateActivityRequestDto, UpdateActivityRequestDto } from '../../../../../../contracts/types/activityManagement'
 import { defaultAgentToolNames, type CanonicalRuleDto, type EvidenceLinkDto, type IngestPayloadDto, type IngestRowDto, type ReviewItemDto, type RuleSetStatusDto, type SettingsUserDto, type SkuDetailDto, type SkuSummaryDto, type ToolPolicyDto, type WorkspaceSettingsDto } from '../../../../../../contracts/types/businessFoundation'
@@ -978,10 +980,36 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const gateId = String(input.gateId ?? '')
       const decision = String(input.decision ?? '')
       if (!gateId || !decision) throw new Error('gateId and decision are required')
+      const normalizedDecision = decision === 'REJECT' ? 'REJECT' : decision === 'REQUEST_CHANGES' ? 'REQUEST_CHANGES' : 'APPROVE'
+      const decidedBy = optionalString(input.decidedBy) ?? optionalString(input.decisionBy) ?? 'agent-chat-tool'
+      const decisionComment = optionalString(input.decisionComment)
+      if (isUuid(gateId)) {
+        const repository = createConversationRepository().repository
+        if (repository instanceof PrismaAgentConversationRepository) {
+          try {
+            const persistentDecision = await repository.decideReviewGate(gateId, {
+              decision: normalizedDecision,
+              decidedBy,
+              decisionComment,
+            })
+            const result = await executeApprovedChatReviewGateTool(repository, persistentDecision)
+            const runEntity = { type: 'workflow_run', id: result.continuationRun.id }
+            const missionEntity = { type: 'agent_mission', id: result.continuationRun.missionId }
+            const executedToolCall = 'executedToolCall' in result ? result.executedToolCall : null
+            const summary = executedToolCall
+              ? `Review Gate 已批准并执行 ${executedToolCall.toolName}`
+              : `Review Gate 决策：${result.gate.status}`
+            return succeeded(result, [{ type: 'review', entityId: gateId, label: 'Agent Review Gate', summary }], summary, runEntity, [missionEntity, runEntity])
+          } catch (error) {
+            const message = error instanceof Error ? error.message : ''
+            if (!message.includes('Agent review gate not found')) throw error
+          }
+        }
+      }
       const result = finalAgentRuntime.agentService.decideReviewGate(gateId, {
-        decision: decision === 'REJECT' ? 'REJECT' : decision === 'REQUEST_CHANGES' ? 'REQUEST_CHANGES' : 'APPROVE',
-        decidedBy: optionalString(input.decidedBy) ?? optionalString(input.decisionBy) ?? 'agent-chat-tool',
-        decisionComment: optionalString(input.decisionComment),
+        decision: normalizedDecision,
+        decidedBy,
+        decisionComment,
       })
       const runEntity = { type: 'workflow_run', id: result.continuationRun.id }
       const missionEntity = { type: 'agent_mission', id: result.continuationRun.missionId }
@@ -1104,6 +1132,49 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     const message = error instanceof Error ? error.message : '工具执行失败'
     return { status: 'FAILED', result: { message }, evidence: [], trace: [{ summary: message }] }
   }
+}
+
+export async function executeApprovedChatReviewGateTool(
+  repository: Pick<PrismaAgentConversationRepository, 'createToolCall' | 'appendRunEvent' | 'markRunStatus'>,
+  decision: { gate: { status: string }; continuationRun: Pick<AgentRun, 'id' | 'missionId'>; approvedToolCall?: AgentToolCall | null },
+) {
+  if (decision.gate.status !== 'APPROVED' || !decision.approvedToolCall) return decision
+  const sourceTool = decision.approvedToolCall
+  const execution = await executeFinalApiTool(sourceTool.toolName, sourceTool.inputJson ?? {})
+  const status = execution.status === 'SUCCEEDED' ? 'SUCCEEDED' : 'FAILED'
+  const summary = summarizeApprovedToolResult(execution.result, execution.trace.map((item) => item.summary).join('；'))
+  const evidenceRefs = execution.evidence.map((item, index) => ({
+    id: `${sourceTool.toolName}-approved-evidence-${index}`,
+    evidenceType: approvedConversationEvidenceType(item.type),
+    label: item.label,
+    summary: item.summary,
+    entityId: item.entityId,
+  }))
+  const toolCall = await repository.createToolCall({
+    runId: decision.continuationRun.id,
+    externalToolCallId: sourceTool.externalToolCallId ?? null,
+    toolName: sourceTool.toolName,
+    status,
+    riskLevel: agentToolRiskLevel(sourceTool.toolName),
+    reviewPolicy: 'AUTO_ALLOW',
+    inputJson: sourceTool.inputJson ?? {},
+    outputJson: { ok: status === 'SUCCEEDED', summary, result: execution.result },
+    evidenceRefsJson: { refs: evidenceRefs },
+    errorMessage: status === 'FAILED' ? summary : null,
+  })
+  await repository.appendRunEvent({
+    runId: decision.continuationRun.id,
+    eventType: 'tool.call_recorded',
+    eventPhase: status,
+    payloadJson: { toolCallId: toolCall.id, toolName: sourceTool.toolName, approvedFromToolCallId: sourceTool.id, outputSummary: summary },
+  })
+  const completedRun = await repository.markRunStatus({
+    runId: decision.continuationRun.id,
+    status,
+    outputJson: { approvedToolCallId: sourceTool.id, executedToolCallId: toolCall.id, summary },
+    errorMessage: status === 'FAILED' ? summary : null,
+  })
+  return { ...decision, continuationRun: completedRun, executedToolCall: toolCall }
 }
 
 function agentToolAuthContext() {
@@ -1719,6 +1790,21 @@ function toConversationEvidence(toolName: string, item: { type: string; entityId
   }
 }
 
+function summarizeApprovedToolResult(value: unknown, fallback = '工具已执行'): string {
+  if (typeof value === 'string') return value.slice(0, 240)
+  if (!value || typeof value !== 'object') return fallback
+  const record = value as Record<string, unknown>
+  return String(record.summary ?? record.title ?? record.name ?? record.reportId ?? record.connectorRunId ?? fallback).slice(0, 240)
+}
+
+function approvedConversationEvidenceType(type: EvidenceLinkDto['type']): AgentConversationEvidenceRef['evidenceType'] {
+  if (type === 'snapshot') return 'snapshot'
+  if (type === 'rule') return 'rule'
+  if (type === 'simulation') return 'simulation'
+  if (type === 'review') return 'review_gate'
+  return 'tool_result'
+}
+
 function toConversationLinkedEntity(toolName: string, entity: { type: string; id: string }): AgentConversationLinkedEntity {
   const entityType = normalizeLinkedEntityType(entity.type)
   return {
@@ -1730,6 +1816,10 @@ function toConversationLinkedEntity(toolName: string, entity: { type: string; id
     sourceType: 'tool_call',
     sourceId: toolName,
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
 function normalizeLinkedEntityType(type: string): AgentLinkedEntity['entityType'] {

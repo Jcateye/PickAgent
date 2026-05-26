@@ -1,10 +1,9 @@
 import { fail, finalAgentRuntime, ok } from '../../../../_final-api-runtime'
 import { assertAgentConversationPrismaClient, PrismaAgentConversationRepository } from '../../../../../../../../backend/src/application/foundation/PrismaAgentConversationRepository'
-import type { AgentToolCall } from '../../../../../../../../backend/src/domain/entities/AgentToolCall'
-import type { AgentRun } from '../../../../../../../../backend/src/domain/entities/AgentRun'
-import type { EvidenceLinkDto } from '../../../../../../../../contracts/types/businessFoundation'
 import { createLocalPrismaConversationClient } from '../../../chat/local-prisma-client'
-import { agentToolRiskLevel, executeFinalApiTool } from '../../../chat/route-support'
+import { executeApprovedChatReviewGateTool } from '../../../chat/route-support'
+
+export { executeApprovedChatReviewGateTool } from '../../../chat/route-support'
 
 interface RouteContext {
   params: Promise<{ gateId: string }>
@@ -36,64 +35,6 @@ export async function POST(request: Request, context: RouteContext) {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-}
-
-export async function executeApprovedChatReviewGateTool(
-  repository: Pick<PrismaAgentConversationRepository, 'createToolCall' | 'appendRunEvent' | 'markRunStatus'>,
-  decision: { gate: { status: string }; continuationRun: AgentRun; approvedToolCall?: AgentToolCall | null },
-) {
-  if (decision.gate.status !== 'APPROVED' || !decision.approvedToolCall) return decision
-  const sourceTool = decision.approvedToolCall
-  const execution = await executeFinalApiTool(sourceTool.toolName, sourceTool.inputJson)
-  const status = execution.status === 'SUCCEEDED' ? 'SUCCEEDED' : 'FAILED'
-  const summary = summarizeApprovedToolResult(execution.result, execution.trace.map((item) => item.summary).join('；'))
-  const evidenceRefs = execution.evidence.map((item, index) => ({
-    id: `${sourceTool.toolName}-approved-evidence-${index}`,
-    evidenceType: toConversationEvidenceType(item.type),
-    label: item.label,
-    summary: item.summary,
-    entityId: item.entityId,
-  }))
-  const toolCall = await repository.createToolCall({
-    runId: decision.continuationRun.id,
-    externalToolCallId: sourceTool.externalToolCallId,
-    toolName: sourceTool.toolName,
-    status,
-    riskLevel: agentToolRiskLevel(sourceTool.toolName),
-    reviewPolicy: 'AUTO_ALLOW',
-    inputJson: sourceTool.inputJson,
-    outputJson: { ok: status === 'SUCCEEDED', summary, result: execution.result },
-    evidenceRefsJson: { refs: evidenceRefs },
-    errorMessage: status === 'FAILED' ? summary : null,
-  })
-  await repository.appendRunEvent({
-    runId: decision.continuationRun.id,
-    eventType: 'tool.call_recorded',
-    eventPhase: status,
-    payloadJson: { toolCallId: toolCall.id, toolName: sourceTool.toolName, approvedFromToolCallId: sourceTool.id, outputSummary: summary },
-  })
-  const completedRun = await repository.markRunStatus({
-    runId: decision.continuationRun.id,
-    status,
-    outputJson: { approvedToolCallId: sourceTool.id, executedToolCallId: toolCall.id, summary },
-    errorMessage: status === 'FAILED' ? summary : null,
-  })
-  return { ...decision, continuationRun: completedRun, executedToolCall: toolCall }
-}
-
-function summarizeApprovedToolResult(value: unknown, fallback = '工具已执行') {
-  if (typeof value === 'string') return value.slice(0, 240)
-  if (!value || typeof value !== 'object') return fallback
-  const record = value as Record<string, unknown>
-  return String(record.summary ?? record.title ?? record.name ?? record.reportId ?? record.connectorRunId ?? fallback).slice(0, 240)
-}
-
-function toConversationEvidenceType(type: EvidenceLinkDto['type']) {
-  if (type === 'snapshot') return 'snapshot'
-  if (type === 'rule') return 'rule'
-  if (type === 'simulation') return 'simulation'
-  if (type === 'review') return 'review_gate'
-  return 'tool_result'
 }
 
 function createConversationRepository() {
