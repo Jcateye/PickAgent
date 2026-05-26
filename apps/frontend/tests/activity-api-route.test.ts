@@ -190,6 +190,14 @@ test('activity candidate sku route persists candidate list and workflow audit', 
   const activity = page.items.find((item) => item.activityId === activityId)
   assert.deepEqual(activity?.candidateSkuProfileIds, [skuProfileId])
 
+  const planResponse = await getExecutionPlan(
+    new Request(`http://localhost/api/activities/${activityId}/execution-plan`, { headers: authHeaders }),
+    { params: Promise.resolve({ activityId }) },
+  )
+  const planEnvelope = await planResponse.json()
+  assert.equal(planResponse.status, 200)
+  assert.deepEqual(planEnvelope.data.candidateSkuProfileIds, [skuProfileId])
+
   const audits = await finalApiRuntime.workflowAuditService.list({
     actorId: 'activity_route_tester',
     tenantId: 'dev_tenant',

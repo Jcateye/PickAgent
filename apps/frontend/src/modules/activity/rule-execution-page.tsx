@@ -36,6 +36,7 @@ export function RuleExecutionPage() {
   const [ruleSet, setRuleSet] = useState<ActivityRuleSetDto | null>(null)
   const [simulationRun, setSimulationRun] = useState<ActivitySimulationRunDto | null>(null)
   const [activityId, setActivityId] = useState<string | null>(() => getInitialRuleExecutionParam('activityId'))
+  const [candidateSkuProfileIds, setCandidateSkuProfileIds] = useState<string[]>([])
   const [selectedChecks, setSelectedChecks] = useState<string[]>(['stock', 'price', 'brand_conflict'])
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export function RuleExecutionPage() {
           setRuleName(restoredRuleSet.name)
           setPlatform('activity')
           setSourceText(rules.map((rule) => rule.message).join('\n') || defaultRuleSourceText)
+          setCandidateSkuProfileIds(plan.candidateSkuProfileIds ?? [])
           if (plan.ruleSet.ruleSetId && plan.runId) {
             const run = await fetchActivityApi<ActivitySimulationRunDto>(`/api/rule-sets/${plan.ruleSet.ruleSetId}/simulations/${plan.runId}`)
             if (cancelled) return
@@ -232,9 +234,9 @@ export function RuleExecutionPage() {
     selectedEntity: simulationRun
       ? { entityType: 'simulationRun', entityId: simulationRun.simulationRunId, label: `模拟运行 ${simulationRun.simulationRunId}` }
       : { entityType: 'activityRuleSet', entityId: ruleSet?.ruleSetId ?? 'rule-execution', label: ruleSet?.name ?? ruleName },
-    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId, activityId },
+    visibleFilters: { platform, selectedChecks, hasSimulationRun: Boolean(simulationRun), ruleSetId: ruleSet?.ruleSetId, activityId, candidateSkuCount: candidateSkuProfileIds.length },
     visibleColumns: ['checkItem', 'status', 'owner', 'requiredData', 'method'],
-  }), [activityId, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
+  }), [activityId, candidateSkuProfileIds.length, platform, ruleName, ruleSet?.name, ruleSet?.ruleSetId, selectedChecks, simulationRun])
 
   return (
     <>
@@ -251,6 +253,7 @@ export function RuleExecutionPage() {
             <span>来源: {createdByLabel}</span>
             <span>创建时间: {simulationRun ? new Date(simulationRun.startedAt).toLocaleString('zh-CN') : '待运行'}</span>
             <span>适用范围: {simulationRun ? `已模拟 SKU (${simulationRun.results.length})` : '运行后读取真实 SKU'}</span>
+            {activityId ? <span>候选清单: <a href={skuAccessHref(candidateSkuProfileIds[0], activityId)} style={{ color: 'var(--primary)' }}>{candidateSkuProfileIds.length} 个 SKU</a></span> : null}
           </div>
         </div>
         <div className={styles.headerActions}>

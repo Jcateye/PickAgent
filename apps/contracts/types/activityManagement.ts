@@ -107,6 +107,7 @@ export interface ActivityRuleSetSummaryDto {
 export interface ActivityExecutionPlanDto {
   activityId: string;
   runId?: string;
+  candidateSkuProfileIds?: string[];
   ruleSet: ActivityRuleSetSummaryDto;
   steps: Array<{
     stepKey: "parse_rules" | "structure_rule_dsl" | "extract_required_fields" | "check_data_availability" | "simulate_readiness" | "generate_checklist";

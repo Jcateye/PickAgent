@@ -2648,6 +2648,7 @@ export class FinalActivityService {
     return {
       activityId: activity.activityId,
       runId: activity.latestRunId,
+      candidateSkuProfileIds: activity.candidateSkuProfileIds ?? [],
       ruleSet: {
         ruleSetId: ruleSet?.ruleSetId ?? "",
         version: "v1",
