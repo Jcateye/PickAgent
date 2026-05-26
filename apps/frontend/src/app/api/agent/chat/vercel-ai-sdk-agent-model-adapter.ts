@@ -714,12 +714,12 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('detectBrowserPage', inputJson),
     }),
     previewBrowserScan: tool({
-      description: '对浏览器扫描到的 rows 做字段映射和采集质量预览。需要 url 和 rows，可选 connectorId/collectedAt。只做预览，不写入 SKU 档案。',
+      description: '对浏览器扫描到的 rows 做字段映射和采集质量预览。需要 url 和 rows，可选 connectorId/collectedAt。只做预览，不写入 SKU 档案；在数据源页面可使用 workbench context 的 browserScanDraft 作为当前浏览器扫描表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('previewBrowserScan', inputJson),
     }),
     ingestBrowserScan: tool({
-      description: '把浏览器扫描到的商品 rows 原子写入真实 SKU 档案，并在提供 connectorId 时记录采集运行。需要 url、storeId、rows；可选 platform/connectorId/collectedAt。',
+      description: '把浏览器扫描到的商品 rows 原子写入真实 SKU 档案，并在提供 connectorId 时记录采集运行。需要 url、storeId、rows；可选 platform/connectorId/collectedAt；在数据源页面可使用 workbench context 的 browserScanDraft 作为当前写入表单草稿。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('ingestBrowserScan', inputJson),
     }),

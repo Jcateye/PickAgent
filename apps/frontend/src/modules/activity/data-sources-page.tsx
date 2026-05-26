@@ -13,6 +13,12 @@ type ConnectorFormState =
   | { mode: 'create'; code: string; name: string; kind: ConnectorKind; platform: string; status: ConnectorStatus; configText: string }
   | { mode: 'edit'; connectorId: string; name: string; platform: string; status: ConnectorStatus; configText: string }
 type ConnectorPanelTab = 'overview' | 'config' | 'permissions'
+interface BrowserScanDraft {
+  connectorId: string
+  url: string
+  storeId: string
+  rowsText: string
+}
 type BrowserScanIngestResponse = {
   preview: BrowserScanPreviewDto
   ingest: { summaries: SkuSummaryDto[]; workflowRunId: string }
@@ -30,6 +36,7 @@ export function DataSourcesPage() {
   const [runs, setRuns] = useState<ConnectorRunSummaryDto[]>([])
   const [connectorForm, setConnectorForm] = useState<ConnectorFormState | null>(null)
   const [panelTab, setPanelTab] = useState<ConnectorPanelTab>(() => getInitialConnectorPanelTab())
+  const [browserScanDraft, setBrowserScanDraft] = useState<BrowserScanDraft | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [actionLink, setActionLink] = useState<ActionLink | null>(null)
@@ -278,9 +285,10 @@ export function DataSourcesPage() {
           configText: connectorForm.configText,
         }
         : null,
+      browserScanDraft,
     },
     visibleColumns: ['connectorId', 'name', 'kind', 'status', 'latestRun', 'qualityScore'],
-  }), [connectorForm, connectors, detail?.connectorId, detail?.kind, detail?.name, panelTab, selectedConnector])
+  }), [browserScanDraft, connectorForm, connectors, detail?.connectorId, detail?.kind, detail?.name, panelTab, selectedConnector])
 
   return (
     <>
@@ -440,7 +448,7 @@ export function DataSourcesPage() {
           </div>
 
           <div className={styles.panelBody}>
-            {panelTab === 'overview' ? <ConnectorOverviewPanel key={detail.connectorId} detail={detail} runs={runs} createRun={createRun} onIngestComplete={reloadSelectedConnector} busy={busy} /> : null}
+            {panelTab === 'overview' ? <ConnectorOverviewPanel key={detail.connectorId} detail={detail} runs={runs} createRun={createRun} onIngestComplete={reloadSelectedConnector} onScanDraftChange={setBrowserScanDraft} busy={busy} /> : null}
             {panelTab === 'config' ? <ConnectorConfigPanel detail={detail} editConnectorConfig={editConnectorConfig} toggleConnectorStatus={toggleConnectorStatus} busy={busy} /> : null}
             {panelTab === 'permissions' ? <ConnectorPermissionPanel detail={detail} updateConnectorPermissions={updateConnectorPermissions} busy={busy} /> : null}
           </div>
@@ -451,11 +459,12 @@ export function DataSourcesPage() {
   )
 }
 
-function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, busy }: {
+function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, onScanDraftChange, busy }: {
   detail: ConnectorDetailDto
   runs: ConnectorRunSummaryDto[]
   createRun: (connectorId: string) => Promise<void>
   onIngestComplete: (connectorId: string) => Promise<void>
+  onScanDraftChange: (draft: BrowserScanDraft | null) => void
   busy: string | null
 }) {
   const [scanUrl, setScanUrl] = useState('https://tmall.example.test/sku-list')
@@ -465,6 +474,15 @@ function ConnectorOverviewPanel({ detail, runs, createRun, onIngestComplete, bus
   const [scanMessage, setScanMessage] = useState<string | null>(null)
   const [scanActionLinks, setScanActionLinks] = useState<ActionLink[]>([])
   const [scanBusy, setScanBusy] = useState<'preview' | 'ingest' | null>(null)
+
+  useEffect(() => {
+    if (detail.kind !== 'browser_extension') {
+      onScanDraftChange(null)
+      return
+    }
+    onScanDraftChange({ connectorId: detail.connectorId, url: scanUrl, storeId: scanStoreId, rowsText: scanRowsText })
+    return () => onScanDraftChange(null)
+  }, [detail.connectorId, detail.kind, onScanDraftChange, scanRowsText, scanStoreId, scanUrl])
 
   async function submitBrowserScan(mode: 'preview' | 'ingest') {
     let rows: Array<Record<string, unknown>>
