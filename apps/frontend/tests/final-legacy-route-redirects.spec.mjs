@@ -16,6 +16,12 @@ test('legacy console routes redirect to canonical workbench pages', async ({ pag
   await page.goto(`${baseURL}/workflows`, { waitUntil: 'networkidle' })
   await expectPathname(page, '/run-console')
 
+  await page.goto(`${baseURL}/activity-execution`, { waitUntil: 'networkidle' })
+  await expectPathname(page, '/rule-execution')
+
+  await page.goto(`${baseURL}/review-console`, { waitUntil: 'networkidle' })
+  await expectPathname(page, '/review-approvals')
+
   await page.goto(`${baseURL}/sku-health`, { waitUntil: 'networkidle' })
   await expectPathname(page, '/sku-access')
 
