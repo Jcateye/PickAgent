@@ -32,6 +32,36 @@ interface ChatResponse {
   fallbackUsed: false
 }
 
+export function getRealAgentChatReadiness(env: Record<string, string | undefined> = process.env) {
+  const repositoryStatus = createConversationRepository(env)
+  const hasModelAdapter = Boolean(createVercelAiSdkAgentModelAdapterFromEnv(env))
+  const missing = [
+    repositoryStatus.repository ? null : 'AgentConversationRepository',
+    hasModelAdapter ? null : 'AgentModelAdapter',
+  ].filter((item): item is string => Boolean(item))
+  return {
+    ready: missing.length === 0,
+    missing,
+    conversationStorage: {
+      configured: Boolean(repositoryStatus.repository),
+      missing: repositoryStatus.missing,
+      adapter: repositoryStatus.repository ? 'prisma' : null,
+    },
+    modelAdapter: {
+      configured: hasModelAdapter,
+      provider: hasModelAdapter ? 'openai-compatible' : null,
+      model: (env.PICKAGENT_AGENT_MODEL ?? env.OPENAI_MODEL ?? 'gpt-4.1-mini').trim() || null,
+      baseURLConfigured: Boolean(env.OPENAI_BASE_URL?.trim()),
+    },
+    toolExecutor: {
+      configured: Boolean(repositoryStatus.repository),
+      registeredToolCount: defaultAgentToolNames.length,
+      writeToolCount: writeAgentTools.size,
+      autoAllowedWriteToolCount: autoAllowedWriteAgentTools.size,
+    },
+  }
+}
+
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as ChatRequest | null
   const message = payload?.message?.trim()
@@ -91,7 +121,7 @@ export async function POST(request: Request) {
 }
 
 function createRealAgentChatRuntime() {
-  const repository = createConversationRepository()
+  const repository = createConversationRepository().repository
   return new RealAgentChatRuntime({
     repository,
     modelAdapter: createVercelAiSdkAgentModelAdapterFromEnv(),
@@ -99,18 +129,18 @@ function createRealAgentChatRuntime() {
   })
 }
 
-function createConversationRepository(): AgentConversationRepository | undefined {
-  const local = createLocalPrismaConversationClient()
-  if (local.client) return new PrismaAgentConversationRepository(local.client)
+function createConversationRepository(env: Record<string, string | undefined> = process.env): { repository?: AgentConversationRepository; missing?: string } {
+  const local = createLocalPrismaConversationClient(env)
+  if (local.client) return { repository: new PrismaAgentConversationRepository(local.client) }
 
   try {
     const requireFromNode = eval('require') as (id: string) => { PrismaClient: new () => unknown }
     const { PrismaClient } = requireFromNode('@prisma/client')
     const prisma = new PrismaClient()
     assertAgentConversationPrismaClient(prisma)
-    return new PrismaAgentConversationRepository(prisma)
+    return { repository: new PrismaAgentConversationRepository(prisma) }
   } catch {
-    return undefined
+    return { missing: local.missing ?? 'AgentConversationRepository' }
   }
 }
 

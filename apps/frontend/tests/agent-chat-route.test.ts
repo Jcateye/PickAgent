@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route'
+import { agentToolRequiresReviewGate, agentToolRiskLevel, createPersistentToolExecutor, executeFinalApiTool, getRealAgentChatReadiness, isAgentToolDeniedBySettings, linkedEntityHref, POST } from '../src/app/api/agent/chat/route'
 import { executeApprovedChatReviewGateTool } from '../src/app/api/agent/review-gates/[gateId]/decision/route'
 import { toRecoveredTurn } from '../src/app/api/agent/sessions/recovered-turn'
 import { finalAgentRuntime, finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
@@ -281,6 +281,33 @@ test('agent chat route fails closed instead of returning template replies when r
     if (previousPickAgentModel === undefined) delete process.env.PICKAGENT_AGENT_MODEL
     else process.env.PICKAGENT_AGENT_MODEL = previousPickAgentModel
   }
+})
+
+test('agent chat readiness exposes real runtime configuration without sending a message', () => {
+  const missing = getRealAgentChatReadiness({
+    DATABASE_URL: '',
+    OPENAI_API_KEY: '',
+    PICKAGENT_AGENT_MODEL: '',
+  })
+  assert.equal(missing.ready, false)
+  assert.deepEqual(missing.missing, ['AgentConversationRepository', 'AgentModelAdapter'])
+  assert.equal(missing.conversationStorage.configured, false)
+  assert.equal(missing.conversationStorage.missing, 'DATABASE_URL')
+  assert.equal(missing.modelAdapter.configured, false)
+  assert.equal(missing.toolExecutor.configured, false)
+  assert.ok(missing.toolExecutor.registeredToolCount > 40)
+
+  const configured = getRealAgentChatReadiness({
+    DATABASE_URL: 'postgresql://user:pass@127.0.0.1:5432/pickagent',
+    OPENAI_API_KEY: 'test-key',
+    PICKAGENT_AGENT_MODEL: 'gpt-4.1-mini',
+  })
+  assert.equal(configured.ready, true)
+  assert.deepEqual(configured.missing, [])
+  assert.equal(configured.conversationStorage.configured, true)
+  assert.equal(configured.modelAdapter.configured, true)
+  assert.equal(configured.modelAdapter.model, 'gpt-4.1-mini')
+  assert.equal(configured.toolExecutor.configured, true)
 })
 
 test('agent chat tools write backend workflow audits with agent auth context', async () => {
