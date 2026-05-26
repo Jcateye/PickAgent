@@ -18,6 +18,15 @@ const authHeaders = {
   'x-request-id': 'report_route_request',
 }
 
+const otherTenantHeaders = {
+  'content-type': 'application/json',
+  'x-p0-actor-id': 'report_route_other_tenant',
+  'x-p0-tenant-id': 'other_tenant',
+  'x-p0-session-id': 'report_route_other_session',
+  'x-p0-surface': 'route-test',
+  'x-request-id': 'report_route_other_request',
+}
+
 test('report routes return not found for missing report write and version actions', async () => {
   const exportResponse = await exportReport(
     new Request('http://localhost/api/reports/missing_report/export', {
@@ -188,4 +197,42 @@ test('report export creates a ready downloadable artifact and updates list statu
   assert.equal(downloadResponse.status, 200)
   assert.match(downloadResponse.headers.get('content-disposition') ?? '', /attachment/)
   assert.match(await downloadResponse.text(), /reportId/)
+})
+
+test('report export download enforces tenant boundary', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+  const created = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const createdEnvelope = await created.json()
+  assert.equal(created.status, 200)
+  const reportId = createdEnvelope.data.reportId
+
+  const exportResponse = await exportReport(
+    new Request(`http://localhost/api/reports/${reportId}/export`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ format: 'PDF', idempotencyKey: 'tenant-boundary-download' }),
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const exportEnvelope = await exportResponse.json()
+  assert.equal(exportResponse.status, 200)
+
+  const deniedDownload = await downloadReportExport(
+    new Request(`http://localhost${exportEnvelope.data.artifactHref}`, {
+      method: 'GET',
+      headers: otherTenantHeaders,
+    }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const deniedEnvelope = await deniedDownload.json()
+  assert.equal(deniedDownload.status, 403)
+  assert.equal(deniedEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
 })

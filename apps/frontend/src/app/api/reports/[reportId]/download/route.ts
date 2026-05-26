@@ -1,5 +1,6 @@
 import type { ReportDetailDto, ReportExportRequestDto } from '../../../../../../../contracts/types/reviewReportCenter'
-import { fail, finalApiRuntime } from '../../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
+import { authContextFromRequest, fail, finalApiRuntime } from '../../../_final-api-runtime'
 
 interface RouteContext {
   params: Promise<{ reportId: string }>
@@ -13,7 +14,13 @@ export async function GET(request: Request, context: RouteContext) {
   if (!exportJobId) return fail('COMMON.VALIDATION_ERROR', 'exportJobId is required', 400, { reportId })
   if (!isReportExportFormat(format)) return fail('COMMON.VALIDATION_ERROR', 'format must be PDF, EXCEL, or PPT', 400, { reportId })
 
-  const detail = await finalApiRuntime.reportService.getDetail(reportId)
+  let detail: ReportDetailDto | null
+  try {
+    detail = await finalApiRuntime.reportService.getDetail(reportId, authContextFromRequest(request))
+  } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
+    throw error
+  }
   if (!detail) return fail('REPORT.NOT_FOUND', 'Report not found', 404, { reportId, exportJobId })
 
   const body = serializeReportArtifact(detail, exportJobId, format)
