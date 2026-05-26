@@ -70,7 +70,10 @@ export function ReviewApprovalsPage() {
     const nextPage = await fetchActivityApi<PageDto<ReviewListItemDto>>(`/api/reviews?${params.toString()}`)
     setReviews(nextPage.items)
     setTotal(nextPage.total)
-    setSelectedItem((current) => current ?? nextPage.items[0]?.reviewItemId ?? null)
+    setSelectedItem((current) => {
+      if (current && nextPage.items.some((item) => item.reviewItemId === current)) return current
+      return nextPage.items[0]?.reviewItemId ?? null
+    })
     setLoading(false)
   }
 
