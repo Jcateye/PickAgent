@@ -114,6 +114,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
 }
 
 function workflowAuditSourceHref(audit: { workflowType: string; subjectType?: string; subjectId?: string; output?: Record<string, unknown> }): string | undefined {
+  if (audit.subjectType === 'workspace_setting' || audit.subjectType === 'settings_user') return '/settings'
   if (!audit.subjectId) return undefined
   if (audit.workflowType === 'activity_simulation') {
     const params = new URLSearchParams({ ruleSetId: audit.subjectId })
@@ -142,6 +143,7 @@ function entityHref(entityType: string, entityId: string, runId?: string): strin
   if (entityType === 'review_item') return `/review-approvals?reviewItemId=${encodeURIComponent(entityId)}`
   if (entityType === 'activity') return `/rule-execution?activityId=${encodeURIComponent(entityId)}`
   if (entityType === 'sku_profile') return `/sku-access?skuProfileId=${encodeURIComponent(entityId)}`
+  if (entityType === 'workspace_setting' || entityType === 'settings_user') return '/settings'
   return undefined
 }
 

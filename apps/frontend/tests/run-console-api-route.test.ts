@@ -97,3 +97,30 @@ test('run console links activity simulation audits back to restored rule executi
   assert.equal(auditRun?.type, 'activity_simulation')
   assert.equal(auditRun?.sourceHref, `/rule-execution?ruleSetId=${ruleSet.ruleSetId}&simulationRunId=${run.simulationRunId}`)
 })
+
+test('run console links settings audits back to settings workbench', async () => {
+  const workspace = await finalApiRuntime.workspaceSettingsService.updateWorkspace({ dataFreshnessThresholdHours: 21 }, {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_settings_workspace',
+  })
+  const user = await finalApiRuntime.workspaceSettingsService.updateUserStatus('qa_reviewer', 'ACTIVE', {
+    actorId: authHeaders['x-p0-actor-id'],
+    tenantId: authHeaders['x-p0-tenant-id'],
+    sessionId: authHeaders['x-p0-session-id'],
+    surface: authHeaders['x-p0-surface'],
+    requestId: 'run_console_settings_user',
+  })
+  assert.ok(workspace.workflowRunId)
+  assert.ok(user.workflowRunId)
+
+  const response = await listRuns(new Request('http://localhost/api/run-console?pageSize=100', { headers: authHeaders }))
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  const workspaceRun = envelope.data.items.find((item: { runId: string }) => item.runId === workspace.workflowRunId)
+  const userRun = envelope.data.items.find((item: { runId: string }) => item.runId === user.workflowRunId)
+  assert.equal(workspaceRun?.sourceHref, '/settings')
+  assert.equal(userRun?.sourceHref, '/settings')
+})

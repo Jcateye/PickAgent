@@ -907,7 +907,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'updateWorkspaceSettings') {
       const result = await finalApiRuntime.workspaceSettingsService.updateWorkspace(workspaceSettingsPatchInput(input), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.workspaceId, label: '工作区设置更新', summary: `数据新鲜度阈值 ${result.dataFreshnessThresholdHours} 小时` }], `更新工作区设置：${result.dataFreshnessThresholdHours} 小时`, workflowLinkedEntity(result, { type: 'dashboard', id: 'settings' }))
+      const settingsEntity = { type: 'dashboard', id: 'settings' }
+      const workflowEntity = workflowLinkedEntity(result, settingsEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.workspaceId, label: '工作区设置更新', summary: `数据新鲜度阈值 ${result.dataFreshnessThresholdHours} 小时` }], `更新工作区设置：${result.dataFreshnessThresholdHours} 小时`, workflowEntity, workflowEntity.type === 'workflow_run' ? [settingsEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'getToolPolicy') {
@@ -917,7 +919,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'updateToolPolicy') {
       const result = await finalApiRuntime.workspaceSettingsService.updateToolPolicy(toolPolicyPatchInput(input), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.policyVersion, label: 'Agent 工具策略更新', summary: `允许 ${result.allowedAgentTools.length} 个工具，禁用 ${result.deniedRuntimeTools.length} 个 runtime 工具` }], `更新 Agent 工具策略：${result.policyVersion}`, workflowLinkedEntity(result, { type: 'dashboard', id: 'tool-policy' }))
+      const settingsEntity = { type: 'dashboard', id: 'tool-policy' }
+      const workflowEntity = workflowLinkedEntity(result, settingsEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.policyVersion, label: 'Agent 工具策略更新', summary: `允许 ${result.allowedAgentTools.length} 个工具，禁用 ${result.deniedRuntimeTools.length} 个 runtime 工具` }], `更新 Agent 工具策略：${result.policyVersion}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [settingsEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'listSettingsUsers') {
@@ -929,7 +933,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const userId = String(input.userId ?? '')
       if (!userId) throw new Error('userId is required')
       const result = await finalApiRuntime.workspaceSettingsService.updateUserStatus(userId, settingsUserStatusInput(input.status), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.userId, label: result.name, summary: `${result.teamName} / ${result.role} / ${result.status}` }], `更新审批角色：${result.name} ${result.status}`, workflowLinkedEntity(result, { type: 'dashboard', id: 'settings-users' }))
+      const settingsEntity = { type: 'dashboard', id: 'settings-users' }
+      const workflowEntity = workflowLinkedEntity(result, settingsEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.userId, label: result.name, summary: `${result.teamName} / ${result.role} / ${result.status}` }], `更新审批角色：${result.name} ${result.status}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [settingsEntity, workflowEntity] : undefined)
     }
 
     throw new Error(`Unsupported tool: ${toolName}`)
