@@ -1,4 +1,5 @@
-import { authContextFromRequest, fail, finalAgentRuntime, finalApiRuntime, ok } from '../../../_final-api-runtime'
+import { authContextFromRequest, authFail, fail, finalAgentRuntime, finalApiRuntime, ok } from '../../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 import { buildRunConsolePage, type RunConsoleItemDto } from '../../run-console-data'
 
 interface RouteContext {
@@ -14,15 +15,16 @@ interface RetryRunResultDto {
 
 export async function POST(request: Request, context: RouteContext) {
   const { runId } = await context.params
-  const boundary = authContextFromRequest(request)
   const requestId = request.headers.get('x-request-id') ?? undefined
   try {
+    const boundary = authContextFromRequest(request)
     const page = await buildRunConsolePage(boundary, 200)
     const run = page.items.find((item) => item.runId === runId)
     if (!run) return fail('RUN.NOT_FOUND', `Run not found: ${runId}`, 404, { runId }, requestId)
     if (!isFailed(run.status)) return fail('RUN.NOT_RETRYABLE', `当前 Run 状态为 ${run.status}，不需要重试。`, 409, { runId, status: run.status }, requestId)
     return ok(await retryRun(run, boundary), requestId)
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return authFail(error)
     return fail('RUN.RETRY_FAILED', error instanceof Error ? error.message : 'Retry run failed', 400, { runId }, requestId)
   }
 }

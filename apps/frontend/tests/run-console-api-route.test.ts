@@ -15,6 +15,29 @@ const authHeaders = {
   'x-request-id': 'run_console_request',
 }
 
+test('run console routes return stable auth envelopes when P0 context is missing', async () => {
+  const listResponse = await listRuns(new Request('http://localhost/api/run-console'))
+  const listEnvelope = await listResponse.json()
+  assert.equal(listResponse.status, 401)
+  assert.equal(listEnvelope.code, 'COMMON.VALIDATION_ERROR')
+
+  const exportResponse = await exportRunLogs(
+    new Request('http://localhost/api/run-console/missing_run/export', { method: 'POST' }),
+    { params: Promise.resolve({ runId: 'missing_run' }) },
+  )
+  const exportEnvelope = await exportResponse.json()
+  assert.equal(exportResponse.status, 401)
+  assert.equal(exportEnvelope.code, 'COMMON.VALIDATION_ERROR')
+
+  const retryResponse = await retryRun(
+    new Request('http://localhost/api/run-console/missing_run/retry', { method: 'POST' }),
+    { params: Promise.resolve({ runId: 'missing_run' }) },
+  )
+  const retryEnvelope = await retryResponse.json()
+  assert.equal(retryResponse.status, 401)
+  assert.equal(retryEnvelope.code, 'COMMON.VALIDATION_ERROR')
+})
+
 test('run console lists report generation audits as real workflow runs', async () => {
   await finalReportSnapshotRequest
   const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
