@@ -184,7 +184,18 @@ test('vercel ai sdk agent model adapter exposes system operation tools', async (
     apiKey: 'test-key',
     modelName: 'test-model',
     model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
-    generateText: (async (input: { tools?: Record<string, { execute?: (input: unknown) => Promise<unknown> }> }) => {
+    generateText: (async (input: { tools?: Record<string, { inputSchema?: unknown; execute?: (input: unknown) => Promise<unknown> }> }) => {
+      const connectorPermissionSchema = JSON.stringify(input.tools?.updateConnectorPermissions?.inputSchema ?? {})
+      assert.match(connectorPermissionSchema, /permissions/)
+      assert.match(connectorPermissionSchema, /permissionKeys/)
+      const toolPolicySchema = JSON.stringify(input.tools?.updateToolPolicy?.inputSchema ?? {})
+      assert.match(toolPolicySchema, /allowedAgentTools/)
+      assert.match(toolPolicySchema, /deniedRuntimeTools/)
+      const reviewItemSchema = JSON.stringify(input.tools?.createReviewItems?.inputSchema ?? {})
+      assert.match(reviewItemSchema, /items/)
+      const activitySimulationSchema = JSON.stringify(input.tools?.getActivitySimulationRunDetail?.inputSchema ?? {})
+      assert.match(activitySimulationSchema, /simulationRunId/)
+
       await input.tools?.getHealthSummary?.execute?.({})
       await input.tools?.listRunConsole?.execute?.({ pageSize: 10, type: 'report_generate' })
       await input.tools?.exportRunLogs?.execute?.({ runId: 'run_1' })
