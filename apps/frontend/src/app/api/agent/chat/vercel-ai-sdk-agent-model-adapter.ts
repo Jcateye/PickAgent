@@ -489,7 +489,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('getActivityExecutionPlan', inputJson),
     }),
     getActivitySimulationRunDetail: tool({
-      description: '读取真实活动模拟运行详情。需要 activityId 和 simulationRunId，返回模拟结果、证据、失败规则和关联执行计划。',
+      description: '读取真实模拟运行详情。活动模拟需要 activityId 和 simulationRunId；规则执行页模拟可用 ruleSetId 和 simulationRunId。返回模拟结果、证据和失败规则。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('getActivitySimulationRunDetail', inputJson),
     }),

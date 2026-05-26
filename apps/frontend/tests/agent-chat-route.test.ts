@@ -449,6 +449,31 @@ test('agent chat reads connector run and activity simulation run details', async
   const detail = simulationDetail.result as { simulationRunId: string; results: Array<{ skuProfileId: string }> }
   assert.equal(detail.simulationRunId, simulation.simulationRunId)
   assert.deepEqual(detail.results.map((item) => item.skuProfileId), [skuProfileId])
+
+  const ruleSet = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent 规则执行详情规则',
+    sourceText: '库存不得低于 20 件。',
+    platform: 'tmall',
+    status: 'ENABLED',
+  })
+  assert.equal(ruleSet.status, 'SUCCEEDED')
+  const ruleSetId = (ruleSet.result as { ruleSetId: string }).ruleSetId
+  const ruleSetSimulation = await executeFinalApiTool('simulateActivityReadiness', {
+    ruleSetId,
+    skuProfileIds: [skuProfileId],
+  })
+  assert.equal(ruleSetSimulation.status, 'SUCCEEDED')
+  const ruleSetSimulationRunId = (ruleSetSimulation.result as { simulationRunId: string }).simulationRunId
+
+  const ruleSetSimulationDetail = await executeFinalApiTool('getActivitySimulationRunDetail', {
+    ruleSetId,
+    simulationRunId: ruleSetSimulationRunId,
+  })
+  assert.equal(ruleSetSimulationDetail.status, 'SUCCEEDED')
+  const ruleSetDetail = ruleSetSimulationDetail.result as { simulationRunId: string; activityRuleSetId: string; results: Array<{ skuProfileId: string }> }
+  assert.equal(ruleSetDetail.simulationRunId, ruleSetSimulationRunId)
+  assert.equal(ruleSetDetail.activityRuleSetId, ruleSetId)
+  assert.deepEqual(ruleSetDetail.results.map((item) => item.skuProfileId), [skuProfileId])
 })
 
 test('agent chat exportSkuList tool creates auditable sku csv export', async () => {

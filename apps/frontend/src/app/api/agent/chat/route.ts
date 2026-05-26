@@ -420,8 +420,15 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
 
     if (toolName === 'getActivitySimulationRunDetail') {
       const activityId = String(input.activityId ?? '')
+      const ruleSetId = String(input.ruleSetId ?? input.activityRuleSetId ?? '')
       const simulationRunId = String(input.simulationRunId ?? input.runId ?? '')
-      if (!activityId || !simulationRunId) throw new Error('activityId and simulationRunId are required')
+      if (!simulationRunId || (!activityId && !ruleSetId)) throw new Error('activityId or ruleSetId, and simulationRunId are required')
+      if (ruleSetId && !activityId) {
+        const result = await finalApiRuntime.activityService.simulationRunForRuleSet(ruleSetId, simulationRunId, agentToolAuthContext())
+        if (!result) throw new Error(`Rule set simulation run not found: ${ruleSetId}/${simulationRunId}`)
+        const evidence = result.results.flatMap((item) => item.evidence)
+        return succeeded(result, evidence, `读取规则集模拟详情：${result.results.length} 个 SKU`, { type: 'simulation_run', id: simulationRunId })
+      }
       const result = await finalApiRuntime.activityService.simulationDetail(activityId, simulationRunId, agentToolAuthContext())
       if (!result) throw new Error(`Activity simulation run not found: ${activityId}/${simulationRunId}`)
       const evidence = result.results.flatMap((item) => item.evidence)
