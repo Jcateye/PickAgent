@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, RefreshCw } from 'lucide-react'
+import { Bell, Check, ChevronDown, ChevronRight, Download, FileText, Plus, RefreshCw } from 'lucide-react'
+import type { ReportPreviewDto } from '../../../../contracts/types/businessFoundation'
+import type { DashboardSkuListItemDto } from '../../../../contracts/types/dashboardSkuReadModels'
 import type { ReportComparisonDto, ReportDetailDto, ReportExportJobDto, ReportListItemDto, ReportSubscriptionDto, ReportVersionDto } from '../../../../contracts/types/reviewReportCenter'
 import { WorkbenchContextRegistration } from '@/modules/agent-copilot/workbench-context'
 import type { WorkbenchContext } from '@/modules/agent-copilot/types'
@@ -204,6 +206,31 @@ export function ReportCenterPage() {
     }
   }
 
+  async function generateCurrentHealthReport() {
+    setBusy('generate')
+    setActionLink(null)
+    setSecondaryActionLink(null)
+    try {
+      const skuPage = await fetchActivityApi<PageDto<DashboardSkuListItemDto>>('/api/skus?page=1&pageSize=50&sortBy=updatedAt&sortOrder=desc')
+      const skuProfileIds = skuPage.items.map((item) => item.skuProfileId)
+      if (!skuProfileIds.length) throw new Error('当前没有可用于生成报告的 SKU 数据')
+      const report = await fetchActivityApi<ReportPreviewDto>('/api/reports', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'HEALTH',
+          skuProfileIds,
+        }),
+      })
+      setMessage(`已基于当前 SKU 数据生成健康报告：${report.reportId}`)
+      setActionLink({ href: reportCenterHref(report.reportId, null, 'SUMMARY'), label: '查看新报告' })
+      await loadReports(report.reportId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '生成报告失败')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const reviewStats = detail?.summary.reviewResult
   const categoryRows = detail?.summary.categoryDistribution ?? []
   const riskRows = detail?.summary.majorRisks ?? []
@@ -239,6 +266,7 @@ export function ReportCenterPage() {
         </div>
         <div className={styles.actions}>
           <button className={styles.btnAction} type="button" onClick={() => void loadReports(selectedReportId)}><RefreshCw size={14} /> 刷新</button>
+          <button className={styles.btnAction} type="button" onClick={() => void generateCurrentHealthReport()} disabled={busy === 'generate'}><Plus size={14} /> 生成报告</button>
           <button className={styles.btnAction} type="button" onClick={() => void subscribeReport()} disabled={!detail || busy === 'subscribe'}><Bell size={14} /> 订阅报告</button>
           <button className={`${styles.btnAction} ${styles.btnPrimary}`} type="button" onClick={() => void exportReport()} disabled={!detail || busy === 'export'}><Download size={14} /> 导出报告 <ChevronDown size={14} /></button>
         </div>
