@@ -439,7 +439,7 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       execute: (inputJson) => executeTool('exportSkuList', inputJson),
     }),
     listRuleSets: tool({
-      description: '读取可用活动规则集列表，用于用户只说活动/规则但没有 ruleSetId 的场景。',
+      description: '读取可用活动规则集列表，用于用户只说活动/规则但没有 ruleSetId 的场景。支持 q/query/keyword、status=DRAFT/ENABLED/DISABLED/ALL、page/pageSize。',
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('listRuleSets', inputJson),
     }),

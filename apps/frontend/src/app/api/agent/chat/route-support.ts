@@ -378,7 +378,10 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     }
 
     if (toolName === 'listRuleSets') {
-      const result = await finalApiRuntime.ruleSetService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext())
+      const result = await finalApiRuntime.ruleSetService.list(numberOr(input.page, 1), numberOr(input.pageSize, 10), agentToolAuthContext(), {
+        q: optionalString(input.q ?? input.query ?? input.keyword),
+        status: normalizeRuleSetListStatus(input.status),
+      })
       return succeeded(result, [{ type: 'rule', entityId: 'rule-sets', label: '规则集列表', summary: `读取 ${result.items.length} 个规则集` }], `读取规则集：${result.items.length} 个`, result.items[0] ? { type: 'rule_set', id: result.items[0].ruleSetId } : { type: 'dashboard', id: 'rule-sets' })
     }
 
@@ -1552,6 +1555,11 @@ function normalizeRuleSetStatus(value: unknown): RuleSetStatusDto {
 function optionalRuleSetStatus(value: unknown): RuleSetStatusDto | undefined {
   if (value === 'DRAFT' || value === 'DISABLED' || value === 'ENABLED') return value
   return undefined
+}
+
+function normalizeRuleSetListStatus(value: unknown): RuleSetStatusDto | 'ALL' | undefined {
+  if (value === 'ALL') return 'ALL'
+  return optionalRuleSetStatus(value)
 }
 
 function normalizeReviewDecision(value: unknown): ReviewDecisionRequestDto['decision'] {

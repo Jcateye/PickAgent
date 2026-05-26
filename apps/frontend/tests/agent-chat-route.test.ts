@@ -447,6 +447,40 @@ test('agent chat updateRuleSet tool persists status-only updates', async () => {
   assert.ok(enabled.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === enabledResult.workflowRunId))
 })
 
+test('agent chat listRuleSets tool uses backend query and status filters', async () => {
+  const stamp = Date.now()
+  const enabled = await executeFinalApiTool('createRuleSet', {
+    name: `Agent Chat 筛选启用规则 ${stamp}`,
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'ENABLED',
+  })
+  const draft = await executeFinalApiTool('createRuleSet', {
+    name: `Agent Chat 筛选草稿规则 ${stamp}`,
+    platform: 'tmall',
+    sourceText: '好评率不得低于 95%。',
+    status: 'DRAFT',
+  })
+  assert.equal(enabled.status, 'SUCCEEDED')
+  assert.equal(draft.status, 'SUCCEEDED')
+  const enabledRuleSetId = (enabled.result as { ruleSetId: string }).ruleSetId
+  const draftRuleSetId = (draft.result as { ruleSetId: string }).ruleSetId
+
+  const listed = await executeFinalApiTool('listRuleSets', {
+    query: `Agent Chat 筛选`,
+    status: 'ENABLED',
+    page: 1,
+    pageSize: 10,
+  })
+  assert.equal(listed.status, 'SUCCEEDED')
+  const result = listed.result as { items: Array<{ ruleSetId: string; status: string; name: string }>; total: number }
+  assert.equal(result.total, 1)
+  assert.ok(result.items.some((item) => item.ruleSetId === enabledRuleSetId && item.status === 'ENABLED'))
+  assert.equal(result.items.some((item) => item.ruleSetId === draftRuleSetId), false)
+  assert.equal(listed.linkedEntity?.type, 'rule_set')
+  assert.equal(listed.linkedEntity.id, enabledRuleSetId)
+})
+
 test('agent chat listRuleSetVersions tool reads persisted rule set versions', async () => {
   const created = await executeFinalApiTool('createRuleSet', {
     name: 'Agent Chat 版本历史规则集',
