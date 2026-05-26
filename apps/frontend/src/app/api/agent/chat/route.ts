@@ -402,14 +402,18 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
     if (toolName === 'createActivity') {
       const request = activityCreateInput(input)
       const result = await finalApiRuntime.activityService.create(request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动创建', summary: `${result.name} / ${result.status}` }], `创建活动：${result.name}`, { type: 'activity', id: result.activityId })
+      const activityEntity = { type: 'activity', id: result.activityId }
+      const workflowEntity = activityWorkflowEntity(result, activityEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动创建', summary: `${result.name} / ${result.status}` }], `创建活动：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'updateActivity') {
       const activityId = String(input.activityId ?? '')
       if (!activityId) throw new Error('activityId is required')
       const result = await finalApiRuntime.activityService.update(activityId, activityUpdateInput(input), agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动更新', summary: `${result.name} / ${result.status}` }], `更新活动：${result.name}`, { type: 'activity', id: result.activityId })
+      const activityEntity = { type: 'activity', id: result.activityId }
+      const workflowEntity = activityWorkflowEntity(result, activityEntity)
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.activityId, label: '活动更新', summary: `${result.name} / ${result.status}` }], `更新活动：${result.name}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'getActivityExecutionPlan') {
@@ -441,7 +445,9 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       const activityId = String(input.activityId ?? '')
       if (!activityId) throw new Error('activityId is required')
       const result = await finalApiRuntime.activityService.startRun(activityId, agentToolAuthContext())
-      return succeeded(result, [{ type: 'tool_trace', entityId: result.runId ?? activityId, label: '活动运行', summary: `活动运行已启动：${result.runId ?? '-'}` }], `启动活动运行：${result.runId ?? activityId}`, { type: 'workflow_run', id: result.runId ?? activityId })
+      const activityEntity = { type: 'activity', id: activityId }
+      const workflowEntity = result.runId ? { type: 'workflow_run', id: result.runId } : activityEntity
+      return succeeded(result, [{ type: 'tool_trace', entityId: result.runId ?? activityId, label: '活动运行', summary: `活动运行已启动：${result.runId ?? '-'}` }], `启动活动运行：${result.runId ?? activityId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, workflowEntity] : undefined)
     }
 
     if (toolName === 'getSkuSummary') {
@@ -1380,6 +1386,12 @@ function connectorRunWorkflowEntity(value: unknown, fallback: { type: string; id
   const workflowRunRef = isRecord(value.workflowRunRef) ? value.workflowRunRef : null
   const workflowRunId = typeof workflowRunRef?.entityId === 'string' && workflowRunRef.entityId.trim() ? workflowRunRef.entityId.trim() : ''
   return workflowRunId ? { type: 'workflow_run', id: workflowRunId } : fallback
+}
+
+function activityWorkflowEntity(value: unknown, fallback: { type: string; id: string }): { type: string; id: string } {
+  if (!isRecord(value)) return fallback
+  const latestRunId = typeof value.latestRunId === 'string' && value.latestRunId.trim() ? value.latestRunId.trim() : ''
+  return latestRunId.startsWith('workflow') ? { type: 'workflow_run', id: latestRunId } : fallback
 }
 
 function latestReviewWorkflow(detail: unknown): { workflowRunId?: string } {

@@ -265,6 +265,43 @@ test('agent chat listRuleSetVersions tool reads persisted rule set versions', as
   assert.equal(listed.linkedEntity?.id, ruleSetId)
 })
 
+test('agent chat activity write tools link audited runs and activity object', async () => {
+  const created = await executeFinalApiTool('createActivity', {
+    name: `Agent 活动审计回链 ${Date.now()}`,
+    platform: 'tmall',
+    categoryScope: ['jewelry'],
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  const createdActivity = created.result as { activityId: string; latestRunId?: string }
+  assert.ok(createdActivity.activityId)
+  assert.ok(createdActivity.latestRunId)
+  assert.equal(created.linkedEntity?.type, 'workflow_run')
+  assert.equal(created.linkedEntity.id, createdActivity.latestRunId)
+  assert.ok(created.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
+
+  const updated = await executeFinalApiTool('updateActivity', {
+    activityId: createdActivity.activityId,
+    status: 'RUNNING',
+    productScopeText: 'Agent 更新后的商品范围',
+  })
+  assert.equal(updated.status, 'SUCCEEDED')
+  const updatedActivity = updated.result as { activityId: string; latestRunId?: string; status: string }
+  assert.equal(updatedActivity.status, 'RUNNING')
+  assert.ok(updatedActivity.latestRunId)
+  assert.equal(updated.linkedEntity?.type, 'workflow_run')
+  assert.equal(updated.linkedEntity.id, updatedActivity.latestRunId)
+  assert.ok(updated.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
+
+  const started = await executeFinalApiTool('startActivityRun', { activityId: createdActivity.activityId })
+  assert.equal(started.status, 'SUCCEEDED')
+  const startedPlan = started.result as { activityId: string; runId?: string }
+  assert.equal(startedPlan.activityId, createdActivity.activityId)
+  assert.ok(startedPlan.runId)
+  assert.equal(started.linkedEntity?.type, 'workflow_run')
+  assert.equal(started.linkedEntity.id, startedPlan.runId)
+  assert.ok(started.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === createdActivity.activityId))
+})
+
 test('agent chat settings tools read and update real workspace settings', async () => {
   const read = await executeFinalApiTool('getWorkspaceSettings', {})
   assert.equal(read.status, 'SUCCEEDED')
