@@ -38,6 +38,11 @@ interface ConnectorRunRetryDto {
   workflowRunRef?: { entityId: string }
 }
 
+interface ActivitySimulationRetryDto {
+  simulationRunId: string
+  workflowRunId?: string
+}
+
 type RunConsoleTab = 'timeline' | 'raw' | 'tools'
 
 const runConsoleTabs: Array<{ value: RunConsoleTab; label: string }> = [
@@ -155,12 +160,12 @@ export function RunConsolePage() {
       } else if (selectedRun.type === 'activity_simulation') {
         const skuProfileIds = simulationSkuProfileIds(selectedRun)
         if (!skuProfileIds.length) throw new Error('当前模拟运行没有可复用的 SKU 范围')
-        const run = await fetchActivityApi<{ simulationRunId: string }>(`/api/rule-sets/${selectedRun.sourceId}/simulations`, {
+        const run = await fetchActivityApi<ActivitySimulationRetryDto>(`/api/rule-sets/${selectedRun.sourceId}/simulations`, {
           method: 'POST',
           body: JSON.stringify({ skuProfileIds }),
         })
         setMessage(`已创建规则模拟重试运行：${run.simulationRunId}`)
-        setActionLink({ href: runConsoleHref(run.simulationRunId), label: '查看重试 Run' })
+        setActionLink({ href: runConsoleHref(run.workflowRunId ?? run.simulationRunId), label: '查看重试 Run' })
       } else {
         setMessage(`当前 ${selectedRun.type} 运行暂不支持自动重试。`)
       }

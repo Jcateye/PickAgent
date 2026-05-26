@@ -99,7 +99,7 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
     status: audit.status,
     subject: `${audit.subjectType ?? 'workflow'}:${audit.subjectId ?? '-'}`,
     sourceId: audit.subjectId,
-    sourceHref: audit.subjectType && audit.subjectId ? entityHref(audit.subjectType, audit.subjectId) : undefined,
+    sourceHref: workflowAuditSourceHref(audit),
     startedAt: audit.createdAt,
     completedAt: audit.createdAt,
     summary: `${audit.workflowType} -> ${audit.subjectType ?? 'workflow'}`,
@@ -111,6 +111,18 @@ export async function buildRunConsolePage(boundary: P0AuthContextDto, limit = 50
 
   const sorted = runs.sort((left, right) => Date.parse(right.startedAt ?? right.completedAt ?? '') - Date.parse(left.startedAt ?? left.completedAt ?? ''))
   return { items: sorted.slice(0, limit), total: sorted.length, page: 1, pageSize: limit }
+}
+
+function workflowAuditSourceHref(audit: { workflowType: string; subjectType?: string; subjectId?: string; output?: Record<string, unknown> }): string | undefined {
+  if (!audit.subjectId) return undefined
+  if (audit.workflowType === 'activity_simulation') {
+    const params = new URLSearchParams({ ruleSetId: audit.subjectId })
+    const simulationRunId = typeof audit.output?.simulationRunId === 'string' ? audit.output.simulationRunId : undefined
+    if (simulationRunId) params.set('simulationRunId', simulationRunId)
+    return `/rule-execution?${params.toString()}`
+  }
+  if (audit.workflowType === 'activity_rule_parse') return entityHref('rule_set', audit.subjectId)
+  return audit.subjectType ? entityHref(audit.subjectType, audit.subjectId) : undefined
 }
 
 function entityHref(entityType: string, entityId: string, runId?: string): string | undefined {
