@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { finalApiRuntime } from '../src/app/api/_final-api-runtime'
 import { GET as getSkuDetail, PATCH as updateSkuNextAction } from '../src/app/api/skus/[skuProfileId]/route'
+import { GET as listSkus } from '../src/app/api/skus/route'
 import { GET as downloadSkuExport } from '../src/app/api/skus/export/download/route'
 import { POST as exportSkus } from '../src/app/api/skus/export/route'
 
@@ -128,6 +129,57 @@ test('sku next action route returns workflow run id for audit navigation', async
   const audit = audits.find((item) => item.workflowRunId === envelope.data.workflowRunId)
   assert.equal(audit?.workflowType, 'sku_next_action_update')
   assert.equal(audit?.subjectId, skuProfileId)
+})
+
+test('sku ready action is exposed as candidate list instead of platform signup', async () => {
+  const externalSkuId = `sku_route_candidate_action_${Date.now()}`
+  const ingest = await finalApiRuntime.ingestService.ingest({
+    collectedAt: '2026-05-26T10:45:00.000Z',
+    rows: [
+      {
+        platform: 'tmall',
+        storeId: 'sku_route_store',
+        externalSkuId,
+        productName: '候选清单动作测试',
+        stock: 120,
+        positiveRate: 0.99,
+        certificateStatus: 'valid',
+        raw: { externalSkuId },
+      },
+    ],
+  }, {
+    actorId: 'sku_route_tenant_a',
+    tenantId: 'sku_route_tenant_a',
+    sessionId: 'sku_route_session_a',
+    surface: 'route-test',
+    requestId: 'sku_route_candidate_action_ingest',
+  })
+  const skuProfileId = ingest.summaries[0].skuProfileId
+  const ruleSet = await finalApiRuntime.activityService.parse({
+    name: '候选清单准入规则',
+    platform: 'tmall',
+    sourceText: '库存不少于 20 件，好评率不少于 95%，证书状态必须有效。',
+  }, {
+    actorId: 'sku_route_tenant_a',
+    tenantId: 'sku_route_tenant_a',
+    sessionId: 'sku_route_session_a',
+    surface: 'route-test',
+    requestId: 'sku_route_candidate_action_parse',
+  })
+  await finalApiRuntime.activityService.simulate(ruleSet.ruleSetId, { skuProfileIds: [skuProfileId] }, {
+    actorId: 'sku_route_tenant_a',
+    tenantId: 'sku_route_tenant_a',
+    sessionId: 'sku_route_session_a',
+    surface: 'route-test',
+    requestId: 'sku_route_candidate_action_simulate',
+  })
+
+  const response = await listSkus(new Request(`http://localhost/api/skus?q=${externalSkuId}`, { headers: tenantAHeaders }))
+  const envelope = await response.json()
+  assert.equal(response.status, 200)
+  assert.equal(envelope.code, 'OK')
+  assert.equal(envelope.data.items[0]?.nextAction.type, 'JOIN_ACTIVITY')
+  assert.equal(envelope.data.items[0]?.nextAction.label, '加入候选清单')
 })
 
 test('sku export route returns backend csv and workflow audit', async () => {

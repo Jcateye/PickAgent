@@ -33,7 +33,7 @@ const skuDrawerTabs: Array<{ value: SkuDrawerTab; label: string }> = [
 ]
 
 const nextActionOptions: SkuNextAction[] = [
-  { type: 'JOIN_ACTIVITY', label: '加入活动报名' },
+  { type: 'JOIN_ACTIVITY', label: '加入候选清单' },
   { type: 'REPAIR_ISSUE', label: '修复后再报名' },
   { type: 'MANUAL_REVIEW', label: '提交人工确认' },
   { type: 'VIEW_BLOCKER', label: '查看阻塞原因' },
