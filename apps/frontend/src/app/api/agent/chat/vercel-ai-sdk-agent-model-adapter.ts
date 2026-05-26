@@ -533,6 +533,11 @@ function createPickAgentTools(input: AgentModelAdapterInput, toolExecutions: Age
       inputSchema: objectSchema,
       execute: (inputJson) => executeTool('simulateActivityReadiness', inputJson),
     }),
+    runSimulation: tool({
+      description: 'simulateActivityReadiness 的兼容别名。执行活动准入模拟并写入运行记录。需要 ruleSetId 和 skuProfileIds。',
+      inputSchema: objectSchema,
+      execute: (inputJson) => executeTool('runSimulation', inputJson),
+    }),
     explainDecisionWithEvidence: tool({
       description: '基于健康诊断和模拟结果输出证据解释。需要 skuProfileId，可选 simulationResultId/question。',
       inputSchema: objectSchema,

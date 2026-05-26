@@ -266,6 +266,7 @@ export const defaultAgentToolNames = [
   "checkDataFreshness",
   "diagnoseSkuHealth",
   "simulateActivityReadiness",
+  "runSimulation",
   "explainDecisionWithEvidence",
   "generateReport",
   "generateReportPreview",
@@ -312,7 +313,7 @@ export const defaultAgentToolNames = [
   "updateSettingsUserStatus",
 ] as const;
 
-export type AgentToolName = (typeof defaultAgentToolNames)[number] | "runSimulation";
+export type AgentToolName = (typeof defaultAgentToolNames)[number];
 
 export interface SettingsUserDto {
   userId: string;
