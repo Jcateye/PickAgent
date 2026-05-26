@@ -5,7 +5,9 @@ import { POST as createReport } from '../src/app/api/reports/route'
 import { POST as compareReports } from '../src/app/api/reports/compare/route'
 import { GET as downloadReportExport } from '../src/app/api/reports/[reportId]/download/route'
 import { POST as exportReport } from '../src/app/api/reports/[reportId]/export/route'
+import { GET as getReportDetail } from '../src/app/api/reports/[reportId]/route'
 import { POST as subscribeReport } from '../src/app/api/reports/[reportId]/subscriptions/route'
+import { GET as getReportVersion } from '../src/app/api/reports/[reportId]/versions/[versionId]/route'
 import { GET as listReportVersions } from '../src/app/api/reports/[reportId]/versions/route'
 import { finalApiRuntime, finalReportSnapshotRequest } from '../src/app/api/_final-api-runtime'
 
@@ -235,4 +237,53 @@ test('report export download enforces tenant boundary', async () => {
   const deniedEnvelope = await deniedDownload.json()
   assert.equal(deniedDownload.status, 403)
   assert.equal(deniedEnvelope.code, 'P0.TENANT_BOUNDARY_DENIED')
+})
+
+test('report center routes consistently return tenant boundary denial', async () => {
+  await finalReportSnapshotRequest
+  const skuProfileId = Array.from(finalApiRuntime.store.projections.keys())[0]
+  assert.ok(skuProfileId)
+  const created = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const createdEnvelope = await created.json()
+  assert.equal(created.status, 200)
+  const reportId = createdEnvelope.data.reportId
+  const secondCreated = await createReport(
+    new Request('http://localhost/api/reports', {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ type: 'HEALTH', skuProfileIds: [skuProfileId], simulationResultIds: [] }),
+    }),
+  )
+  const secondEnvelope = await secondCreated.json()
+  assert.equal(secondCreated.status, 200)
+  const targetReportId = secondEnvelope.data.reportId
+  const versions = await listReportVersions(
+    new Request(`http://localhost/api/reports/${reportId}/versions`, { headers: authHeaders }),
+    { params: Promise.resolve({ reportId }) },
+  )
+  const versionsEnvelope = await versions.json()
+  assert.equal(versions.status, 200)
+  const versionId = versionsEnvelope.data.items[0]?.versionId
+  assert.ok(versionId)
+
+  const requests = [
+    getReportDetail(new Request(`http://localhost/api/reports/${reportId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ reportId }) }),
+    exportReport(new Request(`http://localhost/api/reports/${reportId}/export`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ format: 'PDF' }) }), { params: Promise.resolve({ reportId }) }),
+    subscribeReport(new Request(`http://localhost/api/reports/${reportId}/subscriptions`, { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ frequency: 'WEEKLY', recipients: ['ops@example.test'] }) }), { params: Promise.resolve({ reportId }) }),
+    listReportVersions(new Request(`http://localhost/api/reports/${reportId}/versions`, { headers: otherTenantHeaders }), { params: Promise.resolve({ reportId }) }),
+    getReportVersion(new Request(`http://localhost/api/reports/${reportId}/versions/${versionId}`, { headers: otherTenantHeaders }), { params: Promise.resolve({ reportId, versionId }) }),
+    compareReports(new Request('http://localhost/api/reports/compare', { method: 'POST', headers: otherTenantHeaders, body: JSON.stringify({ baseReportId: reportId, targetReportId }) })),
+  ]
+  const responses = await Promise.all(requests)
+  for (const response of responses) {
+    const envelope = await response.json()
+    assert.equal(response.status, 403)
+    assert.equal(envelope.code, 'P0.TENANT_BOUNDARY_DENIED')
+  }
 })

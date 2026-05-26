@@ -1,4 +1,5 @@
 import { authContextFromRequest, fail, finalApiRuntime, ok } from '../../_final-api-runtime'
+import { P0AuthBoundaryError } from '../../../../../../backend/src/application/foundation/P0AuthBoundaryRuntimeConfig'
 
 export async function POST(request: Request) {
   const payload = (await request.json().catch(() => null)) as { baseReportId?: string; targetReportId?: string } | null
@@ -9,6 +10,7 @@ export async function POST(request: Request) {
   try {
     return ok(await finalApiRuntime.reportService.compare(baseReportId, targetReportId, authContextFromRequest(request)))
   } catch (error) {
+    if (error instanceof P0AuthBoundaryError) return fail('P0.TENANT_BOUNDARY_DENIED', error.message, 403, error.audit)
     return fail('REPORT.NOT_FOUND', error instanceof Error ? error.message : 'Report not found', 404, { baseReportId, targetReportId })
   }
 }
