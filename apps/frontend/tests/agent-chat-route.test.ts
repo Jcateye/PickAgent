@@ -660,13 +660,15 @@ test('agent chat parses and binds activity rule sets into execution plans', asyn
     sourceText: '库存不得低于 20 件，好评率不得低于 95%。',
   })
   assert.equal(parsed.status, 'SUCCEEDED')
-  const plan = parsed.result as { activityId: string; ruleSet: { ruleSetId: string; rules: unknown[] } }
+  const plan = parsed.result as { activityId: string; ruleSet: { ruleSetId: string; rules: unknown[]; workflowRunId?: string } }
   assert.equal(plan.activityId, activityId)
   assert.ok(plan.ruleSet.ruleSetId)
-  assert.equal(parsed.linkedEntity?.type, 'activity')
-  assert.equal(parsed.linkedEntity.id, activityId)
+  assert.ok(plan.ruleSet.workflowRunId)
+  assert.equal(parsed.linkedEntity?.type, 'workflow_run')
+  assert.equal(parsed.linkedEntity.id, plan.ruleSet.workflowRunId)
   assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'activity' && entity.id === activityId))
   assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'rule_set' && entity.id === plan.ruleSet.ruleSetId))
+  assert.ok(parsed.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === plan.ruleSet.workflowRunId))
 
   const executionPlan = await executeFinalApiTool('getActivityExecutionPlan', { activityId })
   assert.equal(executionPlan.status, 'SUCCEEDED')

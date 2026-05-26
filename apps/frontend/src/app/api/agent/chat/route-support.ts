@@ -582,7 +582,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       }, agentToolAuthContext())
       const activityEntity = { type: 'activity', id: result.activityId }
       const ruleSetEntity = { type: 'rule_set', id: result.ruleSet.ruleSetId }
-      return succeeded(result, [{ type: 'rule', entityId: result.ruleSet.ruleSetId, label: `活动规则 ${result.ruleSet.version}`, summary: `已绑定活动 ${activityId}，规则 ${result.ruleSet.rules.length} 条` }], `解析并绑定活动规则：${result.ruleSet.ruleSetId}`, activityEntity, [activityEntity, ruleSetEntity])
+      const workflowEntity = workflowLinkedEntity({ workflowRunId: optionalString(result.ruleSet.workflowRunId) }, activityEntity)
+      return succeeded(result, [{ type: 'rule', entityId: result.ruleSet.ruleSetId, label: `活动规则 ${result.ruleSet.version}`, summary: `已绑定活动 ${activityId}，规则 ${result.ruleSet.rules.length} 条` }], `解析并绑定活动规则：${result.ruleSet.ruleSetId}`, workflowEntity, workflowEntity.type === 'workflow_run' ? [activityEntity, ruleSetEntity, workflowEntity] : [activityEntity, ruleSetEntity])
     }
 
     if (toolName === 'simulateActivityReadiness') {

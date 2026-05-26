@@ -102,6 +102,7 @@ export interface ActivityRuleSetSummaryDto {
   parseStatus: ParseStatus;
   confidence: number;
   rules: CanonicalRuleDto[];
+  workflowRunId?: string;
 }
 
 export interface ActivityExecutionPlanDto {

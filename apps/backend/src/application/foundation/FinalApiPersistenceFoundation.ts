@@ -2518,7 +2518,8 @@ export class FinalActivityService {
     if (!activity) throw new Error(`Activity not found: ${activityId}`);
     const ruleSet = await this.parse({ name: input.name ?? `${activity.name} 规则`, platform: activity.platform, sourceText: input.sourceText, rules: input.rules }, boundary);
     const updated = await this.repository.bindRuleSetToActivity(boundary, activityId, ruleSet.ruleSetId);
-    return this.buildExecutionPlan(updated, boundary);
+    const plan = await this.buildExecutionPlan(updated, boundary);
+    return { ...plan, ruleSet: { ...plan.ruleSet, workflowRunId: ruleSet.workflowRunId } };
   }
 
   async executionPlan(activityId: string, boundary: P0AuthContextDto = explicitDevBoundary): Promise<ActivityExecutionPlanDto | null> {
