@@ -1045,6 +1045,37 @@ test('agent chat retryRun tool replays sku export retries through workflow audit
   assert.ok(retry.evidence.some((item) => item.type === 'tool_trace' && item.entityId === result.workflowRunId))
 })
 
+test('agent chat retryRun requires explicit rule set retry status', async () => {
+  const created = await executeFinalApiTool('createRuleSet', {
+    name: 'Agent 规则状态重试校验',
+    platform: 'tmall',
+    sourceText: '库存不得低于 20 件。',
+    status: 'ENABLED',
+  })
+  assert.equal(created.status, 'SUCCEEDED')
+  const ruleSetId = (created.result as { ruleSetId: string }).ruleSetId
+
+  const missingStatus = await executeFinalApiTool('retryRun', {
+    runType: 'rule_set_status_update',
+    sourceId: ruleSetId,
+    runId: 'failed_rule_status_without_target',
+  })
+  assert.equal(missingStatus.status, 'FAILED')
+  assert.match((missingStatus.result as { message?: string }).message ?? '', /status is required/)
+
+  const retry = await executeFinalApiTool('retryRun', {
+    runType: 'rule_set_status_update',
+    sourceId: ruleSetId,
+    runId: 'failed_rule_status_with_target',
+    status: 'DISABLED',
+  })
+  assert.equal(retry.status, 'SUCCEEDED')
+  const result = retry.result as { status: string; workflowRunId?: string }
+  assert.equal(result.status, 'DISABLED')
+  assert.ok(result.workflowRunId)
+  assert.equal(retry.linkedEntity?.type, 'workflow_run')
+})
+
 test('agent chat setSkuNextAction links audited run and sku object', async () => {
   const ingest = await executeFinalApiTool('ingestSkus', {
     rows: [

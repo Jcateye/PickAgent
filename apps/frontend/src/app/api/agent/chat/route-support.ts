@@ -928,7 +928,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
       }
       if (runType === 'rule_set_status_update') {
         if (!sourceId) throw new Error('sourceId/ruleSetId is required for rule_set_status_update retry')
-        const status = normalizeRuleSetStatus(input.status)
+        const status = optionalRuleSetStatus(input.status)
+        if (!status) throw new Error('status is required for rule_set_status_update retry')
         const result = await finalApiRuntime.ruleSetService.setStatus(sourceId, status, agentToolAuthContext())
         const ruleEntity = { type: 'rule_set', id: sourceId }
         const workflowEntity = workflowLinkedEntity(result, ruleEntity)
