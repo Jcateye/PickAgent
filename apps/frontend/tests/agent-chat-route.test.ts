@@ -20,6 +20,7 @@ test('agent chat linked entities route back to the new workbench pages', () => {
   assert.equal(linkedEntityHref('dashboard', 'reviews'), '/review-approvals')
   assert.equal(linkedEntityHref('dashboard', 'rule-sets'), '/rule-library')
   assert.equal(linkedEntityHref('dashboard', 'agent-missions'), '/agent-mission')
+  assert.equal(linkedEntityHref('download_artifact', '/api/skus/export/download?page=1'), '/api/skus/export/download?page=1')
 })
 
 test('agent chat mission tools link back to the mission console', async () => {
@@ -587,7 +588,10 @@ test('agent chat exportSkuList tool creates auditable sku csv export', async () 
   assert.equal(result.rowCount, 1)
   assert.match(result.csv, /skuProfileId,displaySku,productName/)
   assert.ok(result.workflowRunId)
+  assert.match((result as { artifactHref?: string }).artifactHref ?? '', /\/api\/skus\/export\/download\?/)
   assert.equal(execution.linkedEntity?.type, 'workflow_run')
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'download_artifact' && entity.id === (result as { artifactHref?: string }).artifactHref))
+  assert.ok(execution.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === result.workflowRunId))
 })
 
 test('agent chat audited report and review write tools link to run console', async () => {
@@ -612,7 +616,11 @@ test('agent chat audited report and review write tools link to run console', asy
   const exported = await executeFinalApiTool('exportReport', { reportId, format: 'PDF' })
   assert.equal(exported.status, 'SUCCEEDED')
   assert.equal(exported.linkedEntity?.type, 'workflow_run')
-  assert.ok((exported.result as { workflowRunId?: string }).workflowRunId)
+  const exportedResult = exported.result as { workflowRunId?: string; artifactHref?: string }
+  assert.ok(exportedResult.workflowRunId)
+  assert.match(exportedResult.artifactHref ?? '', new RegExp(`/api/reports/${reportId}/download\\\\?`))
+  assert.ok(exported.linkedEntities?.some((entity) => entity.type === 'download_artifact' && entity.id === exportedResult.artifactHref))
+  assert.ok(exported.linkedEntities?.some((entity) => entity.type === 'workflow_run' && entity.id === exportedResult.workflowRunId))
 
   const createdReviews = await executeFinalApiTool('createReviewItems', {
     items: [{

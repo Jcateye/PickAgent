@@ -34,7 +34,7 @@ export interface AgentToolTrace {
 
 export interface AgentLinkedEntity {
   id: string
-  entityType: 'dashboard' | 'sku_profile' | 'activity' | 'activity_rule_set' | 'rule_set' | 'simulation_run' | 'review_item' | 'workflow_run' | 'report' | 'connector' | 'agent_mission'
+  entityType: 'dashboard' | 'sku_profile' | 'activity' | 'activity_rule_set' | 'rule_set' | 'simulation_run' | 'review_item' | 'workflow_run' | 'report' | 'connector' | 'agent_mission' | 'download_artifact'
   entityId: string
   label: string
   reason: string

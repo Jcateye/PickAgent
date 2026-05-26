@@ -197,7 +197,7 @@ export function createPersistentToolExecutor(repository: AgentConversationReposi
     const execution = await executeFinalApiTool(toolName, safeInput)
     const status = execution.status === 'SUCCEEDED' ? 'SUCCEEDED' : 'FAILED'
     const evidenceRefs = execution.evidence.map((item, index) => toConversationEvidence(toolName, item, index))
-    const linkedEntities = execution.linkedEntity ? [toConversationLinkedEntity(toolName, execution.linkedEntity)] : []
+    const linkedEntities = (execution.linkedEntities ?? (execution.linkedEntity ? [execution.linkedEntity] : [])).map((entity) => toConversationLinkedEntity(toolName, entity))
     const summary = summarizeToolOutput(execution.result, execution.trace.map((item) => item.summary).join('；'))
     const toolCall = await repository.createToolCall({
       runId: input.run.id,
@@ -242,6 +242,7 @@ interface FinalApiToolExecution {
   result: unknown
   evidence: EvidenceLinkDto[]
   linkedEntity?: { type: string; id: string }
+  linkedEntities?: Array<{ type: string; id: string }>
   trace: Array<{ summary: string }>
 }
 
@@ -343,7 +344,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         label: 'SKU 导出',
         summary: `导出 ${result.rowCount} 行 SKU，文件 ${result.fileName}`,
       }]
-      return succeeded(result, evidence, `导出 SKU：${result.rowCount} 行`, result.workflowRunId ? { type: 'workflow_run', id: result.workflowRunId } : { type: 'dashboard', id: 'sku-export' })
+      const linkedEntity = result.workflowRunId ? { type: 'workflow_run', id: result.workflowRunId } : { type: 'dashboard', id: 'sku-export' }
+      return succeeded(result, evidence, `导出 SKU：${result.rowCount} 行`, linkedEntity, result.artifactHref ? [{ type: 'download_artifact', id: result.artifactHref }, linkedEntity] : undefined)
     }
 
     if (toolName === 'listRuleSets') {
@@ -868,7 +870,8 @@ export async function executeFinalApiTool(toolName: string, input: Record<string
         idempotencyKey: optionalString(input.idempotencyKey) ?? `agent:${Date.now().toString(36)}`,
       }
       const result = await finalApiRuntime.reportService.export(reportId, request, agentToolAuthContext())
-      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, workflowLinkedEntity(result, { type: 'report', id: reportId }))
+      const linkedEntity = workflowLinkedEntity(result, { type: 'report', id: reportId })
+      return succeeded(result, [{ type: 'report', entityId: reportId, label: '报告导出任务', summary: `导出格式：${result.format}，图表=${result.includeCharts}，明细=${result.includeDetails}` }], `创建报告导出：${result.exportJobId}`, linkedEntity, result.artifactHref ? [{ type: 'download_artifact', id: result.artifactHref }, linkedEntity] : undefined)
     }
 
     if (toolName === 'subscribeReport') {
@@ -1347,8 +1350,8 @@ async function getRequiredSkuDetail(skuProfileId: string): Promise<SkuDetailDto>
   return detail
 }
 
-function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string, linkedEntity?: { type: string; id: string }): FinalApiToolExecution {
-  return { status: 'SUCCEEDED', result, evidence, linkedEntity, trace: [{ summary }] }
+function succeeded(result: unknown, evidence: EvidenceLinkDto[], summary: string, linkedEntity?: { type: string; id: string }, linkedEntities?: Array<{ type: string; id: string }>): FinalApiToolExecution {
+  return { status: 'SUCCEEDED', result, evidence, linkedEntity, linkedEntities, trace: [{ summary }] }
 }
 
 function workflowLinkedEntity(value: unknown, fallback: { type: string; id: string }): { type: string; id: string } {
@@ -1514,7 +1517,7 @@ function normalizeLinkedEntityType(type: string): AgentLinkedEntity['entityType'
   if (type === 'activity_rule_set') return 'rule_set'
   if (type === 'dashboard') return 'dashboard'
   if (type === 'report') return 'report'
-  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run' || type === 'connector' || type === 'agent_mission') return type
+  if (type === 'sku_profile' || type === 'activity' || type === 'rule_set' || type === 'simulation_run' || type === 'review_item' || type === 'workflow_run' || type === 'connector' || type === 'agent_mission' || type === 'download_artifact') return type
   return 'dashboard'
 }
 
@@ -1527,6 +1530,7 @@ function linkedEntityLabel(entityType: string, entityId: string): string {
   if (entityType === 'workflow_run') return 'Run Console'
   if (entityType === 'connector') return '数据源'
   if (entityType === 'agent_mission') return 'Agent Mission'
+  if (entityType === 'download_artifact') return '下载产物'
   if (entityId === 'connectors') return '数据源'
   if (entityId === 'reports') return '报告中心'
   if (entityId === 'reviews') return 'Review 工作台'
@@ -1549,6 +1553,7 @@ export function linkedEntityHref(entityType: string, entityId: string): string {
   if (entityType === 'workflow_run') return `/run-console?${new URLSearchParams({ runId: entityId }).toString()}`
   if (entityType === 'connector') return `/data-sources?${new URLSearchParams({ connectorId: entityId }).toString()}`
   if (entityType === 'agent_mission') return `/agent-mission?${new URLSearchParams({ missionId: entityId }).toString()}`
+  if (entityType === 'download_artifact') return entityId.startsWith('/api/') ? entityId : '/overview'
   if (entityId === 'connectors' || entityId === 'browser-scan-ingest') return '/data-sources'
   if (entityId === 'reports') return '/report-center'
   if (entityId === 'reviews') return '/review-approvals'
