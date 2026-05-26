@@ -467,11 +467,19 @@ function ReportRepairsTab({ repairRows }: { repairRows: ReportDetailDto['summary
       <div className={styles.dataTable}>
         <div className={`${styles.dataRow} ${styles.head}`}><span>优先级</span><span>建议</span><span>影响 SKU</span><span>预期修复率</span><span>入口</span></div>
         {repairRows.length ? repairRows.map((row) => (
-          <div className={styles.dataRow} key={row.suggestion}><span style={{ color: '#e11d48' }}>{row.priority}</span><span>{row.suggestion}</span><span>{row.affectedSku}</span><span>{row.estimatedLift}</span><a href="/sku-access" style={{ color: 'var(--primary)' }}>查看 SKU</a></div>
+          <div className={styles.dataRow} key={row.suggestion}><span style={{ color: '#e11d48' }}>{row.priority}</span><span>{row.suggestion}</span><span>{row.affectedSku}</span><span>{row.estimatedLift}</span><a href={repairSuggestionSkuHref(row.priority)} style={{ color: 'var(--primary)' }}>查看 SKU</a></div>
         )) : <EmptyTableRow text="当前报告没有待修复建议。" />}
       </div>
     </section>
   )
+}
+
+function repairSuggestionSkuHref(priority: ReportDetailDto['summary']['repairSuggestions'][number]['priority']): string {
+  const params = new URLSearchParams({
+    healthStatus: priority === 'P0' ? 'BLOCKED' : 'REPAIRABLE',
+    drawerTab: 'evidence',
+  })
+  return `/sku-access?${params.toString()}`
 }
 
 function RiskTable({ riskRows }: { riskRows: ReportDetailDto['summary']['majorRisks'] }) {

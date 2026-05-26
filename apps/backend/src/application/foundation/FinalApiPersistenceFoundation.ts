@@ -424,6 +424,7 @@ export class SkuQueryRepository {
     const latestDiagnosis = Array.from(this.store.diagnoses.values()).filter((item) => item.skuProfileId === skuProfileId).at(-1) ?? null;
     return {
       ...summary,
+      nextActions: latestDiagnosis?.nextActions.slice(0, 3) ?? summary.nextActions,
       latestSnapshot,
       latestDiagnosis,
       evidence: [
@@ -3661,13 +3662,25 @@ function buildMajorRisks(details: SkuDetailDto[], simulations: SimulationResultD
 }
 
 function buildRepairSuggestions(details: SkuDetailDto[], simulations: SimulationResultDto[]): ReportDetailDto["summary"]["repairSuggestions"] {
-  const suggestions = [...details.flatMap((item) => item.nextActions), ...simulations.flatMap((item) => item.repairSuggestions)];
+  const suggestions = [
+    ...details.flatMap((item) => item.nextActions),
+    ...details.filter((item) => item.healthStatus !== "READY").flatMap((item) => item.topIssues.map(issueRepairSuggestion)),
+    ...simulations.flatMap((item) => item.repairSuggestions),
+  ];
   return Array.from(new Set(suggestions)).slice(0, 5).map((suggestion, index) => ({
     priority: index === 0 ? "P0" : index === 1 ? "P1" : "P2",
     suggestion,
     affectedSku: suggestions.filter((item) => item === suggestion).length,
     estimatedLift: "需重跑模拟确认",
   }));
+}
+
+function issueRepairSuggestion(issue: string): string {
+  if (issue.includes("库存")) return "补充可售库存并重新生成准入结论";
+  if (issue.includes("好评率")) return "复核差评原因并补充客服处理记录";
+  if (issue.includes("证书") || issue.includes("资质")) return "补全或更新资质证书资料";
+  if (issue.includes("互斥") || issue.includes("品牌日")) return "确认活动互斥报名记录并排除冲突 SKU";
+  return `处理风险项：${issue}`;
 }
 
 function asArray(value: unknown): unknown[] {
