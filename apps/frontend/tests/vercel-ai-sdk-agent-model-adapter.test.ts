@@ -306,6 +306,53 @@ test('vercel ai sdk agent model adapter prefetches selected agent mission detail
   assert.deepEqual(executedTools.find((item) => item.toolName === 'getAgentMission')?.inputJson, { missionId: 'mission_1' })
 })
 
+test('vercel ai sdk agent model adapter prefetches selected agent mission run detail', async () => {
+  const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
+  const adapter = new VercelAiSdkAgentModelAdapter({
+    apiKey: 'test-key',
+    modelName: 'test-model',
+    model: { specificationVersion: 'v2', provider: 'test', modelId: 'test-model' } as never,
+    generateText: (async (input: { messages?: Array<{ content?: string }> }) => {
+      assert.match(input.messages?.at(-1)?.content ?? '', /getAgentMission/)
+      assert.match(input.messages?.at(-1)?.content ?? '', /getAgentRunDetail/)
+      assert.match(input.messages?.at(-1)?.content ?? '', /run_42/)
+      return {
+        text: '已基于当前 Mission Run 详情回答',
+        usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        totalUsage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
+        finishReason: 'stop',
+        response: { id: 'response_agent_mission_run_prefetch' },
+        providerMetadata: {},
+      }
+    }) as never,
+  })
+
+  const result = await adapter.complete({
+    session: { id: 'session_1', sessionKey: 's', userId: null, surface: 'agent-copilot', piSessionKey: null, piSessionRef: null, title: null, status: 'ACTIVE', configJson: {}, lastActiveAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '检查任务运行', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: 'activity_rule_set', subjectId: 'tmall-618', constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+    messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '当前工具调用和 Review Gate 怎么样', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
+    context: { route: '/agent-mission', selectedEntity: { entityType: 'agentMission', entityId: 'mission_1', label: '任务 1' }, visibleFilters: { runId: 'run_42' } },
+    executeTool: async (input) => {
+      executedTools.push({ toolName: input.toolName, inputJson: input.inputJson })
+      return {
+        toolCall: { id: `tool_${executedTools.length}`, runId: input.run.id, externalToolCallId: null, workflowStepId: null, toolName: input.toolName, status: 'SUCCEEDED', riskLevel: 'L1', reviewPolicy: 'AUTO_ALLOW', inputJson: input.inputJson, outputJson: {}, evidenceRefsJson: {}, errorMessage: null, blockedReason: null, startedAt: '2026-05-24T00:00:00.000Z', completedAt: '2026-05-24T00:00:00.000Z', createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
+        status: 'SUCCEEDED',
+        summary: input.toolName === 'getAgentRunDetail' ? '读取 Agent Run：run_42' : '读取 Agent Mission：mission_1',
+        data: input.inputJson,
+        evidenceRefs: [],
+        linkedEntities: [],
+        reviewGate: null,
+      }
+    },
+  })
+
+  assert.equal(result.content, '已基于当前 Mission Run 详情回答')
+  assert.deepEqual(executedTools.map((item) => item.toolName), ['getDashboardContext', 'getAgentMission', 'getAgentRunDetail'])
+  assert.deepEqual(executedTools.find((item) => item.toolName === 'getAgentMission')?.inputJson, { missionId: 'mission_1' })
+  assert.deepEqual(executedTools.find((item) => item.toolName === 'getAgentRunDetail')?.inputJson, { runId: 'run_42' })
+})
+
 test('vercel ai sdk agent model adapter exposes activity rule parsing as an executable tool', async () => {
   const executedTools: Array<{ toolName: string; inputJson: Record<string, unknown> }> = []
   const adapter = new VercelAiSdkAgentModelAdapter({

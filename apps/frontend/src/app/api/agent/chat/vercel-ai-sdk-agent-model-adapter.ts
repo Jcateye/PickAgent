@@ -251,7 +251,13 @@ function selectedEntityPrefetchRequests(input: AgentModelAdapterInput): Array<{ 
     ]
   }
   if (entityType === 'activity') return [{ toolName: 'getActivityExecutionPlan', inputJson: { activityId: entityId } }]
-  if (entityType === 'agentMission' || entityType === 'agent_mission') return [{ toolName: 'getAgentMission', inputJson: { missionId: entityId } }]
+  if (entityType === 'agentMission' || entityType === 'agent_mission') {
+    const runId = typeof visibleFilters.runId === 'string' ? visibleFilters.runId : ''
+    return [
+      { toolName: 'getAgentMission', inputJson: { missionId: entityId } },
+      ...(runId ? [{ toolName: 'getAgentRunDetail', inputJson: { runId } }] : []),
+    ]
+  }
   if (entityType === 'simulationRun' || entityType === 'simulation_run') {
     const ruleSetId = typeof visibleFilters.ruleSetId === 'string' ? visibleFilters.ruleSetId : ''
     const activityId = typeof visibleFilters.activityId === 'string' ? visibleFilters.activityId : ''
