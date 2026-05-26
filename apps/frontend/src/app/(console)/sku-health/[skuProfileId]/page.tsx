@@ -1,4 +1,4 @@
-import { SkuHealthPage } from '@/modules/sku/sku-health-page'
+import { redirect } from 'next/navigation'
 
 export default async function SkuHealthDetailRoute({
   params,
@@ -7,5 +7,5 @@ export default async function SkuHealthDetailRoute({
 }) {
   const { skuProfileId } = await params
 
-  return <SkuHealthPage skuProfileId={skuProfileId} />
+  redirect(`/sku-access?skuProfileId=${encodeURIComponent(skuProfileId)}&drawerTab=evidence`)
 }

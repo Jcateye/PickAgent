@@ -27,7 +27,7 @@ test('vercel ai sdk agent model adapter delegates assistant reply to generateTex
     mission: { id: 'mission_1', sessionId: 'session_1', missionType: 'goal_driven', objective: '分析 SKU', autonomyLevel: 'review_required', status: 'ACTIVE', sourceSurface: 'agent-copilot', subjectType: 'sku', subjectId: 'sku_1', constraintsJson: {}, workbenchContextJson: {}, planJson: {}, nextActionsJson: {}, createdBy: null, completedAt: null, canceledAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
     run: { id: 'run_1', missionId: 'mission_1', sessionId: 'session_1', piRunId: null, workflowRunId: null, status: 'RUNNING', modelProvider: 'vercel-ai-sdk', modelName: 'test-model', inputJson: {}, outputJson: {}, errorMessage: null, timeoutMs: null, cancelRequested: false, usageJson: {}, metadataJson: {}, startedAt: '2026-05-24T00:00:00.000Z', completedAt: null, createdAt: '2026-05-24T00:00:00.000Z', updatedAt: '2026-05-24T00:00:00.000Z' },
     messages: [{ id: 'message_1', sessionId: 'session_1', runId: 'run_1', role: 'user', orderIndex: 1, contentText: '帮我分析这个 SKU', contentJson: {}, status: 'completed', parentId: null, createdAt: '2026-05-24T00:00:00.000Z' }],
-    context: { route: '/sku-health', selectedEntity: { entityType: 'sku', entityId: 'sku_1', label: '测试 SKU' } },
+    context: { route: '/sku-access', selectedEntity: { entityType: 'sku', entityId: 'sku_1', label: '测试 SKU' } },
   })
 
   assert.equal(result.content, 'AI SDK 生成的真实回复')

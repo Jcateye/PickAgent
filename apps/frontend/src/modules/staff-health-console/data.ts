@@ -306,7 +306,7 @@ function toProjection(summary: BackendSkuSummary): CurrentSkuProjectionDto {
     issueSummary: summary.topIssues.length > 0 ? summary.topIssues.join('；') : '服务端 DTO 未返回问题摘要。',
     nextAction: summary.nextActions.length > 0 ? summary.nextActions.join('；') : '服务端 DTO 未返回下一步动作。',
     updatedAtLabel: '来自 GET /api/skus',
-    targetHref: `/sku-health/${summary.skuProfileId}`,
+    targetHref: `/sku-access?skuProfileId=${encodeURIComponent(summary.skuProfileId)}&drawerTab=evidence`,
   }
 }
 

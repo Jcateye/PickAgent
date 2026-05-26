@@ -249,8 +249,8 @@ test('agent chat route fails closed instead of returning template replies when r
           sessionKey: 'agent-chat-test-session',
           message: '请分析当前 SKU 的健康风险，并解释原因',
           context: {
-            route: '/sku-health',
-            pageTitle: 'SKU Health',
+            route: '/sku-access',
+            pageTitle: 'SKU Access',
             selectedEntity: {
               entityType: 'sku',
               entityId: 'sku_0001',

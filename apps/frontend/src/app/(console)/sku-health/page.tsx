@@ -1,5 +1,5 @@
-import { SkuHealthPage } from '@/modules/sku/sku-health-page'
+import { redirect } from 'next/navigation'
 
 export default async function SkuHealthRoute() {
-  return <SkuHealthPage />
+  redirect('/sku-access')
 }
